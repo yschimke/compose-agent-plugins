@@ -5,7 +5,7 @@
   "description": "Iterate on local Compose previews with live rendering and accessibility checks.",
   "extensions": {
     "com.openai": {
-      "onboardingSkill": "./skills/compose-preview-setup/SKILL.md"
+      "onboardingSkill": "./.codex-plugin/skills/compose-preview-setup/SKILL.md"
     }
   },
   "hooks": "./hooks/codex-hooks.json",
@@ -42,6 +42,6 @@
   },
   "name": "compose-preview",
   "repository": "https://github.com/yschimke/compose-agent-plugins",
-  "skills": "./skills/",
+  "skills": "./.codex-plugin/skills/",
   "version": "0.5.0"
 }

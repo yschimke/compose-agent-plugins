@@ -89,7 +89,7 @@
       }
     },
     "skills": {
-      "const": "./skills/"
+      "pattern": "^\\./[a-z0-9./-]+/$"
     },
     "mcpServers": {
       "type": "object",
@@ -111,7 +111,7 @@
           "properties": {
             "onboardingSkill": {
               "type": "string",
-              "pattern": "^\\./skills/[a-z0-9][a-z0-9-]*/SKILL\\.md$"
+              "pattern": "^\\./[a-z0-9./-]+/SKILL\\.md$"
             }
           },
           "additionalProperties": false

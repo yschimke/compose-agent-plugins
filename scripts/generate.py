@@ -71,6 +71,7 @@ def render_codex_manifest(
     description: str,
     keywords: list[str],
     skills: list[str],
+    skills_path: str = "./skills/",
     mcp: list[object],
     apps: dict[str, object],
     interface: object,
@@ -120,7 +121,7 @@ def render_codex_manifest(
         "version": version,
     }
     if skills:
-        manifest["skills"] = "./skills/"
+        manifest["skills"] = skills_path
     if mcp:
         manifest["mcpServers"] = render_mcp_servers(name, mcp, "codex")
     if apps:
@@ -129,12 +130,12 @@ def render_codex_manifest(
         manifest["hooks"] = f"./{HOOK_MANIFESTS['codex']}"
     if onboarding_skill is not None:
         manifest["extensions"] = {
-            "com.openai": {"onboardingSkill": onboarding_skill_path(name, onboarding_skill, skills)}
+            "com.openai": {"onboardingSkill": onboarding_skill_path(name, onboarding_skill, skills, skills_path)}
         }
     return manifest
 
 
-def onboarding_skill_path(plugin_name: str, skill: object, skills: list[str]) -> str:
+def onboarding_skill_path(plugin_name: str, skill: object, skills: list[str], skills_path: str = "./skills/") -> str:
     """The OpenAI plugin-onboarding skill: run by ChatGPT/Codex right after install.
 
     It must be one of the plugin's own packaged skills; other harnesses ignore the key.
@@ -142,7 +143,7 @@ def onboarding_skill_path(plugin_name: str, skill: object, skills: list[str]) ->
     name = require_string(skill, f"{plugin_name}.onboardingSkill")
     if name not in skills:
         raise ValueError(f"{plugin_name}.onboardingSkill {name!r} must be one of the plugin's skills")
-    return f"./skills/{name}/SKILL.md"
+    return f"{skills_path}{name}/SKILL.md"
 
 
 def validate_apps(
@@ -193,6 +194,33 @@ def validate_apps(
                 f"{', '.join(sorted(unmatched))}"
             )
     return rendered
+
+
+def codex_skill_config(plugin: dict[str, object]) -> tuple[list[str], str]:
+    skills = plugin.get("skills", [])
+    selected = plugin.get("codexSkills", skills)
+    if (not isinstance(selected, list) or not all(isinstance(s, str) for s in selected)
+            or len(set(selected)) != len(selected) or any(s not in skills for s in selected)):
+        raise ValueError(f"{plugin['name']}.codexSkills must be a unique subset of skills")
+    return selected, "./.codex-plugin/skills/" if "codexSkills" in plugin else "./skills/"
+
+
+def write_codex_skills(plugin_root: Path, plugin: dict[str, object]) -> None:
+    # This directory is wholly generated. Keep removed skills out of Codex discovery.
+    import shutil
+    target = plugin_root / ".codex-plugin" / "skills"
+    if target.exists():
+        shutil.rmtree(target)
+    if "codexSkills" not in plugin:
+        return
+    selected, _ = codex_skill_config(plugin)
+    for skill in selected:
+        source = SKILL_SOURCE_ROOT / skill / "SKILL.md"
+        if not source.is_file():
+            raise ValueError(f"missing shared skill source: {source}")
+        output = target / skill / "SKILL.md"
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
 
 
 def write_skill(plugin_root: Path, skill: str) -> None:
@@ -837,6 +865,8 @@ def main() -> None:
         write_readme(root, name)
         for skill in skills:
             write_skill(root, skill)
+        codex_skills, codex_skills_path = codex_skill_config(plugin)
+        write_codex_skills(root, plugin)
         synchronize_generated_agents(root, agents)
         for agent in agents:
             write_agent(root, agent)
@@ -887,7 +917,8 @@ def main() -> None:
                 version=version,
                 description=description,
                 keywords=keywords,
-                skills=skills,
+                skills=codex_skills,
+                skills_path=codex_skills_path,
                 mcp=mcp,
                 apps=apps,
                 interface=interface,

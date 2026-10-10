@@ -17,6 +17,27 @@ git -C "$fixture" commit --quiet -m 'test fixture'
 touch "$fixture/unrelated-user-note.txt"
 "$fixture/scripts/check-plugins.sh"
 
+# A removed Codex skill must be committed as a generated deletion too.
+python3 - "$fixture/src/plugins.json" <<'PYTEST'
+import json
+import sys
+from pathlib import Path
+p = Path(sys.argv[1])
+data = json.loads(p.read_text())
+plugin = next(p for p in data["plugins"] if p["name"] == "compose-preview")
+plugin["codexSkills"].remove("harness-notes")
+p.write_text(json.dumps(data, indent=2) + "\n")
+PYTEST
+python3 "$fixture/scripts/generate.py"
+git -C "$fixture" add src/plugins.json plugins/compose-preview/.codex-plugin/plugin.json
+git -C "$fixture" commit --quiet -m 'omit generated skill deletion'
+if python3 "$fixture/scripts/check_generated.py" >"$temporary_root/codex-drift.out" 2>"$temporary_root/codex-drift.err"; then
+  printf '%s\n' 'FAIL: omitted Codex skill deletion must fail drift check' >&2
+  exit 1
+fi
+grep -q 'missing generated files:.*.codex-plugin/skills/harness-notes/SKILL.md' "$temporary_root/codex-drift.err"
+git -C "$fixture" reset --hard --quiet HEAD^
+
 python3 -c '
 import json
 import sys

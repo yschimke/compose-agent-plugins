@@ -136,6 +136,10 @@
           "command": "scripts/stop-gate.sh",
           "timeout": 360
         }
+      ],
+      "codexSkills": [
+        "harness-notes",
+        "compose-preview-setup"
       ]
     }
   ],

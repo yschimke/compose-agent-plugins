@@ -12,7 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from generate import render_codex_manifest  # noqa: E402
+from generate import codex_skill_config, render_codex_manifest  # noqa: E402
 
 
 def manifest(**overrides: object) -> dict[str, object]:
@@ -50,6 +50,25 @@ class OnboardingSkillTest(unittest.TestCase):
             {"com.openai": {"onboardingSkill": "./skills/compose-preview-setup/SKILL.md"}},
             manifest(onboarding_skill="compose-preview-setup")["extensions"],
         )
+
+    def test_subset_onboarding_uses_the_codex_skill_directory(self) -> None:
+        actual = manifest(skills_path="./.codex-plugin/skills/",
+                          onboarding_skill="compose-preview-setup")
+        self.assertEqual("./.codex-plugin/skills/", actual["skills"])
+        self.assertEqual("./.codex-plugin/skills/compose-preview-setup/SKILL.md",
+                         actual["extensions"]["com.openai"]["onboardingSkill"])
+
+    def test_codex_subset_rejects_unknown_and_duplicate_skills(self) -> None:
+        for selected in (["unknown"], ["harness-notes", "harness-notes"], "harness-notes"):
+            with self.subTest(selected=selected), self.assertRaisesRegex(ValueError, "unique subset"):
+                codex_skill_config({"name": "example", "skills": ["harness-notes"],
+                                    "codexSkills": selected})
+
+    def test_codex_excludes_antigravity_card_but_other_hosts_keep_it(self) -> None:
+        root = ROOT / "plugins" / "compose-preview"
+        codex = json.loads((root / ".codex-plugin" / "plugin.json").read_text())
+        self.assertFalse((root / codex["skills"] / "antigravity-viewer-card").exists())
+        self.assertTrue((root / "skills" / "antigravity-viewer-card" / "SKILL.md").is_file())
 
     def test_rejects_a_skill_the_plugin_does_not_package(self) -> None:
         with self.assertRaisesRegex(ValueError, "must be one of the plugin's skills"):

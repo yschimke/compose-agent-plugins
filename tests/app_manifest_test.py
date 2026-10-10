@@ -95,7 +95,8 @@ class AppManifestTest(unittest.TestCase):
             generated["apps"]["compose-preview-catalog"]["id"],
         )
         self.assertIs(generated["apps"]["compose-preview-catalog"]["required"], True)
-        self.assertEqual("0.4.0", plugin["version"])
+        manifest = json.loads((ROOT / "plugins" / plugin["name"] / ".codex-plugin/plugin.json").read_text())
+        self.assertEqual(plugin["version"], manifest["version"])
 
 
 if __name__ == "__main__":

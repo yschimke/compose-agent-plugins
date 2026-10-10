@@ -71,7 +71,9 @@ catalog from the hosted listing; do not clone it, register a local project,
 start Gradle or provision a cloud environment just because its checkout is
 absent. Request source only when the review needs unavailable source evidence
 or the task explicitly includes code changes. If Codex/ChatGPT or another host
-shows an expired app connection, stop and use its reconnect action. If the
+shows an expired app connection, stop retrying that connection and explain the
+reconnect action. If the person declines it, continue independent local/source
+work without invoking tools that repeat the authorization prompt. If the
 browser reports an unknown `client_id`, disconnect/remove and add Compose
 Preview again to force fresh registration; retrying the old link cannot work.
 Use `request_access` only for a reachable server's `authorization_required`
@@ -88,10 +90,22 @@ need a render later but doesn't start with one (you are reading or editing Compo
 project in the background while you work. Skip it when the first request is itself a render, because
 `render_preview` does the same preparation and the extra call only adds a turn.
 
-When a `.uid` design is open in the editor panel (ChatGPT/Codex desktop `design_open`, focused canvas by
-default), the panel is for pointing at nodes, comments and one-property quick edits. Show device previews in
-the chat instead: after a design change, render them (`render_matrix`, or the design's devices) and reply
-with the images, rather than asking the person to switch the panel to the full editor.
+**Checked-in designs in Codex.** Use the canonical UI Builder skill's
+[local design-to-code workflow](https://github.com/yschimke/skills/blob/main/skills/compose-ui-builder/references/local-design-to-code.md).
+`design_open` is a host file entrypoint: the host supplies
+`file: {name, resourceUri}` and the `openai/resource` capability. Do not invent
+`design_open(path=...)`, a resource URI, or a hosted design ID for a local file.
+If this Codex surface cannot open the editor, keep working on the canonical
+file with validation and real renders, and report that editor collaboration
+was unavailable. Opening a local file does not require hosted OAuth.
+
+In an available editor panel, use stable selected node IDs and comment context;
+the panel is for selection, comments and quick property edits. Present actual
+device renders and reference comparisons in chat. Preserve concurrent user
+edits; reconcile a file revision/ETag conflict before saving. Continue through
+requested design edits, code adaptation and application preview verification;
+a model review record is not a person's approval. Never claim real Codex
+acceptance from a simulated MCP host test.
 
 In a chat surface (Claude in Slack, Teams), the person sees only text and attachments. Each render from
 the hosted catalog carries a signed https PNG (an `Image: <url>` line, `imageUrl`, `contactSheet.url`)

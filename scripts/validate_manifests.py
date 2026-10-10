@@ -22,6 +22,7 @@ from generate import (
     render_antigravity_hooks,
     render_claude_manifest,
     render_codex_manifest,
+    codex_skill_config,
     render_cursor_manifest,
     render_external_marketplace_entries,
     render_gemini_extension,
@@ -442,12 +443,14 @@ def main() -> None:
             raise ValueError(f"{root}/.claude-plugin/plugin.json does not match the Claude contract")
         if cursor != render_cursor_manifest(**manifest_inputs):
             raise ValueError(f"{root}/.cursor-plugin/plugin.json does not match the Cursor contract")
+        codex_skills, codex_path = codex_skill_config(plugin)
         expected_codex = render_codex_manifest(
             name=name,
             version=plugin["version"],
             description=plugin["description"],
             keywords=plugin.get("keywords", []),
-            skills=plugin.get("skills", []),
+            skills=codex_skills,
+            skills_path=codex_path,
             mcp=plugin.get("mcp", []),
             apps=validate_apps(name, plugin.get("apps", {}), plugin.get("mcp", [])),
             interface=plugin.get("interface"),
@@ -457,6 +460,13 @@ def main() -> None:
             repository=source["repository"],
             license_name=source["license"],
         )
+        expected_codex_files = {root / codex_path / skill / "SKILL.md" for skill in codex_skills}
+        actual_codex_files = set((root / codex_path).glob("*/SKILL.md"))
+        if expected_codex_files != actual_codex_files:
+            raise ValueError(f"{name}: Codex skills do not match the selected set")
+        for path in expected_codex_files:
+            if path.read_text() != (SKILL_SOURCE_ROOT / path.parent.name / "SKILL.md").read_text():
+                raise ValueError(f"{path}: stale Codex skill copy")
         if codex != expected_codex:
             raise ValueError(f"{root}/.codex-plugin/plugin.json does not match the Codex contract")
         apps = validate_apps(name, plugin.get("apps", {}), plugin.get("mcp", []))

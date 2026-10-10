@@ -16,6 +16,7 @@ from generate import (
     ROOT,
     SOURCE,
     hook_script,
+    codex_skill_config,
     render_antigravity_hooks,
 )
 
@@ -57,6 +58,8 @@ def generated_paths(source: object) -> tuple[list[Path], set[str]]:
         if not isinstance(skills, list) or not all(isinstance(skill, str) for skill in skills):
             raise ValueError(f"{name}.skills must be a list of strings")
         paths.extend(plugin_root / "skills" / skill / "SKILL.md" for skill in skills)
+        codex_skills, codex_path = codex_skill_config(plugin)
+        paths.extend(plugin_root / codex_path / skill / "SKILL.md" for skill in codex_skills)
         agents = plugin.get("agents", [])
         if not isinstance(agents, list) or not all(isinstance(agent, str) for agent in agents):
             raise ValueError(f"{name}.agents must be a list of strings")
@@ -149,12 +152,23 @@ def previous_app_paths(source: object) -> list[Path]:
     return paths
 
 
+def previous_codex_skill_paths() -> list[Path]:
+    """Include generated deletions even when a skill is no longer selected."""
+    tracked = git("ls-tree", "-r", "--name-only", "HEAD", "--", "plugins")
+    if tracked.returncode:
+        raise ValueError(f"could not inspect tracked Codex skills: {tracked.stderr.strip()}")
+    return [ROOT / path for path in tracked.stdout.splitlines()
+            if len(Path(path).parts) >= 5
+            and Path(path).parts[2:4] == (".codex-plugin", "skills")]
+
+
 def main() -> None:
     source = json.loads(SOURCE.read_text(encoding="utf-8"))
     paths, plugin_names = generated_paths(source)
     paths.extend(previous_hook_paths(source))
     paths.extend(previous_asset_paths(source))
     paths.extend(previous_app_paths(source))
+    paths.extend(previous_codex_skill_paths())
     paths = list(dict.fromkeys(paths))
     errors = []
 

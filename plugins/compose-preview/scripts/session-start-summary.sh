@@ -151,6 +151,25 @@ status_summary() {
 
 workspace_root=${CLAUDE_PROJECT_DIR:-$PWD}
 
+# The CLI installer (yschimke/skills scripts/install.sh) puts the launcher in ~/.local/bin, which a
+# fresh sandbox shell may not have on PATH yet: the installer adds it to the shell startup files,
+# which only a later shell reads. Putting it on the harness's PATH is this plugin's job, not the
+# installer's. Claude Code sources $CLAUDE_ENV_FILE before every Bash call, so add one quoted line
+# there, once. Nothing is written when the CLI is already reachable or not installed.
+local_bin="$HOME/.local/bin"
+if ! command -v compose-preview >/dev/null 2>&1 && [ -x "$local_bin/compose-preview" ]; then
+  PATH="$local_bin:$PATH"
+  export PATH
+  if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
+    # Single quotes on purpose: the line is written literally and expands when sourced.
+    # shellcheck disable=SC2016
+    path_line='PATH="$HOME/.local/bin:$PATH"'
+    if ! grep -qxF "$path_line" "$CLAUDE_ENV_FILE" 2>/dev/null; then
+      printf '%s\n' "$path_line" >>"$CLAUDE_ENV_FILE" 2>/dev/null || true
+    fi
+  fi
+fi
+
 if ! command -v compose-preview >/dev/null 2>&1; then
   emit_context "Compose Preview needs setup: compose-preview is not available on PATH."
   exit 0

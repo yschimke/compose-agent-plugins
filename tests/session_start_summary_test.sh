@@ -21,8 +21,29 @@ expected_output() {
   printf '%s' "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"${message}\"}}"
 }
 
-missing_output="$(PATH="$temporary_root/missing:/usr/bin:/bin" "$script")"
+missing_output="$(HOME="$temporary_root/empty-home" PATH="$temporary_root/missing:/usr/bin:/bin" "$script")"
 assert_equal "$(expected_output 'Compose Preview needs setup: compose-preview is not available on PATH.')" "$missing_output" 'missing CLI guidance'
+
+# A CLI installed in ~/.local/bin but not yet on PATH is put on Claude Code's PATH through
+# $CLAUDE_ENV_FILE: one quoted line, written once, and the session is not told setup is missing.
+local_home="$temporary_root/local-home"
+mkdir -p "$local_home/.local/bin"
+printf '%s\n' '#!/bin/sh' 'if [ "$1 $2" = "mcp --help" ] || [ "$1 $2" = "design --help" ]; then exit 0; fi' 'exit 1' >"$local_home/.local/bin/compose-preview"
+chmod +x "$local_home/.local/bin/compose-preview"
+env_file="$temporary_root/claude.env"
+printf '%s\n' 'OTHER=kept' >"$env_file"
+for _ in 1 2; do
+  local_bin_output="$(HOME="$local_home" CLAUDE_ENV_FILE="$env_file" PATH="/usr/bin:/bin" "$script")"
+done
+assert_equal '' "$local_bin_output" 'a CLI in ~/.local/bin is found, not reported missing'
+# shellcheck disable=SC2016
+assert_equal "$(printf '%s\n' 'OTHER=kept' 'PATH="$HOME/.local/bin:$PATH"')" "$(cat "$env_file")" 'one quoted PATH line, written once'
+assert_equal 'ok' "$(HOME="$local_home" PATH=/usr/bin:/bin bash -c '. "$1" && command -v compose-preview >/dev/null && echo ok' _ "$env_file")" 'the env file puts the CLI on PATH'
+# With the CLI already on PATH, or not installed at all, the env file is left alone.
+printf '%s\n' 'OTHER=kept' >"$env_file"
+HOME="$local_home" CLAUDE_ENV_FILE="$env_file" PATH="$local_home/.local/bin:/usr/bin:/bin" "$script" >/dev/null
+HOME="$temporary_root/empty-home" CLAUDE_ENV_FILE="$env_file" PATH="/usr/bin:/bin" "$script" >/dev/null
+assert_equal 'OTHER=kept' "$(cat "$env_file")" 'no PATH line when the CLI is on PATH or absent'
 
 fake_bin="$temporary_root/bin"
 mkdir "$fake_bin"
@@ -272,7 +293,7 @@ printf '%s\n' '#!/bin/sh' 'if [ "$1 $2" = "mcp --help" ]; then echo doctor; exit
 gradle_failed_output="$(CLAUDE_PROJECT_DIR="$gradle_project" PATH="$fake_bin:$PATH" "$script")"
 assert_equal "$(expected_output "Compose Preview needs attention: MCP doctor failed. $routing_hint")" "$gradle_failed_output" 'attention comes before the routing hint'
 
-gradle_missing_output="$(CLAUDE_PROJECT_DIR="$gradle_project" PATH="$temporary_root/missing:/usr/bin:/bin" "$script")"
+gradle_missing_output="$(HOME="$temporary_root/empty-home" CLAUDE_PROJECT_DIR="$gradle_project" PATH="$temporary_root/missing:/usr/bin:/bin" "$script")"
 assert_equal "$(expected_output 'Compose Preview needs setup: compose-preview is not available on PATH.')" "$gradle_missing_output" 'no routing hint when the CLI is missing'
 
 printf '%s\n' 'session start summary tests passed'

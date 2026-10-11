@@ -50,11 +50,18 @@ The skills' `compose-preview` stub runs from wherever the host installed the ski
   `~/.claude/plugins/yschimke-skills/skills/compose-preview/`
 - Claude Code and Codex plugins from this marketplace: under each host's plugin cache, for
   example `~/.claude/plugins/cache/compose-agent-plugins/compose-skills/<version>/skills/`.
+- [coo.ee/env](https://github.com/yschimke/coo-ee-env)'s `compose` and `skills` modules: a symlink
+  in `~/.claude/skills/`, plus `~/.agents/skills/` when Codex or Gemini is on the box.
+
+Keep one route per host. A host that has both the `compose-skills` plugin and a
+`~/.claude/skills/compose-preview` link loads the skill twice.
 
 ## Cloud sandboxes
 
 The portable setup (network allowlist, toolchain, bootstrap script, gotchas) is generic and stays
-in the `compose-preview` skill's `references/agent-cloud.md`. Per host:
+in the `compose-preview` skill's `references/agent-cloud.md`. Its setup line,
+`curl -fsSL https://env.coo.ee/compose | bash`, works in every host below and prints any blocked
+host it needs. Per host:
 
 - **Claude Code on the web:** choose Custom network mode and include the trusted defaults. A
   proxy CA truststore is injected through `JAVA_TOOL_OPTIONS`, so match the `version "…"` line of

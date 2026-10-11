@@ -142,8 +142,10 @@ ID. The MCP endpoint is `https://preview.coo.ee/mcp`.
    an unknown client from an incoming authorization URL.
 3. Alternatively, create a fresh custom MCP app/connection in the host's plugin
    UI (**Add → Add custom MCP server** where available), with the endpoint
-   above and OAuth. Confirm approval and a gated tool call succeed before
-   retiring the old listing. Deleting only a plugin wrapper does not establish
+   above and OAuth. If the original name is still reserved, use a distinct
+   name such as **Compose Preview Reconnected**. Confirm approval and a gated
+   tool call succeed before retiring the old listing. Deleting only a plugin
+   wrapper does not establish
    that its underlying app or OAuth registration changed.
 4. If the replacement has a new app ID, change
    `src/plugins.json` (`apps.compose-preview-catalog.id`), run

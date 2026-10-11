@@ -17,6 +17,14 @@ HOOK_SOURCE_ROOT = ROOT / "src" / "hooks"
 ASSET_SOURCE_ROOT = ROOT / "src" / "assets"
 ASSET_LEDGER_NAME = ".generated-assets.json"
 README_SOURCE_ROOT = ROOT / "src" / "readmes"
+RULES_SOURCE_ROOT = ROOT / "src" / "rules"
+# Antigravity loads a plugin's rules/AGENTS.md on every turn (harness matrix Q6); Claude Code does not.
+RULES_TARGET = "rules/AGENTS.md"
+OPENCODE_ROOT = ROOT / "opencode"
+OPENCODE_SOURCE_ROOT = ROOT / "src" / "opencode"
+OPENCODE_LEDGER_NAME = ".generated-opencode.json"
+CLAUDE_BASH_RULE = re.compile(r"^Bash\((?P<prefix>[^():*]+):\*\)$")
+CLAUDE_PLUGIN_TOOL = re.compile(r"^mcp__plugin_[a-z0-9-]+?_(?P<server>[a-z0-9-]+)__(?P<tool>[a-z0-9_]+)$")
 LICENSE_SOURCE = ROOT / "LICENSE"
 # Claude Code reads hooks/hooks.json by default. Codex would read that same file,
 # so the Codex manifest names its own copy, whose commands pass --harness=codex.
@@ -243,6 +251,138 @@ def write_agent(plugin_root: Path, agent: str) -> None:
     target = plugin_root / "agents" / f"{agent}.md"
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+
+
+def write_rules(plugin_root: Path, plugin_name: str, rules: object) -> None:
+    """Copy src/rules/<rules>.md to the plugin's rules/AGENTS.md, or remove a stale copy."""
+    target = plugin_root / RULES_TARGET
+    if rules is None:
+        target.unlink(missing_ok=True)
+        if target.parent.is_dir() and not any(target.parent.iterdir()):
+            target.parent.rmdir()
+        return
+    if not isinstance(rules, str) or not SKILL_NAME.fullmatch(rules):
+        raise ValueError(f"{plugin_name}.rules must name a src/rules/<name>.md file")
+    source = RULES_SOURCE_ROOT / f"{rules}.md"
+    if not source.is_file():
+        raise ValueError(f"missing shared rules source: {source.relative_to(ROOT)}")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+
+
+def split_frontmatter(text: str, source: Path) -> tuple[dict[str, str], str]:
+    """Split a single-line-value YAML frontmatter block from its Markdown body."""
+    lines = text.splitlines(keepends=True)
+    if not lines or lines[0].strip() != "---":
+        raise ValueError(f"{source}: missing frontmatter")
+    end = next((index for index, line in enumerate(lines[1:], 1) if line.strip() == "---"), None)
+    if end is None:
+        raise ValueError(f"{source}: unterminated frontmatter")
+    fields = {}
+    for line in lines[1:end]:
+        key, separator, value = line.partition(":")
+        if separator:
+            fields[key.strip()] = value.strip()
+    return fields, "".join(lines[end + 1 :])
+
+
+def render_opencode_agent(agent: str, servers: dict[str, str]) -> str:
+    """Translate a Claude Code agent into an OpenCode subagent with the same tool boundary.
+
+    Claude's `Bash(<prefix>:*)` rules become OpenCode bash permissions, and its
+    `mcp__plugin_<plugin>_<server>__<tool>` names become `<server>_<tool>` tools, every other tool of
+    those servers being switched off. The agent never edits files.
+    """
+    source = AGENT_SOURCE_ROOT / f"{agent}.md"
+    fields, body = split_frontmatter(source.read_text(encoding="utf-8"), source.relative_to(ROOT))
+    description = require_string(fields.get("description"), f"{agent}.description")
+    tools = json.loads(fields.get("tools", "[]"))
+    bash = {"*": "deny"}
+    mcp_tools: dict[str, bool] = {f"{server}_*": False for server in sorted(servers)}
+    webfetch = "deny"
+    for tool in tools:
+        rule = CLAUDE_BASH_RULE.fullmatch(tool)
+        plugin_tool = CLAUDE_PLUGIN_TOOL.fullmatch(tool)
+        if rule:
+            bash[f"{rule['prefix']}*"] = "allow"
+        elif plugin_tool:
+            server = next((name for name in servers if tool.endswith(f"_{name}__{plugin_tool['tool']}")), None)
+            if server is None:
+                raise ValueError(f"{agent}: {tool} names no OpenCode MCP server")
+            mcp_tools[f"{server}_{plugin_tool['tool']}"] = True
+        elif tool == "WebFetch":
+            webfetch = "allow"
+        elif tool not in {"Read", "Glob", "Grep"}:
+            raise ValueError(f"{agent}: no OpenCode translation for tool {tool}")
+    lines = [
+        "---",
+        f"description: {json.dumps(description)}",
+        "mode: subagent",
+        "permission:",
+        "  edit: deny",
+        f"  webfetch: {webfetch}",
+        "  bash:",
+        *(f"    {json.dumps(pattern)}: {decision}" for pattern, decision in bash.items()),
+        "tools:",
+        *(f"  {json.dumps(name)}: {str(enabled).lower()}" for name, enabled in mcp_tools.items()),
+        "---",
+    ]
+    return "\n".join(lines) + "\n" + body
+
+
+def render_opencode_config(plugins: list[dict[str, object]]) -> dict[str, object]:
+    """The opencode.json fragment: every plugin's MCP servers plus read access to rendered PNGs."""
+    servers: dict[str, object] = {}
+    for plugin in plugins:
+        servers.update(render_mcp_servers(plugin["name"], plugin.get("mcp", []), "opencode"))
+    return {
+        "$schema": "https://opencode.ai/config.json",
+        "mcp": {"servers": servers},
+        # render_preview writes PNGs to per-server temporary directories outside the project (#105).
+        "permission": {"external_directory": {"*/compose-preview-mcp-*": "allow"}},
+    }
+
+
+def render_opencode_bundle(
+    source: dict[str, object], plugins: list[dict[str, object]]
+) -> dict[str, bytes]:
+    """opencode/: the agents, skills and plugins OpenCode loads from its config directory."""
+    bundle = source.get("opencode")
+    if not isinstance(bundle, dict):
+        raise ValueError("opencode must be an object")
+    servers = {
+        entry["name"]: plugin["name"] for plugin in plugins for entry in plugin.get("mcp", [])
+    }
+    files: dict[str, bytes] = {}
+    for agent in bundle.get("agents", []):
+        if not SKILL_NAME.fullmatch(agent):
+            raise ValueError(f"invalid agent name: {agent}")
+        files[f"agents/{agent}.md"] = render_opencode_agent(agent, servers).encode("utf-8")
+    for skill in bundle.get("skills", []):
+        if not SKILL_NAME.fullmatch(skill):
+            raise ValueError(f"invalid skill name: {skill}")
+        files[f"skills/{skill}/SKILL.md"] = (SKILL_SOURCE_ROOT / skill / "SKILL.md").read_bytes()
+    for plugin in bundle.get("plugins", []):
+        if not SKILL_NAME.fullmatch(plugin):
+            raise ValueError(f"invalid OpenCode plugin name: {plugin}")
+        files[f"plugins/{plugin}.js"] = (OPENCODE_SOURCE_ROOT / f"{plugin}.js").read_bytes()
+    files["opencode.json"] = (
+        json.dumps(render_opencode_config(plugins), indent=2, sort_keys=True) + "\n"
+    ).encode("utf-8")
+    return files
+
+
+def write_opencode_bundle(source: dict[str, object], plugins: list[dict[str, object]]) -> None:
+    files = render_opencode_bundle(source, plugins)
+    ledger = OPENCODE_ROOT / OPENCODE_LEDGER_NAME
+    previous = json.loads(ledger.read_text(encoding="utf-8")) if ledger.is_file() else []
+    for stale in set(previous) - set(files):
+        (OPENCODE_ROOT / stale).unlink(missing_ok=True)
+    for relative, content in files.items():
+        target = OPENCODE_ROOT / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(content)
+    write_json(ledger, sorted(files))
 
 
 def write_hook(plugin_root: Path, command: str) -> None:
@@ -524,12 +664,14 @@ def render_mcp_servers(
             if not isinstance(args, list) or not all(isinstance(arg, str) for arg in args):
                 raise ValueError(f"{plugin_name}.mcp.{name}.args must be a list of strings")
             server: dict[str, object] = {"args": args, "command": command}
+            if harness == "opencode":
+                server = {"codemode": False, "command": [command, *args], "type": "local"}
             if env is not None:
                 if not isinstance(env, dict) or not all(
                     isinstance(key, str) and isinstance(value, str) for key, value in env.items()
                 ):
                     raise ValueError(f"{plugin_name}.mcp.{name}.env must map strings to strings")
-                server["env"] = env
+                server["environment" if harness == "opencode" else "env"] = env
         elif kind == "http":
             url = require_string(entry.get("url"), f"{plugin_name}.mcp.{name}.url")
             headers = entry.get("headers", {})
@@ -562,6 +704,17 @@ def render_mcp_servers(
                         for header, env in env_headers(plugin_name, entry, headers).items()
                     },
                     "httpUrl": url,
+                }
+            elif harness == "opencode":
+                # OpenCode expands {env:VAR}; it also runs OAuth for a remote server by default.
+                server = {
+                    "codemode": False,
+                    "headers": {
+                        header: f"{{env:{env}}}"
+                        for header, env in env_headers(plugin_name, entry, headers).items()
+                    },
+                    "type": "remote",
+                    "url": url,
                 }
             elif harness == "claude":
                 # Credentials come from a sensitive userConfig option, never the user's environment.
@@ -867,6 +1020,7 @@ def main() -> None:
             write_skill(root, skill)
         codex_skills, codex_skills_path = codex_skill_config(plugin)
         write_codex_skills(root, plugin)
+        write_rules(root, name, plugin.get("rules"))
         synchronize_generated_agents(root, agents)
         for agent in agents:
             write_agent(root, agent)
@@ -974,6 +1128,7 @@ def main() -> None:
     # repository ships one extension that wraps the servers of the listed plugins.
     write_json(ROOT / "gemini-extension.json", render_gemini_extension(source, plugins))
     write_json(ROOT / "server.json", render_registry_server(source, plugins))
+    write_opencode_bundle(source, plugins)
 
 
 if __name__ == "__main__":

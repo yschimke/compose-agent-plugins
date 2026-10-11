@@ -6,6 +6,32 @@ Configure its MCP servers directly and install the canonical skills from
 
 This guide uses the current OpenCode v2 configuration shape: server definitions live under `mcp.servers`, and `disabled` (rather than `enabled`) controls whether a configured server connects. OpenCode 1.18 (the npm `latest`) also reads this shape, so `scripts/opencode-check.py` accepts 1.18 and later. See the [OpenCode MCP documentation](https://opencode.ai/v2/docs/mcp-servers) for the current contract.
 
+## One-step install
+
+```sh
+npx skills add yschimke/skills --global --yes --skill compose-preview --skill compose-ui-builder
+curl -fsSL https://raw.githubusercontent.com/yschimke/compose-agent-plugins/main/scripts/opencode-install.py | python3 -
+compose-preview mcp install --opencode   # from the Compose project root; prepares it and pins --project
+```
+
+`opencode-install.py` copies the generated [`opencode/`](../opencode) bundle into
+`$XDG_CONFIG_HOME/opencode` (default `~/.config/opencode`):
+
+| File | What it gives OpenCode |
+| --- | --- |
+| `agents/design-reviewer.md` | The read-only review subagent that Claude Code and Antigravity get from the plugin. It is generated from the same source with the same boundary: no edits, `bash` limited to the `compose-preview` and `gh` commands the Claude agent allows, and only the review tools of both MCP servers. |
+| `skills/harness-notes/SKILL.md` | The cross-harness agent rules (R1–R4) that the wiring plugins carry elsewhere. |
+| `plugins/compose-preview.js` | The post-edit render reminder: after `edit`, `write` or `apply_patch` touches a `*.kt` file with a `@Composable` or `@Preview`, it appends one line to that tool's result asking for a render before the change is called done. Once per file per session; it never blocks. |
+
+It then adds `compose-preview-mcp`, `compose-preview-catalog` and the
+[rendered-PNG read rule](#let-opencode-read-rendered-pngs) to `opencode.json`,
+keeping every existing key and any server entry already there (such as the one
+`mcp install --opencode` writes with `--project`). A config already in the v1
+`mcp.<name>` shape gets v1 entries. It never rewrites `opencode.jsonc` or a file
+with comments; it prints the snippet to merge instead. `--dry-run` prints what
+would change, and rerunning it updates the bundle. The sections below describe
+the same configuration by hand.
+
 ## MCP servers
 
 Create `opencode.jsonc` in the Compose project (or `.opencode/opencode.jsonc`), or add the same object to `~/.config/opencode/opencode.jsonc` for every project. The local `compose-preview-mcp` server requires Java 17, Gradle, and the `compose-preview` CLI on `PATH`.
@@ -95,8 +121,8 @@ top of them.
 
 For a design review, the default skills include the
 [catalog guidelines checklist](https://github.com/yschimke/skills/blob/main/skills/compose-preview/references/design-guidelines.md).
-Run it in the current context: OpenCode does not install this repository's
-packaged reviewer agent. Discover the tools on the configured server; direct
+With the bundle installed, delegate it to the `design-reviewer` subagent
+(`@design-reviewer`); otherwise run it in the current context. Discover the tools on the configured server; direct
 tool names use its prefix (for example
 `compose-preview-mcp_preview_guidelines_prompt`), or use the advertised Code
 Mode interface when enabled. The checklist needs neither MCP Apps nor
@@ -158,6 +184,21 @@ render and OpenCode's own startup and model calls. For fixes, see
 [Troubleshooting](troubleshooting.md).
 
 ## Verification record
+
+Checked on 2026-10-10 with `opencode-ai@1.18.35` (the npm `latest`), each run in an empty `HOME`
+and `XDG_CONFIG_HOME`. No real model; the plugin turn used a scripted OpenAI-compatible endpoint.
+
+| Check | Command | Result |
+| --- | --- | --- |
+| Bundle discovery | `opencode-install.py`, then `opencode agent list` and `opencode debug skill` | `design-reviewer (subagent)` listed; `harness-notes` listed from `skills/`. OpenCode 1.18.35 reads both `agent/` and `agents/`, `plugin/` and `plugins/`. |
+| Reviewer boundary | `opencode debug agent design-reviewer` | `edit` denied; `bash` denied except the nine allowed prefixes; each server's `*` tools denied, then the 42 review tools allowed after them (last match wins). |
+| Edit reminder | `opencode run` against a scripted model that calls `write` on `Screen.kt` (`@Composable`) | The tool result sent back to the model was `Wrote file successfully.` followed by the reminder line. |
+| Config merge | `opencode-install.py` on an empty config, a v1 `mcp.<name>` config, a v2 `mcp.servers` config and an `opencode.jsonc`; then `opencode mcp list` | Existing `compose-preview-mcp` entries and other keys kept. `compose-preview-catalog` connected in all three JSON cases. The JSONC file was left unchanged and the snippet printed. `compose-preview-mcp` failed only because the CLI was not installed in that sandbox. |
+
+Not verified: a real model choosing the subagent or acting on the reminder, and a render through
+`compose-preview mcp serve` in OpenCode.
+
+### 2026-09-27
 
 Checked on 2026-09-27 with `opencode-ai@1.18.32` (the npm `latest`, OpenCode v1), Skills CLI 1.7.0 and `compose-preview` 2.28.0. No model or provider was configured, and each check ran in an empty `HOME`.
 

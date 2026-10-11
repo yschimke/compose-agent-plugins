@@ -109,6 +109,7 @@
         "compose-preview-setup"
       ],
       "onboardingSkill": "compose-preview-setup",
+      "rules": "compose-preview",
       "agents": [
         "design-reviewer"
       ],
@@ -163,6 +164,17 @@
       "path": "plugins/compose-design-skills"
     }
   ],
+  "opencode": {
+    "agents": [
+      "design-reviewer"
+    ],
+    "skills": [
+      "harness-notes"
+    ],
+    "plugins": [
+      "compose-preview"
+    ]
+  },
   "gemini": {
     "name": "compose-preview",
     "version": "0.5.0",

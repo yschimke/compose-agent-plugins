@@ -1,0 +1,29 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "servers": {
+      "compose-preview-catalog": {
+        "codemode": false,
+        "headers": {
+          "X-Compose-Preview-Token": "{env:COMPOSE_PREVIEW_TOKEN}"
+        },
+        "type": "remote",
+        "url": "https://preview.coo.ee/mcp"
+      },
+      "compose-preview-mcp": {
+        "codemode": false,
+        "command": [
+          "compose-preview",
+          "mcp",
+          "serve"
+        ],
+        "type": "local"
+      }
+    }
+  },
+  "permission": {
+    "external_directory": {
+      "*/compose-preview-mcp-*": "allow"
+    }
+  }
+}

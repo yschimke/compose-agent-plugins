@@ -31,9 +31,14 @@ onboarding is complete while the canonical skills are missing.
      prepare the project, never register a second global server.
    - "SDK location not found" means `ANDROID_HOME` or `sdk.dir` in `local.properties` is
      missing. Say which, and stop.
-3. **First render.** Call `list_previews` once, then `render_preview` for one preview (prefer
-   one whose name ends in `Preview` near the app's main screen). Look at the image and describe
-   it in one or two lines. A failed render is reported as failed, with its error text.
+3. **First render.** Pick one preview function name: one the person named, or, since nobody has
+   yet, one found with a single search for `@Preview` in `*.kt` files (prefer a name ending in
+   `Preview` near the app's main screen). Call `render_preview` with `preview` set to that name and
+   `project` set to the workspace's absolute path. The local server has no `list_previews` tool; if
+   the name misses, its error lists the `Closest` matches, so retry once with the right one. A
+   `pending` result means the project is still starting: call again with the same arguments. Look
+   at the image and describe it in one or two lines. A failed render is reported as failed, with
+   its error text.
 4. **Close** with one line on what to do next: ask for any preview by name ("render the
    `ListScreenPreview`"); in ChatGPT/Codex desktop the Previews tab and `@`-mentions of
    previews are available when the host shows them.

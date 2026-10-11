@@ -17,7 +17,11 @@ from generate import (
     HOOK_SOURCE_ROOT,
     LICENSE_SOURCE,
     MARKETPLACE_NAME,
+    OPENCODE_LEDGER_NAME,
+    OPENCODE_ROOT,
     README_SOURCE_ROOT,
+    RULES_SOURCE_ROOT,
+    RULES_TARGET,
     SKILL_SOURCE_ROOT,
     render_antigravity_hooks,
     render_claude_manifest,
@@ -28,6 +32,7 @@ from generate import (
     render_gemini_extension,
     render_hooks,
     render_mcp_servers,
+    render_opencode_bundle,
     render_registry_server,
     validate_apps,
 )
@@ -49,6 +54,29 @@ SCHEMA_ASSERTIONS = {
 README_MIN_WORDS = 40
 JSON_SCHEMA_TYPES = {"array", "boolean", "integer", "null", "number", "object", "string"}
 ECMASCRIPT_PORTABLE_ESCAPES = frozenset("dDwWbfnrtv\\.^$|?*+()[]{}-/")
+# The hosted catalog advertises its data tools with a `catalog_` prefix so they never clash with the
+# local server's tools (compose-preview-server#1105, `CATALOG_TOOL_NAMES` in ServeCatalogMcp.kt).
+# The unprefixed names still dispatch, but a host only offers advertised names, so a subagent
+# allowlist that names them grants nothing.
+HOSTED_CATALOG_DATA_TOOLS = frozenset(
+    {
+        "library",
+        "list_projects",
+        "list_previews",
+        "list_data_products",
+        "render_preview",
+        "render_matrix",
+        "list_devices",
+        "diff_semantics",
+        "get_preview_data",
+        "history_list",
+        "history_diff",
+        "history_read",
+    }
+)
+# Tools the local `compose-preview mcp serve` does not advertise.
+LOCAL_SERVER_MISSING_TOOLS = frozenset({"list_previews"})
+CLAUDE_MCP_TOOL = re.compile(r"^mcp__plugin_(?P<plugin>[a-z0-9-]+)_(?P<server>[a-z0-9-]+)__(?P<tool>[a-z0-9_]+)$")
 
 
 def read_json(path: Path) -> object:
@@ -353,6 +381,57 @@ def validate_skill(path: Path) -> None:
         raise ValueError(f"{path}: description must be 1 to 1024 characters")
 
 
+def agent_tools(path: Path) -> list[str]:
+    """The JSON `tools:` list in an agent's frontmatter, or an empty list when it has none."""
+    lines = path.read_text(encoding="utf-8").splitlines()
+    if not lines or lines[0] != "---":
+        raise ValueError(f"{path}: missing YAML frontmatter")
+    for line in lines[1 : lines.index("---", 1)]:
+        if line.startswith("tools:"):
+            tools = json.loads(line.partition(":")[2])
+            if not isinstance(tools, list) or not all(isinstance(tool, str) for tool in tools):
+                raise ValueError(f"{path}: tools must be a JSON list of strings")
+            return tools
+    return []
+
+
+def validate_agent_tools(path: Path, plugins: list[dict[str, object]]) -> None:
+    """Reject agent MCP tools that name an undeclared server or one a server is known not to advertise.
+
+    This is a denylist of names known to be wrong (the hosted catalog's pre-prefix names, tools the
+    local server lacks), not a full allowlist: the servers' tool lists change with each
+    compose-preview-server release, which this repository does not pin.
+    """
+    servers = {
+        (plugin["name"], entry["name"]): entry
+        for plugin in plugins
+        for entry in plugin.get("mcp", [])
+    }
+    for tool in agent_tools(path):
+        if not tool.startswith("mcp__"):
+            continue
+        match = CLAUDE_MCP_TOOL.fullmatch(tool)
+        if match is None:
+            raise ValueError(f"{path}: {tool} is not an mcp__plugin_<plugin>_<server>__<tool> name")
+        # Plugin and server names may both contain hyphens, so try every split.
+        candidates = [
+            entry
+            for (plugin, server), entry in servers.items()
+            if f"{plugin}_{server}" == f"{match['plugin']}_{match['server']}"
+        ]
+        if not candidates:
+            raise ValueError(f"{path}: {tool} names no MCP server declared in src/plugins.json")
+        entry, name = candidates[0], match["tool"]
+        if entry.get("kind") == "http" and name in HOSTED_CATALOG_DATA_TOOLS:
+            raise ValueError(
+                f"{path}: {tool} is not advertised; the hosted catalog names it catalog_{name}"
+            )
+        if entry.get("kind") == "stdio" and (
+            name in LOCAL_SERVER_MISSING_TOOLS or name.startswith("catalog_")
+        ):
+            raise ValueError(f"{path}: {tool} is not a tool of the local compose-preview server")
+
+
 def readme_words(path: Path) -> int:
     """Count README words outside fenced code blocks, as the plugin directory does."""
     words = 0
@@ -476,6 +555,14 @@ def main() -> None:
                 raise ValueError(f"{app_manifest} does not match the app contract")
         elif app_manifest.exists():
             raise ValueError(f"{root} contains stale app configuration")
+        rules_copy = root / RULES_TARGET
+        if plugin.get("rules"):
+            if rules_copy.read_bytes() != (RULES_SOURCE_ROOT / f"{plugin['rules']}.md").read_bytes():
+                raise ValueError(f"{rules_copy}: generated copy differs from src/rules/{plugin['rules']}.md")
+        elif rules_copy.exists():
+            raise ValueError(f"{root} contains stale rules")
+        for agent in plugin.get("agents", []):
+            validate_agent_tools(root / "agents" / f"{agent}.md", plugins)
         for skill_path in expected_skills:
             validate_skill(skill_path)
             shared_source = SKILL_SOURCE_ROOT / skill_path.parent.name / "SKILL.md"
@@ -570,6 +657,19 @@ def main() -> None:
         raise ValueError("gemini-extension.json does not match the Gemini CLI contract")
     if read_json(ROOT / "server.json") != render_registry_server(source, plugins):
         raise ValueError("server.json does not match the MCP Registry contract")
+    opencode_files = render_opencode_bundle(source, plugins)
+    for relative, content in opencode_files.items():
+        if (OPENCODE_ROOT / relative).read_bytes() != content:
+            raise ValueError(f"opencode/{relative} does not match its source")
+    if read_json(OPENCODE_ROOT / OPENCODE_LEDGER_NAME) != sorted(opencode_files):
+        raise ValueError(f"opencode/{OPENCODE_LEDGER_NAME} does not list the generated bundle")
+    actual = {
+        str(path.relative_to(OPENCODE_ROOT))
+        for path in OPENCODE_ROOT.rglob("*")
+        if path.is_file() and path.name != OPENCODE_LEDGER_NAME
+    }
+    if actual != set(opencode_files):
+        raise ValueError(f"opencode/ has unexpected files: {sorted(actual - set(opencode_files))}")
 
 
 if __name__ == "__main__":

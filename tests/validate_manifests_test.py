@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -11,7 +12,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from validate_manifests import validate_against_schema  # noqa: E402
+import tempfile  # noqa: E402
+
+from validate_manifests import validate_against_schema, validate_agent_tools  # noqa: E402
 
 
 class ManifestSchemaValidationTest(unittest.TestCase):
@@ -153,6 +156,45 @@ class ManifestSchemaValidationTest(unittest.TestCase):
             with self.subTest(schema=schema):
                 with self.assertRaisesRegex(ValueError, "unsupported schema keywords.*minLength"):
                     self.validate(value, schema)
+
+
+class AgentToolNamesTest(unittest.TestCase):
+    plugins = [
+        {"name": "compose-catalogs", "mcp": [{"name": "compose-preview-catalog", "kind": "http"}]},
+        {"name": "compose-preview", "mcp": [{"name": "compose-preview-mcp", "kind": "stdio"}]},
+    ]
+
+    def check(self, *tools: str) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "agent.md"
+            path.write_text(
+                "---\nname: agent\ntools: " + json.dumps(list(tools)) + "\n---\n\nBody\n",
+                encoding="utf-8",
+            )
+            validate_agent_tools(path, self.plugins)
+
+    def test_accepts_advertised_names(self) -> None:
+        self.check(
+            "Read",
+            "mcp__plugin_compose-catalogs_compose-preview-catalog__catalog_render_preview",
+            "mcp__plugin_compose-catalogs_compose-preview-catalog__ui_builder_check_design",
+            "mcp__plugin_compose-catalogs_compose-preview-catalog__status",
+            "mcp__plugin_compose-preview_compose-preview-mcp__render_preview",
+        )
+
+    def test_rejects_unprefixed_hosted_catalog_tool(self) -> None:
+        with self.assertRaisesRegex(ValueError, "catalog_render_preview"):
+            self.check("mcp__plugin_compose-catalogs_compose-preview-catalog__render_preview")
+
+    def test_rejects_tool_the_local_server_lacks(self) -> None:
+        with self.assertRaisesRegex(ValueError, "local compose-preview server"):
+            self.check("mcp__plugin_compose-preview_compose-preview-mcp__list_previews")
+        with self.assertRaisesRegex(ValueError, "local compose-preview server"):
+            self.check("mcp__plugin_compose-preview_compose-preview-mcp__catalog_render_preview")
+
+    def test_rejects_unknown_server(self) -> None:
+        with self.assertRaisesRegex(ValueError, "no MCP server"):
+            self.check("mcp__plugin_compose-preview_other__render_preview")
 
 
 if __name__ == "__main__":

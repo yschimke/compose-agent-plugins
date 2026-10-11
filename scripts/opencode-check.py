@@ -82,9 +82,31 @@ def check_skills(opencode: str) -> None:
         report("info", f"`opencode debug skill` unavailable (exit {code}); log {save('debug-skill', out)}")
         return
     for skill in SKILLS:
-        seen = skill in out
+        # Match the name field: other skills' descriptions mention these names too.
+        seen = re.search(rf'"name":\s*"{re.escape(skill)}"', out) is not None
         report("ok" if seen else "FIX", f"opencode discovers skill {skill}" if seen else
                f"opencode does not list skill {skill}; log {save('debug-skill', out)}")
+
+
+# Installed by scripts/opencode-install.py from the generated opencode/ bundle.
+BUNDLE = ("agents/design-reviewer.md", "plugins/compose-preview.js", "skills/harness-notes/SKILL.md")
+INSTALL_HINT = ("curl -fsSL https://raw.githubusercontent.com/yschimke/compose-agent-plugins/main/"
+                "scripts/opencode-install.py | python3 -")
+
+
+def check_bundle(opencode: str) -> None:
+    base = Path(os.environ.get("XDG_CONFIG_HOME", HOME / ".config")) / "opencode"
+    missing = [name for name in BUNDLE if not (base / name).is_file()]
+    if missing:
+        report("info", f"optional reviewer agent, rules skill or edit reminder missing from {base} "
+                       f"({', '.join(missing)}); install: {INSTALL_HINT}")
+        return
+    report("ok", f"design-reviewer, harness-notes and the edit reminder installed in {base}")
+    code, out = run(opencode, ["agent", "list"])
+    if code == 0:
+        seen = "design-reviewer" in out
+        report("ok" if seen else "FIX", "opencode lists the design-reviewer agent" if seen else
+               f"opencode does not list design-reviewer; log {save('agent-list', out)}")
 
 
 def config_files(project) -> list:
@@ -331,6 +353,7 @@ def main() -> None:
            "compose-preview CLI on PATH" if shutil.which("compose-preview") else
            "compose-preview not on PATH (compose-preview update / open a new terminal)")
     check_skills(args.opencode)
+    check_bundle(args.opencode)
     check_config(project)
     check_mcp_list(args.opencode, project)
     if args.run:

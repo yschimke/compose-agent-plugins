@@ -256,4 +256,23 @@ if ((elapsed < 2 || elapsed >= 8)); then
   exit 1
 fi
 
+routing_hint="Compose Preview: to see a composable or @Preview, call render_preview with preview=<FunctionName> first; don't search the project before it, since a miss lists the closest matches. Library components (Material 3, Wear) come from the hosted catalog's catalog_* tools, not from new preview files in this project."
+gradle_project="$temporary_root/gradle project"
+mkdir -p "$gradle_project"
+: >"$gradle_project/settings.gradle.kts"
+
+printf '%s\n' '#!/bin/sh' 'if [ "$1 $2" = "mcp --help" ]; then echo doctor; exit 0; fi' 'if [ "$1 $2" = "design --help" ]; then exit 0; fi' 'exit 0' >"$fake_cli"
+chmod +x "$fake_cli"
+gradle_ok_output="$(CLAUDE_PROJECT_DIR="$gradle_project" PATH="$fake_bin:$PATH" "$script")"
+assert_equal "$(expected_output "$routing_hint")" "$gradle_ok_output" 'a healthy Gradle workspace gets only the routing hint'
+gradle_cwd_output="$(cd "$gradle_project" && PATH="$fake_bin:$PATH" "$script")"
+assert_equal "$(expected_output "$routing_hint")" "$gradle_cwd_output" 'without CLAUDE_PROJECT_DIR the working directory is the workspace'
+
+printf '%s\n' '#!/bin/sh' 'if [ "$1 $2" = "mcp --help" ]; then echo doctor; exit 0; fi' 'if [ "$1 $2" = "design --help" ]; then exit 0; fi' 'exit 1' >"$fake_cli"
+gradle_failed_output="$(CLAUDE_PROJECT_DIR="$gradle_project" PATH="$fake_bin:$PATH" "$script")"
+assert_equal "$(expected_output "Compose Preview needs attention: MCP doctor failed. $routing_hint")" "$gradle_failed_output" 'attention comes before the routing hint'
+
+gradle_missing_output="$(CLAUDE_PROJECT_DIR="$gradle_project" PATH="$temporary_root/missing:/usr/bin:/bin" "$script")"
+assert_equal "$(expected_output 'Compose Preview needs setup: compose-preview is not available on PATH.')" "$gradle_missing_output" 'no routing hint when the CLI is missing'
+
 printf '%s\n' 'session start summary tests passed'

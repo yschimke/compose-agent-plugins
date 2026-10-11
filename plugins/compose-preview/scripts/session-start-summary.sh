@@ -149,6 +149,8 @@ status_summary() {
   fi
 }
 
+workspace_root=${CLAUDE_PROJECT_DIR:-$PWD}
+
 if ! command -v compose-preview >/dev/null 2>&1; then
   emit_context "Compose Preview needs setup: compose-preview is not available on PATH."
   exit 0
@@ -208,7 +210,6 @@ elif [ "$design_help_status" -ne 0 ]; then
   fi
 elif grep -Eq '(^|[[:space:]])status([[:space:]]|$)' "$design_help_output"; then
   status_output="$temporary_root/status.out"
-  workspace_root=${CLAUDE_PROJECT_DIR:-$PWD}
   if run_probe "$status_output" "$temporary_root/status.timed-out" \
     compose-preview design status --workspace "$workspace_root" --json --timeout 2; then
     status_status=0
@@ -230,6 +231,16 @@ elif grep -Eq '(^|[[:space:]])status([[:space:]]|$)' "$design_help_output"; then
   fi
 fi
 
+# One fixed routing line for a Gradle workspace. In the evals the skills were often not loaded for a
+# plain render request, and the agent searched the project before rendering (T5) or wrote preview
+# files to show a library component (H6). A hook is always seen, so the render-first rule rides here.
+routing_hint=
+if [ -f "$workspace_root/settings.gradle.kts" ] || [ -f "$workspace_root/settings.gradle" ]; then
+  routing_hint="Compose Preview: to see a composable or @Preview, call render_preview with preview=<FunctionName> first; don't search the project before it, since a miss lists the closest matches. Library components (Material 3, Wear) come from the hosted catalog's catalog_* tools, not from new preview files in this project."
+fi
+
 if [ -n "$context_message" ]; then
-  emit_context "Compose Preview needs attention: $context_message"
+  emit_context "Compose Preview needs attention: $context_message${routing_hint:+ $routing_hint}"
+elif [ -n "$routing_hint" ]; then
+  emit_context "$routing_hint"
 fi

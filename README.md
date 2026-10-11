@@ -121,14 +121,21 @@ untrusted.
 
 ### OpenCode
 
-OpenCode has no plugin marketplace; install the skills and register the server:
+OpenCode has no plugin marketplace; install the skills, the OpenCode bundle and the server:
 
 ```sh
 npx skills add yschimke/skills --global --yes --skill compose-preview --skill compose-ui-builder
+curl -fsSL https://raw.githubusercontent.com/yschimke/compose-agent-plugins/main/scripts/opencode-install.py | python3 -
 compose-preview mcp install --opencode
 # Verify
 python3 scripts/opencode-check.py   # from a clone of this repository
 ```
+
+`opencode-install.py` copies the generated [`opencode/`](opencode) bundle into
+`~/.config/opencode`: the `design-reviewer` subagent, the `harness-notes` rules
+skill and the [edit reminder](#compose-edit-reminder) plugin. It also adds both
+MCP servers and read access to rendered PNGs to `opencode.json`, keeping
+existing entries. Rerun it to update.
 
 The first `mcp install` resolves the project through Gradle and can take several
 minutes, so don't run it under a two-minute command timeout. If your OpenCode
@@ -182,7 +189,8 @@ micro-skill. Keeping that instruction out of `compose-catalogs` avoids
 advertising a local artifact that the remote-catalog plugin does not package.
 
 `compose-preview` also ships the `design-reviewer` agent for Claude
-Code and Antigravity. It uses the `compose-catalogs` tools too when that plugin
+Code and Antigravity, and the OpenCode bundle carries the same agent as an
+OpenCode subagent with the same tool boundary. It uses the `compose-catalogs` tools too when that plugin
 is installed, so it ships once rather than in both plugins. It runs semantic,
 accessibility, font-scale, device and catalog-guidelines checks in its own context and returns a
 short verdict with viewer or artifact links, so rendered images stay out of the
@@ -217,8 +225,9 @@ Every plugin follows the [agent rules](docs/agent-rules.md): the agent sees what
 
 The generated manifests make the same plugin directories usable by every
 harness. The generator also writes each plugin's `README.md` and `LICENSE`, the
-Cursor manifests, the root `gemini-extension.json`, and the MCP Registry
-`server.json`; see [Distribution](docs/distribution.md) for the listings they
+Cursor manifests, the root `gemini-extension.json`, the MCP Registry
+`server.json`, the Antigravity `rules/AGENTS.md` (from `src/rules/`) and the
+OpenCode bundle under `opencode/`; see [Distribution](docs/distribution.md) for the listings they
 serve. Edit [`src/plugins.json`](src/plugins.json) and run
 `python3 scripts/generate.py`; never edit a manifest directly.
 
@@ -238,8 +247,20 @@ skill offered (#86).
 It reminds once per file per session, never blocks, and stays silent when the
 edit touched no Compose file or when anything about the hook itself fails. It
 runs in Claude Code (`Edit`, `Write`, `MultiEdit`) and Codex (`apply_patch`).
+In OpenCode the same reminder is a plugin, `opencode/plugins/compose-preview.js`,
+that appends the line to the `edit`, `write` or `apply_patch` result.
 Antigravity gets only Stop hooks for now: its post-edit tool names differ and
-its context output for that event has not been verified.
+its context output for that event has not been verified. Instead the
+`compose-preview` plugin ships `rules/AGENTS.md`, which Antigravity loads on
+every turn: render first with `project=<workspace>`, render after editing
+Compose UI, and check `compose-preview design status` before finishing design
+work. Claude Code ignores a plugin's `rules/`.
+
+In a Gradle workspace, the SessionStart hook in Claude Code and Codex also adds
+one routing line: call `render_preview` by name before searching the project,
+and take library components from the hosted catalog rather than writing preview
+files. It targets the grep-before-render and catalog-routing failures in the
+evals on #64 (T5, H6).
 
 ## Compose Preview Stop gate
 
@@ -305,7 +326,9 @@ Other scripts:
   update the Antigravity plugins from GitHub, clearing stale entries first.
 - `python3 scripts/antigravity-check.py`: plugin copies, MCP-only `gemini-cli` imports, card helper, CLI
   `preview=`/`project=` support, duplicate global MCP entries, stale servers.
-- `python3 scripts/opencode-check.py [--run --project …]`: skills, MCP config,
+- `python3 scripts/opencode-install.py [--dry-run] [--config-dir DIR]`: install
+  or update the OpenCode bundle and add the MCP servers to `opencode.json`.
+- `python3 scripts/opencode-check.py [--run --project …]`: skills, bundle, MCP config,
   `opencode mcp list`, and optionally one timed model turn.
 - `python3 scripts/edit-render-bench.py --help`: time the edit → notify →
   render loop against the local server without a model.

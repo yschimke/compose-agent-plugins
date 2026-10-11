@@ -35,10 +35,11 @@ render call and a short reply.
 
 **Requested design review.** Load the canonical `compose-preview` skill's
 [catalog guidelines checklist](https://github.com/yschimke/skills/blob/main/skills/compose-preview/references/design-guidelines.md).
-In Claude Code or Antigravity, use the packaged `design-reviewer` when it is
-discoverable and the task allows delegation. In Codex, OpenCode, a catalog-only
-install or any host without that agent, run the same checklist in the current
-context; never stop at a failed agent lookup. Use this host's advertised tool
+In Claude Code, Antigravity, or OpenCode with `opencode-install.py` run, use the
+packaged `design-reviewer` when it is discoverable and the task allows
+delegation. In Codex, a catalog-only install or any host without that agent,
+run the same checklist in the current context; never stop at a failed agent
+lookup. Use this host's advertised tool
 names and schemas rather than copying Claude's namespace. Review records are
 metadata at the design's home, not node edits or human approval. Missing frames,
 stale results and skipped rules produce partial coverage, not a clean pass.

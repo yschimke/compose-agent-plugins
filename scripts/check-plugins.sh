@@ -26,3 +26,5 @@ python3 tests/card_helper_test.py
 python3 tests/antigravity_install_test.py
 python3 tests/echo_mcp_test.py
 python3 tests/spike_fixture_test.py
+python3 tests/opencode_install_test.py
+node --test tests/opencode_plugin_test.mjs

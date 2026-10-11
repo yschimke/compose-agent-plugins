@@ -46,15 +46,15 @@ repository's `compose-catalogs` wiring enabled.
   `fontScales: [1, 2]`), look at it, and name what breaks at the compact frame
   or at 200% font scale. Report the check's `summary`, the sheet link and the
   editor link; never describe the sheet without looking at it.
-- For prompt 6, branch twice from the same revision with
+- For prompt 6, branch twice from the same recorded `revision` with
   `ui_builder_branch_design`, edit each branch, then call
   `ui_builder_compare_branches` once and show its one numbered sheet. Ask with
   `ui_builder_pick_branch`; on `ask-in-chat`, post the list and wait for the
   person's number. Never pick for them. Merge with `ui_builder_merge_branch`
   `dryRun: true` first.
 - For prompt 7, give the link and revision, then wait with
-  `ui_builder_await_decision` (a person's decision only) rather than asking in
-  chat. Never record an approval on the person's behalf. After approval,
+  `ui_builder_await_decision` on that `revision` (a person's decision only)
+  rather than asking in chat; an approval of an older revision does not count. Never record an approval on the person's behalf. After approval,
   implement the approved revision from `ui_builder_implementation_status`,
   render the affected `@Preview`s, and record the PR with
   `ui_builder_set_implementation`, adding `previewMatch` with evidence once

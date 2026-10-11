@@ -69,8 +69,12 @@ or the task explicitly includes code changes. If Codex/ChatGPT or another host
 shows an expired app connection, stop retrying that connection and explain the
 reconnect action. If the person declines it, continue independent local/source
 work without invoking tools that repeat the authorization prompt. If the
-browser reports an unknown `client_id`, disconnect/remove and add Compose
-Preview again to force fresh registration; retrying the old link cannot work.
+browser reports an unknown `client_id`, stop retries: reinstalling a marketplace
+plugin may retain the same app and rejected OAuth client ID. The operator must
+restore its trusted registration, or the host must create a fresh app/registration.
+If the app ID changes, update the plugin's app reference and regenerate its
+manifests. Follow the marketplace recovery steps in the host setup notes;
+retrying the old link cannot work.
 Use `request_access` only for a reachable server's `authorization_required`
 response, not to repair host OAuth. Network/proxy failures do not prove a grant
 expired. Report blocked evidence and resume after reconnection.

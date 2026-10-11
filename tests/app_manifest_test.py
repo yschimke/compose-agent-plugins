@@ -27,6 +27,10 @@ class AppManifestTest(unittest.TestCase):
         }
         self.assertEqual(apps, validate_apps("compose-catalogs", apps))
 
+    def test_preserves_custom_mcp_plugin_id_from_browser_url(self) -> None:
+        apps = {"compose-preview-catalog": {"id": "plugin_asdk_app_123", "required": True}}
+        self.assertEqual(apps, validate_apps("compose-catalogs", apps))
+
     def test_rejects_unknown_fields(self) -> None:
         with self.assertRaisesRegex(ValueError, "unsupported fields: capabilities"):
             validate_apps(
@@ -52,10 +56,10 @@ class AppManifestTest(unittest.TestCase):
             )
 
     def test_rejects_an_invalid_registered_app_id(self) -> None:
-        with self.assertRaisesRegex(ValueError, "must use an asdk_app_"):
+        with self.assertRaisesRegex(ValueError, "must use a plugin_asdk_app_"):
             validate_apps(
                 "compose-catalogs",
-                {"compose-preview-catalog": {"id": "plugin_asdk_app_123"}},
+                {"compose-preview-catalog": {"id": "plugin_other_123"}},
             )
 
     def test_codex_manifest_points_at_companion_file(self) -> None:
@@ -91,7 +95,7 @@ class AppManifestTest(unittest.TestCase):
         )
         self.assertEqual(expected, generated)
         self.assertEqual(
-            "asdk_app_6acb43a86b8881918f618daf506c97ef",
+            "plugin_asdk_app_6acb43a86b8881918f618daf506c97ef",
             generated["apps"]["compose-preview-catalog"]["id"],
         )
         self.assertIs(generated["apps"]["compose-preview-catalog"]["required"], True)

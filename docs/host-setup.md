@@ -137,7 +137,7 @@ Directory visibility and installation remain subject to the host account's acces
 
 1. Check the personal plugin listing and its app dependency. **Install plugin**
    means it is uninstalled; an existing listing has not been deleted. Compare
-   its `plugin_asdk_app_…` URL with the `asdk_app_…` manifest reference.
+   its `plugin_asdk_app_…` URL with the exact manifest reference.
 2. If reconnecting retains the rejected client ID, stop repeated reconnects.
    The server operator can restore a known registration from trusted metadata
    or backup, binding it to the exact approved callback. Never auto-register
@@ -153,8 +153,10 @@ Directory visibility and installation remain subject to the host account's acces
    `src/plugins.json` (`apps.compose-preview-catalog.id`), run
    `python3 scripts/generate.py`, and commit the generated manifests together.
    Use the replacement app's metadata or downloaded plugin ZIP to obtain its
-   ID; do not substitute an OAuth client ID or a plugin ID with the
-   `plugin_` prefix. Retaining the original app ID needs no manifest change.
+   ID. Preserve the full `plugin_asdk_app_…` technical ID from the browser
+   URL as described in [OpenAI's packaging guide](https://developers.openai.com/plugins/build/plugins#create-and-test-a-plugin-locally-with-an-mcp-server);
+   do not strip its prefix or substitute an OAuth client ID. Retaining the
+   original app ID needs no manifest change.
 5. Install the updated plugin and verify hosted catalog discovery and one
    render. Keep the local `compose-preview` stdio server configuration separate.
 

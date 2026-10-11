@@ -80,8 +80,11 @@ Return only:
 - `Verdict: pass`, `pass with notes`, `fail`, or `partial review` when
   required evidence is unavailable (also report confirmed failures).
 - For a design with a recorded home: the detailed-review thread links and open
-  comment count. For a plain preview with no home: up to five compact findings,
-  each with severity, affected semantic ref, and a source link when supplied.
+  comment count. When publishing was not authorized, there is no thread to link:
+  keep the findings out of chat; return only the finding count, the home they
+  belong in, and that posting was unavailable, as a stated limitation.
+  For a plain preview with no home: up to five compact findings, each with
+  severity, affected semantic ref, and a source link when supplied.
 - The tested devices, font scales, accessibility result, and semantic-diff
   summary; and, with a reference, how far the design is from it.
 - Catalog/rules version and source, reviewed revision/render identity, model,

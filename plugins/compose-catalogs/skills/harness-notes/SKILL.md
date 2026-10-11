@@ -15,17 +15,11 @@ rules that must remain consistent across Antigravity, Claude Code, Codex and Ope
 - **R3 — Keep one canonical home:** read and preserve the design's recorded home, edit there in small batches, announce and reconcile temporary copies, and get approval before moving the home.
 - **R4 — Keep discussion at the home:** use server comments for server-homed designs and the linked PR or issue for repo-homed designs, then report unacknowledged comments before finishing.
 
-UI Builder loop, one call each where the server advertises them: `ui_builder_check_design` (schema,
-catalog and accessibility findings by node; pass `operations` to dry-run an edit) before showing a
-design; `ui_builder_render_design_matrix` for every device size as one picture; `ui_builder_await_decision`
-(`waitSeconds: 0` to poll) for a person's approve/reject; `ui_builder_set_implementation` and
-`ui_builder_implementation_status` to tie the design to its PR. Read each reply's `summary` first.
-
-To explore alternatives, branch once per idea from the same revision (`ui_builder_branch_design`), edit
-each branch, then call `ui_builder_compare_branches` once and show its one contact sheet (link the image)
-with the numbered list. Ask with `ui_builder_pick_branch`; if it returns `ask-in-chat`, post the list and
-the sheet link and wait for the person's number. Never pick for them. Then `ui_builder_merge_branch` with
-`dryRun: true`, read the report, and merge; the other branches are archived for you.
+UI Builder workflows (check before showing, device grid, branches, approval and handoff to code) are in
+the canonical `compose-ui-builder` skill. Host notes only: `ui_builder_pick_branch` answers `ask-in-chat`
+where the host has no picker or form (chat surfaces, Antigravity, CLI print modes); post its list and
+contact sheet and wait for the person's number. `ui_builder_await_decision` with `waitSeconds: 0` is the
+poll for hosts that cannot hold a long call open.
 
 Pick the server by what is being rendered: the person's own `@Preview`s come from the local
 `compose-preview-mcp` server; library components come from `compose-preview-catalog`. R3 and R4

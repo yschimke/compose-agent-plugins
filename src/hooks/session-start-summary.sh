@@ -151,6 +151,43 @@ status_summary() {
 
 workspace_root=${CLAUDE_PROJECT_DIR:-$PWD}
 
+# The CLI installer (yschimke/skills scripts/install.sh) puts the launcher in ~/.local/bin, which a
+# fresh sandbox shell may not have on PATH yet: the installer adds it to the shell startup files,
+# which only a later shell reads. Putting it on the harness's PATH is this plugin's job, not the
+# installer's. Claude Code sources $CLAUDE_ENV_FILE before every Bash call, so add one quoted line
+# there, once. Nothing is written when the CLI is already reachable or not installed.
+local_bin="$HOME/.local/bin"
+if ! command -v compose-preview >/dev/null 2>&1 && [ -x "$local_bin/compose-preview" ]; then
+  PATH="$local_bin:$PATH"
+  export PATH
+  if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
+    # Single quotes on purpose: the line is written literally and expands when sourced.
+    # shellcheck disable=SC2016
+    path_line='PATH="$HOME/.local/bin:$PATH"'
+    if ! grep -qxF "$path_line" "$CLAUDE_ENV_FILE" 2>/dev/null; then
+      printf '%s\n' "$path_line" >>"$CLAUDE_ENV_FILE" 2>/dev/null || true
+    fi
+  fi
+fi
+
+# Earlier yschimke/skills installers wrote a proxy-only JAVA_TOOL_OPTIONS (always starting
+# `-Dhttps.proxyHost=`, quoted or not) into the agent env files. Hosted sandboxes set their own,
+# with the proxy CA's truststore, and a stale copy (an old proxy port in Codex's persistent .env)
+# breaks JVM networking. The installer no longer writes them, so drop the ones it left.
+legacy_jto="^JAVA_TOOL_OPTIONS=['\"]?-Dhttps\.proxyHost="
+for legacy_env in "${CLAUDE_ENV_FILE:-}" "${CODEX_HOME:-$HOME/.codex}/.env"; do
+  [ -n "$legacy_env" ] && [ -f "$legacy_env" ] || continue
+  grep -Eq "$legacy_jto" "$legacy_env" 2>/dev/null || continue
+  legacy_tmp="$legacy_env.compose-preview.$$"
+  grep -Ev "$legacy_jto" "$legacy_env" >"$legacy_tmp" 2>/dev/null
+  # grep -v exits 1 when it keeps no line; anything above that is a read error, so keep the file.
+  if [ $? -le 1 ]; then
+    mv -f "$legacy_tmp" "$legacy_env" 2>/dev/null || rm -f "$legacy_tmp"
+  else
+    rm -f "$legacy_tmp"
+  fi
+done
+
 if ! command -v compose-preview >/dev/null 2>&1; then
   emit_context "Compose Preview needs setup: compose-preview is not available on PATH."
   exit 0

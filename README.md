@@ -262,6 +262,14 @@ and take library components from the hosted catalog rather than writing preview
 files. It targets the grep-before-render and catalog-routing failures in the
 evals on #64 (T5, H6).
 
+When the CLI is installed in `~/.local/bin` but that directory is not on PATH
+yet (a fresh sandbox shell), the same hook puts it there: in Claude Code it
+adds one quoted `PATH` line to `$CLAUDE_ENV_FILE`, which reaches Bash calls.
+The hook cannot change the PATH Claude Code starts MCP servers with, so the
+plugin's `.mcp.json` launches the CLI through `sh`, appending `~/.local/bin`
+to PATH; a `compose-preview` already on PATH still wins. The installer itself
+writes no agent configuration.
+
 ## Compose Preview Stop gate
 
 The `compose-preview` plugin's Stop hook does nothing unless

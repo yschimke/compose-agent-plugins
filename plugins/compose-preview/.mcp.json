@@ -2,10 +2,13 @@
   "mcpServers": {
     "compose-preview-mcp": {
       "args": [
+        "-c",
+        "PATH=\"$PATH:$HOME/.local/bin\"; export PATH; exec \"$0\" \"$@\"",
+        "compose-preview",
         "mcp",
         "serve"
       ],
-      "command": "compose-preview"
+      "command": "sh"
     }
   }
 }

@@ -664,6 +664,18 @@ def render_mcp_servers(
             if not isinstance(args, list) or not all(isinstance(arg, str) for arg in args):
                 raise ValueError(f"{plugin_name}.mcp.{name}.args must be a list of strings")
             server: dict[str, object] = {"args": args, "command": command}
+            fallback = entry.get("pathFallback")
+            if fallback is not None and harness == "claude":
+                # Claude Code starts MCP servers with its own PATH, and a SessionStart hook cannot
+                # change it, so a CLI only in the installer's bin directory would never launch.
+                # Append that directory (unbraced, so Claude does not expand it) and exec.
+                fallback = require_string(fallback, f"{plugin_name}.mcp.{name}.pathFallback")
+                if "${" in fallback or "'" in fallback:
+                    raise ValueError(f"{plugin_name}.mcp.{name}.pathFallback must use unbraced $VARs")
+                server = {
+                    "args": ["-c", f'PATH="$PATH:{fallback}"; export PATH; exec "$0" "$@"', command, *args],
+                    "command": "sh",
+                }
             if harness == "opencode":
                 server = {"codemode": False, "command": [command, *args], "type": "local"}
             if env is not None:

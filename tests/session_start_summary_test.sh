@@ -21,8 +21,60 @@ expected_output() {
   printf '%s' "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"${message}\"}}"
 }
 
-missing_output="$(PATH="$temporary_root/missing:/usr/bin:/bin" "$script")"
+missing_output="$(HOME="$temporary_root/empty-home" PATH="$temporary_root/missing:/usr/bin:/bin" "$script")"
 assert_equal "$(expected_output 'Compose Preview needs setup: compose-preview is not available on PATH.')" "$missing_output" 'missing CLI guidance'
+
+# A CLI installed in ~/.local/bin but not yet on PATH is put on Claude Code's PATH through
+# $CLAUDE_ENV_FILE: one quoted line, written once, and the session is not told setup is missing.
+local_home="$temporary_root/local-home"
+mkdir -p "$local_home/.local/bin"
+printf '%s\n' '#!/bin/sh' 'if [ "$1 $2" = "mcp --help" ] || [ "$1 $2" = "design --help" ]; then exit 0; fi' 'exit 1' >"$local_home/.local/bin/compose-preview"
+chmod +x "$local_home/.local/bin/compose-preview"
+env_file="$temporary_root/claude.env"
+printf '%s\n' 'OTHER=kept' >"$env_file"
+for _ in 1 2; do
+  local_bin_output="$(HOME="$local_home" CLAUDE_ENV_FILE="$env_file" PATH="/usr/bin:/bin" "$script")"
+done
+assert_equal '' "$local_bin_output" 'a CLI in ~/.local/bin is found, not reported missing'
+# shellcheck disable=SC2016
+assert_equal "$(printf '%s\n' 'OTHER=kept' 'PATH="$HOME/.local/bin:$PATH"')" "$(cat "$env_file")" 'one quoted PATH line, written once'
+assert_equal 'ok' "$(HOME="$local_home" PATH=/usr/bin:/bin bash -c '. "$1" && command -v compose-preview >/dev/null && echo ok' _ "$env_file")" 'the env file puts the CLI on PATH'
+# With the CLI already on PATH, or not installed at all, the env file is left alone.
+printf '%s\n' 'OTHER=kept' >"$env_file"
+HOME="$local_home" CLAUDE_ENV_FILE="$env_file" PATH="$local_home/.local/bin:/usr/bin:/bin" "$script" >/dev/null
+HOME="$temporary_root/empty-home" CLAUDE_ENV_FILE="$env_file" PATH="/usr/bin:/bin" "$script" >/dev/null
+assert_equal 'OTHER=kept' "$(cat "$env_file")" 'no PATH line when the CLI is on PATH or absent'
+# The hook cannot change the PATH Claude Code starts MCP servers with, so the plugin's MCP launch
+# falls back to ~/.local/bin itself; a CLI already on PATH still wins.
+mcp_launch() {
+  python3 -c 'import json, sys; s = json.load(open(sys.argv[1]))["mcpServers"]["compose-preview-mcp"]; print("\0".join([s["command"], *s["args"]]), end="")' \
+    "$repository_root/plugins/compose-preview/.mcp.json" | xargs -0 env HOME="$1" PATH="$2"
+}
+mcp_home="$temporary_root/mcp-home"
+mkdir -p "$mcp_home/.local/bin" "$temporary_root/first"
+printf '%s\n' '#!/bin/sh' 'echo "local $*"' >"$mcp_home/.local/bin/compose-preview"
+printf '%s\n' '#!/bin/sh' 'echo "first $*"' >"$temporary_root/first/compose-preview"
+chmod +x "$mcp_home/.local/bin/compose-preview" "$temporary_root/first/compose-preview"
+assert_equal 'local mcp serve' "$(mcp_launch "$mcp_home" /usr/bin:/bin)" 'the MCP launch finds a CLI in ~/.local/bin'
+assert_equal 'first mcp serve' "$(mcp_launch "$mcp_home" "$temporary_root/first:/usr/bin:/bin")" 'a CLI on PATH wins'
+
+# Proxy-only JAVA_TOOL_OPTIONS lines an earlier installer left are removed from Claude's env file
+# and Codex's persistent .env; everything else in them is kept.
+legacy_claude="$temporary_root/legacy-claude.env"
+legacy_codex_home="$temporary_root/codex-home"
+mkdir -p "$legacy_codex_home"
+printf '%s\n' 'JAVA_TOOL_OPTIONS=-Dhttps.proxyHost=127.0.0.1 -Dhttps.proxyPort=1' 'KEEP=1' \
+  "JAVA_TOOL_OPTIONS='-Dhttps.proxyHost=127.0.0.1 -Dhttps.proxyPort=2'" >"$legacy_claude"
+printf '%s\n' "JAVA_TOOL_OPTIONS='-Dhttps.proxyHost=10.0.0.1 -Dhttps.proxyPort=3'" >"$legacy_codex_home/.env"
+HOME="$temporary_root/empty-home" CLAUDE_ENV_FILE="$legacy_claude" CODEX_HOME="$legacy_codex_home" \
+  PATH="/usr/bin:/bin" "$script" >/dev/null
+assert_equal 'KEEP=1' "$(cat "$legacy_claude")" 'legacy proxy-only JAVA_TOOL_OPTIONS removed from the Claude env file'
+assert_equal '' "$(cat "$legacy_codex_home/.env")" 'legacy proxy-only JAVA_TOOL_OPTIONS removed from the Codex .env'
+# A JAVA_TOOL_OPTIONS that does not start with the installer's proxy flag is someone else's.
+printf '%s\n' "JAVA_TOOL_OPTIONS='-Djavax.net.ssl.trustStore=/ts -Dhttps.proxyHost=x'" >"$legacy_claude"
+HOME="$temporary_root/empty-home" CLAUDE_ENV_FILE="$legacy_claude" CODEX_HOME="$legacy_codex_home" \
+  PATH="/usr/bin:/bin" "$script" >/dev/null
+assert_equal "JAVA_TOOL_OPTIONS='-Djavax.net.ssl.trustStore=/ts -Dhttps.proxyHost=x'" "$(cat "$legacy_claude")" 'other JAVA_TOOL_OPTIONS kept'
 
 fake_bin="$temporary_root/bin"
 mkdir "$fake_bin"
@@ -272,7 +324,7 @@ printf '%s\n' '#!/bin/sh' 'if [ "$1 $2" = "mcp --help" ]; then echo doctor; exit
 gradle_failed_output="$(CLAUDE_PROJECT_DIR="$gradle_project" PATH="$fake_bin:$PATH" "$script")"
 assert_equal "$(expected_output "Compose Preview needs attention: MCP doctor failed. $routing_hint")" "$gradle_failed_output" 'attention comes before the routing hint'
 
-gradle_missing_output="$(CLAUDE_PROJECT_DIR="$gradle_project" PATH="$temporary_root/missing:/usr/bin:/bin" "$script")"
+gradle_missing_output="$(HOME="$temporary_root/empty-home" CLAUDE_PROJECT_DIR="$gradle_project" PATH="$temporary_root/missing:/usr/bin:/bin" "$script")"
 assert_equal "$(expected_output 'Compose Preview needs setup: compose-preview is not available on PATH.')" "$gradle_missing_output" 'no routing hint when the CLI is missing'
 
 printf '%s\n' 'session start summary tests passed'

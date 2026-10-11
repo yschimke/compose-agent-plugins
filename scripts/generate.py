@@ -51,7 +51,7 @@ SEMVER = re.compile(
     r"(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?"
     r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$"
 )
-APP_ID = re.compile(r"^(?:asdk_app|connector|templated_apps)_[A-Za-z0-9][A-Za-z0-9_-]*$")
+APP_ID = re.compile(r"^(?:plugin_asdk_app|asdk_app|connector|templated_apps)_[A-Za-z0-9][A-Za-z0-9_-]*$")
 CODEX_INTERFACE_STRINGS = (
     "displayName",
     "shortDescription",
@@ -173,7 +173,7 @@ def validate_apps(
         app_id = require_string(app.get("id"), f"{plugin_name}.apps.{name}.id")
         if APP_ID.fullmatch(app_id) is None:
             raise ValueError(
-                f"{plugin_name}.apps.{name}.id must use an asdk_app_, connector_, or "
+                f"{plugin_name}.apps.{name}.id must use a plugin_asdk_app_, asdk_app_, connector_, or "
                 "templated_apps_ identifier"
             )
         rendered_app: dict[str, object] = {"id": app_id}

@@ -14,8 +14,11 @@ and report each step in one line.
 2. **Access.** Distinguish the host connection from server access:
    - If the host reports an expired Compose Preview connection, show its reconnect action
      and stop tool retries. If the authorization page reports an unknown `client_id`, tell
-     the person to disconnect/remove and add the app again to force fresh registration.
-     Neither repeating that link nor `request_access` repairs a missing registration.
+     the person that reinstalling a marketplace plugin may retain the same rejected ID.
+     The operator must restore its trusted registration, or the host must create a fresh
+     app/registration. A changed app ID also needs updated plugin manifests; use the
+     marketplace recovery steps in the host setup notes. Neither repeating that link
+     nor `request_access` repairs a missing registration.
    - Only a reachable server's `authorization_required` response starts the grant flow below.
      A network/proxy error alone does not establish that a grant expired.
    - Do not clone catalogs, start Gradle or provision a cloud environment for this hosted flow.

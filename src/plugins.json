@@ -61,7 +61,7 @@
       "onboardingSkill": "compose-catalogs-setup",
       "apps": {
         "compose-preview-catalog": {
-          "id": "asdk_app_6ac4168191c081918c4dfce8370e2842",
+          "id": "plugin_asdk_app_6acb43a86b8881918f618daf506c97ef",
           "category": "Developer Tools",
           "required": true
         }

@@ -118,14 +118,54 @@ action once. Stop repeated tool calls when it requires reauthentication. If
 the person declines reconnecting, investigate source and deployment evidence
 or continue local work without triggering another connection prompt. State
 what a live confirmation would establish before requesting one.
-If authorization instead says **Unknown client_id**, disconnect/remove the app
-and add it again so the host performs dynamic client registration. A lost ID
-cannot be recovered by retrying the same authorization URL. Server deployments
-with durable OAuth client registration retain new IDs across restarts; grants
-and approval sessions still require renewal. Other OAuth hosts follow the same
-registration rule. For a reachable server's `authorization_required`, use the
-advertised access-grant flow instead. Do not bootstrap a local environment or
-clone the hosted catalog to recover either connection.
+If authorization instead says **Unknown or expired client_id**, the server
+has no current registration for the ID the host sends. Retrying the same URL
+cannot repair it. Disconnecting/reinstalling a marketplace plugin can retain
+its hosted app and OAuth client ID; do not promise that it forces registration.
+For a reachable server's `authorization_required`, use the advertised
+access-grant flow instead. Do not bootstrap a local environment or clone the
+hosted catalog to recover either connection.
+
+#### Repairing a marketplace app registration
+
+The `compose-catalogs` plugin references a hosted app through
+`src/plugins.json` (`apps.compose-preview-catalog.id`). The generated
+`plugins/compose-catalogs/.app.json` contains that app ID, not an OAuth client
+ID. The MCP endpoint is `https://preview.coo.ee/mcp`. The current replacement
+app is [available in the personal directory](https://chatgpt.com/plugins/plugin_asdk_app_6acb43a86b8881918f618daf506c97ef?directoryTab=personal).
+Directory visibility and installation remain subject to the host account's access.
+
+1. Check the personal plugin listing and its app dependency. **Install plugin**
+   means it is uninstalled; an existing listing has not been deleted. Compare
+   its `plugin_asdk_app_…` URL with the exact manifest reference.
+2. If reconnecting retains the rejected client ID, stop repeated reconnects.
+   The server operator can restore a known registration from trusted metadata
+   or backup, binding it to the exact approved callback. Never auto-register
+   an unknown client from an incoming authorization URL.
+3. Alternatively, create a fresh custom MCP app/connection in the host's plugin
+   UI (**Add → Add custom MCP server** where available), with the endpoint
+   above and OAuth. If the original name is still reserved, use a distinct
+   name such as **Compose Preview Reconnected**. Confirm approval and a gated
+   tool call succeed before retiring the old listing. Deleting only a plugin
+   wrapper does not establish
+   that its underlying app or OAuth registration changed.
+4. If the replacement has a new app ID, change
+   `src/plugins.json` (`apps.compose-preview-catalog.id`), run
+   `python3 scripts/generate.py`, and commit the generated manifests together.
+   Use the replacement app's metadata or downloaded plugin ZIP to obtain its
+   ID. Preserve the full `plugin_asdk_app_…` technical ID from the browser
+   URL as described in [OpenAI's packaging guide](https://developers.openai.com/plugins/build/plugins#create-and-test-a-plugin-locally-with-an-mcp-server);
+   do not strip its prefix or substitute an OAuth client ID. Retaining the
+   original app ID needs no manifest change.
+5. Install the updated plugin and verify hosted catalog discovery and one
+   render. Keep the local `compose-preview` stdio server configuration separate.
+
+Durable server registration protects clients registered after the persistence
+fix across restarts; it cannot reconstruct registrations lost beforehand.
+An unused dynamic registration expires after its configured idle lifetime.
+Grants and approval sessions still require renewal. Record the host version
+and actual result; a host message saying authentication was requested/accepted
+is not proof that OAuth completed or a gated MCP call succeeded.
 
 ### Codex local design-to-code acceptance
 

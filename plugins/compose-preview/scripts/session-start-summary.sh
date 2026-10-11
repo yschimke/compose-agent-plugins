@@ -170,6 +170,24 @@ if ! command -v compose-preview >/dev/null 2>&1 && [ -x "$local_bin/compose-prev
   fi
 fi
 
+# Earlier yschimke/skills installers wrote a proxy-only JAVA_TOOL_OPTIONS (always starting
+# `-Dhttps.proxyHost=`, quoted or not) into the agent env files. Hosted sandboxes set their own,
+# with the proxy CA's truststore, and a stale copy (an old proxy port in Codex's persistent .env)
+# breaks JVM networking. The installer no longer writes them, so drop the ones it left.
+legacy_jto="^JAVA_TOOL_OPTIONS=['\"]?-Dhttps\.proxyHost="
+for legacy_env in "${CLAUDE_ENV_FILE:-}" "${CODEX_HOME:-$HOME/.codex}/.env"; do
+  [ -n "$legacy_env" ] && [ -f "$legacy_env" ] || continue
+  grep -Eq "$legacy_jto" "$legacy_env" 2>/dev/null || continue
+  legacy_tmp="$legacy_env.compose-preview.$$"
+  grep -Ev "$legacy_jto" "$legacy_env" >"$legacy_tmp" 2>/dev/null
+  # grep -v exits 1 when it keeps no line; anything above that is a read error, so keep the file.
+  if [ $? -le 1 ]; then
+    mv -f "$legacy_tmp" "$legacy_env" 2>/dev/null || rm -f "$legacy_tmp"
+  else
+    rm -f "$legacy_tmp"
+  fi
+done
+
 if ! command -v compose-preview >/dev/null 2>&1; then
   emit_context "Compose Preview needs setup: compose-preview is not available on PATH."
   exit 0

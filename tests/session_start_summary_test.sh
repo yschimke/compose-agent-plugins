@@ -45,6 +45,24 @@ HOME="$local_home" CLAUDE_ENV_FILE="$env_file" PATH="$local_home/.local/bin:/usr
 HOME="$temporary_root/empty-home" CLAUDE_ENV_FILE="$env_file" PATH="/usr/bin:/bin" "$script" >/dev/null
 assert_equal 'OTHER=kept' "$(cat "$env_file")" 'no PATH line when the CLI is on PATH or absent'
 
+# Proxy-only JAVA_TOOL_OPTIONS lines an earlier installer left are removed from Claude's env file
+# and Codex's persistent .env; everything else in them is kept.
+legacy_claude="$temporary_root/legacy-claude.env"
+legacy_codex_home="$temporary_root/codex-home"
+mkdir -p "$legacy_codex_home"
+printf '%s\n' 'JAVA_TOOL_OPTIONS=-Dhttps.proxyHost=127.0.0.1 -Dhttps.proxyPort=1' 'KEEP=1' \
+  "JAVA_TOOL_OPTIONS='-Dhttps.proxyHost=127.0.0.1 -Dhttps.proxyPort=2'" >"$legacy_claude"
+printf '%s\n' "JAVA_TOOL_OPTIONS='-Dhttps.proxyHost=10.0.0.1 -Dhttps.proxyPort=3'" >"$legacy_codex_home/.env"
+HOME="$temporary_root/empty-home" CLAUDE_ENV_FILE="$legacy_claude" CODEX_HOME="$legacy_codex_home" \
+  PATH="/usr/bin:/bin" "$script" >/dev/null
+assert_equal 'KEEP=1' "$(cat "$legacy_claude")" 'legacy proxy-only JAVA_TOOL_OPTIONS removed from the Claude env file'
+assert_equal '' "$(cat "$legacy_codex_home/.env")" 'legacy proxy-only JAVA_TOOL_OPTIONS removed from the Codex .env'
+# A JAVA_TOOL_OPTIONS that does not start with the installer's proxy flag is someone else's.
+printf '%s\n' "JAVA_TOOL_OPTIONS='-Djavax.net.ssl.trustStore=/ts -Dhttps.proxyHost=x'" >"$legacy_claude"
+HOME="$temporary_root/empty-home" CLAUDE_ENV_FILE="$legacy_claude" CODEX_HOME="$legacy_codex_home" \
+  PATH="/usr/bin:/bin" "$script" >/dev/null
+assert_equal "JAVA_TOOL_OPTIONS='-Djavax.net.ssl.trustStore=/ts -Dhttps.proxyHost=x'" "$(cat "$legacy_claude")" 'other JAVA_TOOL_OPTIONS kept'
+
 fake_bin="$temporary_root/bin"
 mkdir "$fake_bin"
 fake_cli="$fake_bin/compose-preview"

@@ -44,5 +44,5 @@
   "name": "compose-catalogs",
   "repository": "https://github.com/yschimke/compose-agent-plugins",
   "skills": "./skills/",
-  "version": "0.5.0"
+  "version": "0.6.0"
 }

@@ -131,7 +131,9 @@ hosted catalog to recover either connection.
 The `compose-catalogs` plugin references a hosted app through
 `src/plugins.json` (`apps.compose-preview-catalog.id`). The generated
 `plugins/compose-catalogs/.app.json` contains that app ID, not an OAuth client
-ID. The MCP endpoint is `https://preview.coo.ee/mcp`.
+ID. The MCP endpoint is `https://preview.coo.ee/mcp`. The current replacement
+app is [available in the personal directory](https://chatgpt.com/plugins/plugin_asdk_app_6acb43a86b8881918f618daf506c97ef?directoryTab=personal).
+Directory visibility and installation remain subject to the host account's access.
 
 1. Check the personal plugin listing and its app dependency. **Install plugin**
    means it is uninstalled; an existing listing has not been deleted. Compare

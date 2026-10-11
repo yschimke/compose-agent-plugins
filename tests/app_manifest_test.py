@@ -91,7 +91,7 @@ class AppManifestTest(unittest.TestCase):
         )
         self.assertEqual(expected, generated)
         self.assertEqual(
-            "asdk_app_6ac4168191c081918c4dfce8370e2842",
+            "asdk_app_6acb43a86b8881918f618daf506c97ef",
             generated["apps"]["compose-preview-catalog"]["id"],
         )
         self.assertIs(generated["apps"]["compose-preview-catalog"]["required"], True)

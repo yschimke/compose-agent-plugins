@@ -100,7 +100,8 @@
           "args": [
             "mcp",
             "serve"
-          ]
+          ],
+          "pathFallback": "$HOME/.local/bin"
         }
       ],
       "skills": [

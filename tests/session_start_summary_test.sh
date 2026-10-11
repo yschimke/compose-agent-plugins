@@ -44,6 +44,19 @@ printf '%s\n' 'OTHER=kept' >"$env_file"
 HOME="$local_home" CLAUDE_ENV_FILE="$env_file" PATH="$local_home/.local/bin:/usr/bin:/bin" "$script" >/dev/null
 HOME="$temporary_root/empty-home" CLAUDE_ENV_FILE="$env_file" PATH="/usr/bin:/bin" "$script" >/dev/null
 assert_equal 'OTHER=kept' "$(cat "$env_file")" 'no PATH line when the CLI is on PATH or absent'
+# The hook cannot change the PATH Claude Code starts MCP servers with, so the plugin's MCP launch
+# falls back to ~/.local/bin itself; a CLI already on PATH still wins.
+mcp_launch() {
+  python3 -c 'import json, sys; s = json.load(open(sys.argv[1]))["mcpServers"]["compose-preview-mcp"]; print("\0".join([s["command"], *s["args"]]), end="")' \
+    "$repository_root/plugins/compose-preview/.mcp.json" | xargs -0 env HOME="$1" PATH="$2"
+}
+mcp_home="$temporary_root/mcp-home"
+mkdir -p "$mcp_home/.local/bin" "$temporary_root/first"
+printf '%s\n' '#!/bin/sh' 'echo "local $*"' >"$mcp_home/.local/bin/compose-preview"
+printf '%s\n' '#!/bin/sh' 'echo "first $*"' >"$temporary_root/first/compose-preview"
+chmod +x "$mcp_home/.local/bin/compose-preview" "$temporary_root/first/compose-preview"
+assert_equal 'local mcp serve' "$(mcp_launch "$mcp_home" /usr/bin:/bin)" 'the MCP launch finds a CLI in ~/.local/bin'
+assert_equal 'first mcp serve' "$(mcp_launch "$mcp_home" "$temporary_root/first:/usr/bin:/bin")" 'a CLI on PATH wins'
 
 # Proxy-only JAVA_TOOL_OPTIONS lines an earlier installer left are removed from Claude's env file
 # and Codex's persistent .env; everything else in them is kept.

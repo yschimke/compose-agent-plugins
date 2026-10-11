@@ -43,5 +43,5 @@
   "name": "compose-preview",
   "repository": "https://github.com/yschimke/compose-agent-plugins",
   "skills": "./.codex-plugin/skills/",
-  "version": "0.5.0"
+  "version": "0.6.0"
 }

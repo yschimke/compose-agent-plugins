@@ -66,4 +66,28 @@ repository's `compose-catalogs` wiring enabled.
 
 ## Results
 
-Not run. Live service credentials and harness sessions are required.
+### 2026-10-11, preview.coo.ee 3.121.0, scripted by hand
+
+The prompts were followed step by step against the hosted server, using the `compose-ui-builder`
+skill as merged in yschimke/skills#144 and #145. The calls went through a plain MCP client
+with a UI Builder grant (`ui-builder-read`, `-write`, `-export`), not through an agent harness. So this
+checks that the server supports each workflow and that the skill's instructions work against it.
+It does not check that an agent picks the workflow unprompted. 81 tool calls, every one within
+0.6–1.7 s except `ui_builder_render_design_matrix` (6–11 s) and the 60 s decision waits. The
+designs are `eval-login-1` (with branches `-compact` and `-roomy`), `eval-wear-list-2` and
+`eval-textfield-probe`.
+
+| # | Result | Notes |
+| --- | --- | --- |
+| 1 | Pass after fixes | The skill's `references/m3-catalog.md` gives `m3/text-field` a required `variant`; the server rejects it as undeclared, and outlined is now the separate `m3/outlined-text-field`. `ui_builder_check_design` passed `m3/outlined-text-field`, but `ui_builder_view` drew it as "Unsupported component", so only the editor view caught it. The catalog declares `singleLine`, but the Compose gate rejects it for `OutlinedTextField`, in a finding with no `nodeId`. With `m3/text-field` the check, view and device grid passed and the export had no diagnostics. No password text field exists in the catalog. |
+| 2 | Pass | There is no `wear-m3` starter in the skill; `catalogRevision: "candidate"` is refused (`catalogUnavailable`), and the real pin from `ui_builder_list_catalogs` works. `screen-scaffold` › `transforming-lazy-column` › `list-header` + 3 `button`s render correctly on small and large round watches at 100% and 200% font. Export had no diagnostics. |
+| 3 | Pass | Read the design (r4, filled button, no comments), then one `setProperty` → r5. The skill documents neither `setProperty` nor `deleteNode`; `ui_builder_apply`'s description names them. `ui_builder_view` with `selection` drew no selection. |
+| 4 | Partial | Without Figma, the r4 render was attached as the reference (`facts`: `screen`, `pixelComparable`). `ui_builder_compare_reference` (export renderer) found one region, the restyled button (24, 248, 368 × 48 dp, 3.8 % of the frame). Layer alignment needs the native render, and preview.coo.ee has none for `m3-catalog` (`NO_NATIVE_CATALOG`). Because `renderer` defaults to native when `nodeIds` is given, the skill's step 5 fails as written on this host. |
+| 5 | Pass | One check and one 12-cell grid (phone, foldable, tablet; light and dark; 100% and 200%). The grid showed the form stretched across a 1280 dp tablet, and the title nearly invisible in dark theme. The check reported neither: its contrast pass uses the design's own theme. |
+| 6 | Pass | Two branches forked at the recorded r5, one numbered comparison sheet, and `ui_builder_pick_branch` → `ask-in-chat`. The person delegated the choice. A `dryRun` merge reported `"merged": true` before anything was written; the merge itself went r5 → r6 and archived the sibling. |
+| 7 | Not completed | `ui_builder_await_decision` on revision 6 held each 60 s call and returned `timedOut` cleanly; no decision came in within 28 minutes, so the implementation step did not run. |
+| 8 | Pass | With a stand-in PR URL, `ui_builder_set_implementation`, then `ui_builder_find_design_for_pr` found the design, and `ui_builder_implementation_status` said "no decision on this revision". |
+
+The access grant also hit a server problem. Two pending `request_access` requests were lost
+("no such access request") while preview.coo.ee restarted and reloaded its catalogs. A person who is
+slow to approve during a deploy has to start over.

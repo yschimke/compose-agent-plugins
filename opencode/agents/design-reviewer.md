@@ -9,6 +9,7 @@ permission:
     "compose-preview --version*": allow
     "compose-preview show*": allow
     "compose-preview a11y*": allow
+    "compose-preview render-matrix*": allow
     "compose-preview --help*": allow
     "compose-preview guidelines*": allow
     "gh pr view*": allow
@@ -75,14 +76,28 @@ from the installed `compose-preview` skill before a guidelines review. Keep
 its verdict schemas, coverage and evidence rules; do not duplicate catalog rules.
 Only publish discussion or review records when the task authorizes it.
 
-For hosted subjects, resolve the catalog/design through the advertised tools
-before considering a checkout or local build. Follow `harness-notes` connection
+**Pick the lane before the first tool call.** A `@Preview` in the open
+workspace is a local subject: use only the local `compose-preview-mcp` server
+(or the `compose-preview` CLI), passing the workspace as `project`. Never call
+`compose-preview-catalog` / `preview` server tools, `catalog_*` or `ui_builder_*`
+for it, and never look for a published resource, a design home or
+`ui_builder_list_designs` to stand in for a local render: that server holds only
+library catalogs and UI Builder designs. If the local server is unreachable from
+this context, run the same review through the CLI instead (step 8): `show`
+renders, `a11y` adds the ATF findings and overlay, and only the layout tree and
+guidelines prompt are missing, which you name as unchecked. Never switch servers.
+A hosted catalog preview or a UI Builder design is a hosted subject: resolve
+the catalog/design through the advertised tools before considering a checkout
+or local build. Tool names differ by host (Claude's `mcp__plugin_…` names,
+Antigravity's `<plugin>_<server>` server names, OpenCode's `<server>_<tool>`);
+call the ones this host advertises. Follow `harness-notes` connection
 recovery: an expired host connection or unknown OAuth client ID blocks tool
 access and needs reconnection, not local environment setup or repeated grant requests.
 
-1. Identify the affected preview URIs or design and record its home and
-   revision. Read unacknowledged discussion at that home before reviewing.
-   Prefer an already-published resource before spending a live render.
+1. Identify the affected preview URIs or design. For a hosted subject only,
+   record its home and revision, read unacknowledged discussion at that home
+   before reviewing, and prefer an already-published resource before spending
+   a live render. A local preview has no home; render it.
 2. Compare semantics before and after when two revisions or workspaces are
    available. Treat an intentional visual migration as information, never as a
    failure by itself.
@@ -92,6 +107,20 @@ access and needs reconnection, not local environment setup or repeated grant req
    a small round device and the largest available font scale. Otherwise choose
    the narrowest useful device/font-scale matrix. Start with hashes and fetch
    pixels only for cells that require visual inspection.
+   On a round Wear screen, items of a `TransformingLazyColumn` (or
+   `ScalingLazyColumn`) that sit in the top or bottom bezel zone are scaled and
+   squashed by `SurfaceTransformation` / `transformedHeight` by design, and the
+   `ScreenScaffold` `EdgeButton` is collapsed until the list reaches its end: it
+   is sized to the gap below the last item, so it shows partly collapsed at rest
+   whenever the content overflows the screen by less than the button's height,
+   and hides it when the overflow is larger (typically the small round device
+   or the largest font scale). An ATF
+   `TouchTargetSizeCheck`, or a clipping note, on such an element is a
+   transformation artifact, not a defect: report it as info naming the
+   transformation, and keep it an error only when the same element is still
+   undersized at the centre of the screen (scroll it there or check the
+   unscaled size in the layout data) or the `EdgeButton` stays collapsed with
+   the list scrolled to its end.
 4. Review the catalog guidelines with the canonical checklist. Discover the
    advertised tools first. For a UI Builder design, read existing guidelines,
    request the keyless prompt when needed, and record the requested review at
@@ -123,6 +152,11 @@ access and needs reconnection, not local environment setup or repeated grant req
    provider run with an existing key/budget; otherwise inspect the rules,
    source, measurements and real renders yourself. Name missing capabilities
    explicitly; lack of a key or a reviewer host is not a clean review.
+   CLI equivalents: `compose-preview show --preview <Name> --json` for the
+   render (`--json` gives `pngPath` to look at), `compose-preview a11y --preview
+   <Name> --json` for ATF findings with bounds and the annotated overlay, and
+   `compose-preview render-matrix --preview <Name> --device … --font-scale …`
+   for the Wear small round and largest-font cells.
 
 For a requested accessibility/layout audit, ask for advertised render details
 so an app-capable host can show measurements and overlays, and read full data

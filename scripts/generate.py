@@ -13,6 +13,13 @@ SOURCE = ROOT / "src" / "plugins.json"
 SKILL_SOURCE_ROOT = ROOT / "src" / "skills"
 AGENT_SOURCE_ROOT = ROOT / "src" / "agents"
 AGENT_LEDGER_NAME = ".generated-agents.json"
+# agents/ is what Antigravity (and Cursor) scan, and Antigravity fails to start an agent whose
+# `tools:` names a tool it does not have (#147), so that copy carries only `name` and
+# `description`. Claude Code reads its own copy, with the tool allowlist, from the manifest's
+# `agents` list, which replaces its default agents/ scan.
+PORTABLE_AGENT_DIR = "agents"
+CLAUDE_AGENT_DIR = "claude-agents"
+PORTABLE_AGENT_FIELDS = ("name", "description")
 HOOK_SOURCE_ROOT = ROOT / "src" / "hooks"
 ASSET_SOURCE_ROOT = ROOT / "src" / "assets"
 ASSET_LEDGER_NAME = ".generated-assets.json"
@@ -248,9 +255,23 @@ def write_agent(plugin_root: Path, agent: str) -> None:
     source = AGENT_SOURCE_ROOT / f"{agent}.md"
     if not source.is_file():
         raise ValueError(f"missing shared agent source: {source.relative_to(ROOT)}")
-    target = plugin_root / "agents" / f"{agent}.md"
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+    text = source.read_text(encoding="utf-8")
+    claude = plugin_root / CLAUDE_AGENT_DIR / f"{agent}.md"
+    claude.parent.mkdir(parents=True, exist_ok=True)
+    claude.write_text(text, encoding="utf-8")
+    portable = plugin_root / PORTABLE_AGENT_DIR / f"{agent}.md"
+    portable.parent.mkdir(parents=True, exist_ok=True)
+    portable.write_text(render_portable_agent(text, source.relative_to(ROOT)), encoding="utf-8")
+
+
+def render_portable_agent(text: str, source: Path) -> str:
+    """The agent without harness-specific frontmatter: tool names differ between harnesses."""
+    fields, body = split_frontmatter(text, source)
+    lines = ["---"]
+    for field in PORTABLE_AGENT_FIELDS:
+        lines.append(f"{field}: {require_string(fields.get(field), f'{source}.{field}')}")
+    lines.append("---")
+    return "\n".join(lines) + "\n" + body
 
 
 def write_rules(plugin_root: Path, plugin_name: str, rules: object) -> None:
@@ -529,8 +550,8 @@ def render_antigravity_hooks(plugin_name: str, entries: object) -> dict[str, obj
     return {plugin_name: {"enabled": True, **events}}
 
 
-def synchronize_generated_agents(plugin_root: Path, agents: list[str]) -> None:
-    agents_root = plugin_root / "agents"
+def synchronize_generated_agents(plugin_root: Path, agents: list[str], directory: str) -> None:
+    agents_root = plugin_root / directory
     ledger = agents_root / AGENT_LEDGER_NAME
     previous: list[str] = []
     if ledger.is_file():
@@ -773,6 +794,10 @@ def render_claude_manifest(
         )
     if user_config:
         manifest["userConfig"] = user_config
+    agents = plugin.get("agents", [])
+    if agents:
+        # Replaces the default agents/ scan, which holds the portable copies (#147).
+        manifest["agents"] = [f"./{CLAUDE_AGENT_DIR}/{agent}.md" for agent in agents]
     return manifest
 
 
@@ -1033,7 +1058,8 @@ def main() -> None:
         codex_skills, codex_skills_path = codex_skill_config(plugin)
         write_codex_skills(root, plugin)
         write_rules(root, name, plugin.get("rules"))
-        synchronize_generated_agents(root, agents)
+        for directory in (PORTABLE_AGENT_DIR, CLAUDE_AGENT_DIR):
+            synchronize_generated_agents(root, agents, directory)
         for agent in agents:
             write_agent(root, agent)
         remove_obsolete_generated_hooks(root, hooks)

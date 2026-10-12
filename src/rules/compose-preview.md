@@ -9,11 +9,17 @@ workflows themselves are in the `compose-preview` and `compose-ui-builder` skill
   plugin folder and cannot find the workspace by itself. Don't search the project, read docs or
   list previews first. A miss names the closest matches; `pending` means call again with the same
   arguments.
+- **No MCP server?** When `compose-preview-mcp` is not enabled or not allowed here, use the CLI
+  from the workspace: `compose-preview show --preview <FunctionName> --json` (or `a11y` for
+  accessibility), look at its `pngPath`, and build the card as `antigravity-viewer-card` says.
+  The hosted catalog server is never a stand-in for a project preview.
 - **Library components** (Material 3, Wear) come from the `compose-preview-catalog` server's
   `catalog_*` tools. Never write preview files into the person's project to show one.
 - **After editing Compose UI**, render an affected preview and look at the PNG before calling the
   change done (R1). If rendering fails, say so with the error. Never hand-build a mock of a render.
 - **Show it** with the `antigravity-viewer-card` skill: the `embed` line, a few bullets, no base64.
+- **Design reviews:** delegate with `invoke_subagent(TypeName="self")`, not the packaged
+  `design-reviewer` type or `define_subagent`, and start the task with `Follow ~/.gemini/config/plugins/compose-preview/agents/design-reviewer.md: review only, no edits; local previews through compose-preview-mcp or the CLI, never the catalog server; return its compact verdict. Subject: <preview or design>.`
 - **UI Builder designs:** before finishing work on one, run `compose-preview design status` once
   and report unacknowledged comments or unsaved temporary copies (R3, R4); this host has no
   session-start check that would.

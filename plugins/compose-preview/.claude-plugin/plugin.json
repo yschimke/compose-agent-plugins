@@ -1,4 +1,7 @@
 {
+  "agents": [
+    "./claude-agents/design-reviewer.md"
+  ],
   "author": {
     "name": "Yuri Schimke"
   },

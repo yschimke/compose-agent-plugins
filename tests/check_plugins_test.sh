@@ -174,7 +174,21 @@ if test -e "$fixture/plugins/compose-catalogs/agents/design-reviewer.md"; then
   exit 1
 fi
 for plugin in compose-preview; do
-  reviewer="$fixture/plugins/$plugin/agents/design-reviewer.md"
+  # agents/ is the portable copy Antigravity loads: an unknown tool name there stops the agent
+  # from starting (#147), so it carries no `tools:` at all.
+  portable="$fixture/plugins/$plugin/agents/design-reviewer.md"
+  test -f "$portable"
+  grep -q '^name: design-reviewer$' "$portable"
+  if grep -q '^tools:' "$portable"; then
+    printf '%s\n' 'FAIL: the portable reviewer must not name harness-specific tools' >&2
+    exit 1
+  fi
+  python3 -c '
+import json, sys
+manifest = json.load(open(sys.argv[1], encoding="utf-8"))
+assert manifest.get("agents") == ["./claude-agents/design-reviewer.md"], manifest.get("agents")
+' "$fixture/plugins/$plugin/.claude-plugin/plugin.json"
+  reviewer="$fixture/plugins/$plugin/claude-agents/design-reviewer.md"
   test -f "$reviewer"
   grep -q '^name: design-reviewer$' "$reviewer"
   grep -Fq '"Bash(gh pr view:*)"' "$reviewer"
@@ -186,6 +200,22 @@ for plugin in compose-preview; do
     exit 1
   fi
 done
+
+# Claude Code reads claude-agents/ through its manifest, so a missing or stale copy there must fail
+# validation even though agents/ still holds a good portable copy.
+claude_reviewer="$fixture/plugins/compose-preview/claude-agents/design-reviewer.md"
+cp "$claude_reviewer" "$fixture/claude-reviewer.saved"
+printf '%s\n' 'stale' >>"$claude_reviewer"
+if python3 "$fixture/scripts/validate_manifests.py" >/dev/null 2>&1; then
+  printf '%s\n' 'FAIL: a stale Claude agent copy must fail validation' >&2
+  exit 1
+fi
+rm "$claude_reviewer"
+if python3 "$fixture/scripts/validate_manifests.py" >/dev/null 2>&1; then
+  printf '%s\n' 'FAIL: a missing Claude agent copy must fail validation' >&2
+  exit 1
+fi
+mv "$fixture/claude-reviewer.saved" "$claude_reviewer"
 
 hook="$fixture/plugins/compose-preview/hooks/hooks.json"
 test -f "$hook"
@@ -386,7 +416,8 @@ next(plugin for plugin in data["plugins"] if plugin["name"] == "compose-preview"
 source.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 ' "$fixture/src/plugins.json"
 python3 "$fixture/scripts/generate.py"
-if test -e "$fixture/plugins/compose-preview/agents/design-reviewer.md"; then
+if test -e "$fixture/plugins/compose-preview/agents/design-reviewer.md" ||
+  test -e "$fixture/plugins/compose-preview/claude-agents/design-reviewer.md"; then
   printf '%s\n' 'FAIL: generator must remove agents recorded in its ledger' >&2
   exit 1
 fi

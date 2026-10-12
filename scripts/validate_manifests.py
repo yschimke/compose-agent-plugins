@@ -10,15 +10,18 @@ import sys
 from pathlib import Path
 
 from generate import (
+    AGENT_SOURCE_ROOT,
     ANTIGRAVITY_HOOK_MANIFEST,
     ANTIGRAVITY_SCHEMA,
     ASSET_SOURCE_ROOT,
+    CLAUDE_AGENT_DIR,
     HOOK_MANIFESTS,
     HOOK_SOURCE_ROOT,
     LICENSE_SOURCE,
     MARKETPLACE_NAME,
     OPENCODE_LEDGER_NAME,
     OPENCODE_ROOT,
+    PORTABLE_AGENT_DIR,
     README_SOURCE_ROOT,
     RULES_SOURCE_ROOT,
     RULES_TARGET,
@@ -33,6 +36,7 @@ from generate import (
     render_hooks,
     render_mcp_servers,
     render_opencode_bundle,
+    render_portable_agent,
     render_registry_server,
     validate_apps,
 )
@@ -562,7 +566,23 @@ def main() -> None:
         elif rules_copy.exists():
             raise ValueError(f"{root} contains stale rules")
         for agent in plugin.get("agents", []):
-            validate_agent_tools(root / "agents" / f"{agent}.md", plugins)
+            # Claude Code's copy keeps the allowlist; the portable copy, which Antigravity and Cursor
+            # load from agents/, must name no tools at all (#147).
+            agent_source = AGENT_SOURCE_ROOT / f"{agent}.md"
+            claude_copy = root / CLAUDE_AGENT_DIR / f"{agent}.md"
+            portable_copy = root / PORTABLE_AGENT_DIR / f"{agent}.md"
+            if claude_copy.read_bytes() != agent_source.read_bytes():
+                raise ValueError(
+                    f"{claude_copy}: generated copy differs from {agent_source.relative_to(ROOT)}"
+                )
+            if portable_copy.read_text(encoding="utf-8") != render_portable_agent(
+                agent_source.read_text(encoding="utf-8"), agent_source.relative_to(ROOT)
+            ):
+                raise ValueError(f"{portable_copy}: stale portable agent copy")
+            portable_lines = portable_copy.read_text(encoding="utf-8").splitlines()
+            if any(line.startswith("tools:") for line in portable_lines):
+                raise ValueError(f"{portable_copy}: the portable agent must not name tools")
+            validate_agent_tools(claude_copy, plugins)
         for skill_path in expected_skills:
             validate_skill(skill_path)
             shared_source = SKILL_SOURCE_ROOT / skill_path.parent.name / "SKILL.md"

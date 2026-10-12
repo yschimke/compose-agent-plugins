@@ -10,6 +10,8 @@ from pathlib import Path
 
 from generate import (
     AGENT_LEDGER_NAME,
+    CLAUDE_AGENT_DIR,
+    PORTABLE_AGENT_DIR,
     ANTIGRAVITY_HOOK_MANIFEST,
     ASSET_LEDGER_NAME,
     HOOK_MANIFESTS,
@@ -71,9 +73,10 @@ def generated_paths(source: object) -> tuple[list[Path], set[str]]:
         agents = plugin.get("agents", [])
         if not isinstance(agents, list) or not all(isinstance(agent, str) for agent in agents):
             raise ValueError(f"{name}.agents must be a list of strings")
-        paths.extend(plugin_root / "agents" / f"{agent}.md" for agent in agents)
-        if agents:
-            paths.append(plugin_root / "agents" / AGENT_LEDGER_NAME)
+        for directory in (PORTABLE_AGENT_DIR, CLAUDE_AGENT_DIR):
+            paths.extend(plugin_root / directory / f"{agent}.md" for agent in agents)
+            if agents:
+                paths.append(plugin_root / directory / AGENT_LEDGER_NAME)
         hooks = plugin.get("hooks", [])
         if not isinstance(hooks, list) or not all(isinstance(hook, dict) for hook in hooks):
             raise ValueError(f"{name}.hooks must be a list of objects")

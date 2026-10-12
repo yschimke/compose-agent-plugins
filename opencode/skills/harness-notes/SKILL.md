@@ -33,7 +33,10 @@ In Claude Code, Antigravity, or OpenCode with `opencode-install.py` run, use the
 packaged `design-reviewer` when it is discoverable and the task allows
 delegation. In Codex, a catalog-only install or any host without that agent,
 run the same checklist in the current context; never stop at a failed agent
-lookup. Use this host's advertised tool
+lookup. In Antigravity, when the packaged reviewer fails to start or cannot
+reach `compose-preview_compose-preview-mcp`, run the review with
+`invoke_subagent(TypeName="self")` or in the current context: a
+`define_subagent` subagent is not granted plugin-scoped MCP servers. Use this host's advertised tool
 names and schemas rather than copying Claude's namespace. Review records are
 metadata at the design's home, not node edits or human approval. Missing frames,
 stale results and skipped rules produce partial coverage, not a clean pass.

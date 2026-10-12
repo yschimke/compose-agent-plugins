@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.7.0](https://github.com/yschimke/compose-agent-plugins/compare/v0.6.0...v0.7.0) (2026-10-12)
+
+
+### Features
+
+* **hooks:** put an installed compose-preview CLI on Claude Code's PATH and clear legacy installer env entries ([#145](https://github.com/yschimke/compose-agent-plugins/issues/145)) ([dfcdeee](https://github.com/yschimke/compose-agent-plugins/commit/dfcdeee810574b57f805387e88f012b4ad4fd3a1))
+
+
+### Bug Fixes
+
+* **design-reviewer:** load in Antigravity, keep local reviews local, and support the CLI path without MCP ([#148](https://github.com/yschimke/compose-agent-plugins/issues/148)) ([2b85706](https://github.com/yschimke/compose-agent-plugins/commit/2b857062f277c754bcf74b92dbb5d30bd775bfd5))
+
 ## [0.6.0](https://github.com/yschimke/compose-agent-plugins/compare/v0.5.0...v0.6.0) (2026-10-11)
 
 

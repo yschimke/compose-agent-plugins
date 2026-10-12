@@ -306,7 +306,11 @@ cmp "$fixture/src/assets/compose-preview-card.py" "$fixture/plugins/compose-prev
 grep -q '#compose-preview-result=<unpadded-base64url-envelope>' "$fallback_asset"
 grep -q 'Text fallback' "$fallback_asset"
 cmp "$provenance_source" "$provenance_asset"
-grep -q 'd5f6b776872dd70a29653a6e2712bdce1eecd961cea53b75d23c6a32a7afe221' "$provenance_asset"
+python3 -c '
+import hashlib, json, sys
+provenance = json.load(open(sys.argv[1], encoding="utf-8"))
+assert hashlib.sha256(open(sys.argv[2], "rb").read()).hexdigest() == provenance["sha256"]
+' "$provenance_asset" "$viewer_asset"
 test -f "$fixture/plugins/compose-preview/skills/antigravity-viewer-card/SKILL.md"
 test ! -e "$fixture/plugins/compose-catalogs/skills/antigravity-viewer-card/SKILL.md"
 

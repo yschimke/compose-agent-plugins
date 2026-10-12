@@ -1,8 +1,10 @@
 # Compose Preview viewer handoff
 
-`compose-preview-viewer.html` is the portable viewer bundle released as the
-`compose-preview-viewer.html` asset of `compose-preview-server` v3.131.0, copied
-byte-for-byte. Its release tag, source commit, and SHA-256 are recorded in
+`compose-preview-viewer.html` is compose-preview-server's portable viewer
+bundle, copied byte-for-byte from the `compose-preview-viewer.html` asset of
+`compose-preview-server` v3.131.0. compose-preview-mcp re-publishes it with each
+of its releases, which is where `scripts/update-viewer.py` takes it from. Its
+release tag, source commit, and SHA-256 are recorded in
 `compose-preview-viewer.provenance.json`. Do not create, edit, or substitute a
 second Antigravity card.
 

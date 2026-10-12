@@ -1,0 +1,81 @@
+name: Sync viewer
+
+# `src/assets/compose-preview-viewer.html` is compose-preview-mcp's release asset, copied byte for
+# byte with its provenance. When compose-preview-mcp releases, run `scripts/update-viewer.py` on the
+# new tag and open (or refresh) one pull request. A copy is the bytes plus their provenance and the
+# regenerated plugins, which is why this is a workflow rather than a Renovate rule.
+
+on:
+  schedule:
+    - cron: "41 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "compose-preview-mcp release tag (default: the latest release)"
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-viewer
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BRANCH: agent/sync-viewer
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Copy the compose-preview-mcp release's viewer
+        id: sync
+        env:
+          REQUESTED: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          tag="${REQUESTED:-}"
+          if [ -z "$tag" ]; then
+            # Before compose-preview-mcp's first release there is nothing to take.
+            if ! tag="$(gh release view --repo yschimke/compose-preview-mcp --json tagName --jq .tagName)"; then
+              echo "compose-preview-mcp has no release yet"
+              echo "changed=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+          current="$(python3 -c 'import json; print(json.load(open("src/assets/compose-preview-viewer.provenance.json"))["release"])')"
+          if [ "$current" = "$tag" ]; then
+            echo "already at $tag"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          python3 scripts/update-viewer.py "$tag"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+      - name: Open or refresh the pull request
+        if: ${{ steps.sync.outputs.changed == 'true' }}
+        env:
+          TAG: ${{ steps.sync.outputs.tag }}
+        run: |
+          set -euo pipefail
+          title="fix: bundle the viewer from compose-preview-mcp ${TAG}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$BRANCH"
+          git add -A
+          git commit -m "$title"
+          git push --force origin "$BRANCH"
+          if [ -z "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[].number')" ]; then
+            gh pr create --head "$BRANCH" --title "$title" \
+              --body "Copied byte for byte by \`scripts/update-viewer.py ${TAG}\`, which checks the viewer against the release's provenance and regenerates the plugins."
+          else
+            gh pr edit "$BRANCH" --title "$title"
+          fi
+          # A push made with GITHUB_TOKEN raises no `pull_request` event, so ask for validation by
+          # name; its checks land on the pushed commit.
+          gh workflow run plugins.yml --ref "$BRANCH"

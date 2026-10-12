@@ -29,14 +29,16 @@ render call and a short reply.
 
 **Requested design review.** Load the canonical `compose-preview` skill's
 [catalog guidelines checklist](https://github.com/yschimke/skills/blob/main/skills/compose-preview/references/design-guidelines.md).
-In Claude Code, Antigravity, or OpenCode with `opencode-install.py` run, use the
-packaged `design-reviewer` when it is discoverable and the task allows
-delegation. In Codex, a catalog-only install or any host without that agent,
-run the same checklist in the current context; never stop at a failed agent
-lookup. In Antigravity, when the packaged reviewer fails to start or cannot
-reach `compose-preview_compose-preview-mcp`, run the review with
-`invoke_subagent(TypeName="self")` or in the current context: a
-`define_subagent` subagent is not granted plugin-scoped MCP servers. Use this host's advertised tool
+In Claude Code, or OpenCode with `opencode-install.py` run, use the packaged
+`design-reviewer` when it is discoverable and the task allows delegation. In
+Antigravity, delegate with `invoke_subagent(TypeName="self")`, which keeps the
+plugin's `compose-preview_compose-preview-mcp` server, and hand it the
+reviewer's instructions, since `self` does not carry them or its review-only
+boundary: "Follow ~/.gemini/config/plugins/compose-preview/agents/design-reviewer.md: review only, no edits; local previews through compose-preview-mcp or the CLI, never the catalog server; return its compact verdict. Subject: <preview or design>." With only `compose-catalogs` installed there is no such file; hand it the
+canonical checklist instead. Never use `define_subagent` for it: such a subagent is not
+granted plugin-scoped MCP servers. In Codex, a catalog-only install or any host
+without delegation, run the same checklist in the current context; never stop
+at a failed agent lookup. Use this host's advertised tool
 names and schemas rather than copying Claude's namespace. Review records are
 metadata at the design's home, not node edits or human approval. Missing frames,
 stale results and skipped rules produce partial coverage, not a clean pass.

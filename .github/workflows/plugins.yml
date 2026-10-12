@@ -14,7 +14,7 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5.1.0
       - name: Validate release metadata
         run: python3 scripts/check-release.py
       - name: Generate manifests and check for drift
@@ -24,7 +24,7 @@ jobs:
       - name: Run plugin drift regression tests
         run: tests/check_plugins_test.sh
       - name: Lint Markdown
-        uses: DavidAnson/markdownlint-cli2-action@v20
+        uses: DavidAnson/markdownlint-cli2-action@v20.0.0
         with:
           globs: "**/*.md"
       - name: Validate with Claude Code
@@ -33,7 +33,7 @@ jobs:
           for plugin in plugins/*; do claude plugin validate --strict "$plugin"; done
           claude plugin validate --strict .
       - name: Check out Cursor plugin schemas
-        uses: actions/checkout@v5
+        uses: actions/checkout@v5.1.0
         with:
           repository: cursor/plugins
           path: .upstream/cursor-plugins

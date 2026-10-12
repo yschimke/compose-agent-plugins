@@ -201,6 +201,22 @@ assert manifest.get("agents") == ["./claude-agents/design-reviewer.md"], manifes
   fi
 done
 
+# Claude Code reads claude-agents/ through its manifest, so a missing or stale copy there must fail
+# validation even though agents/ still holds a good portable copy.
+claude_reviewer="$fixture/plugins/compose-preview/claude-agents/design-reviewer.md"
+cp "$claude_reviewer" "$fixture/claude-reviewer.saved"
+printf '%s\n' 'stale' >>"$claude_reviewer"
+if python3 "$fixture/scripts/validate_manifests.py" >/dev/null 2>&1; then
+  printf '%s\n' 'FAIL: a stale Claude agent copy must fail validation' >&2
+  exit 1
+fi
+rm "$claude_reviewer"
+if python3 "$fixture/scripts/validate_manifests.py" >/dev/null 2>&1; then
+  printf '%s\n' 'FAIL: a missing Claude agent copy must fail validation' >&2
+  exit 1
+fi
+mv "$fixture/claude-reviewer.saved" "$claude_reviewer"
+
 hook="$fixture/plugins/compose-preview/hooks/hooks.json"
 test -f "$hook"
 grep -q '"SessionStart"' "$hook"

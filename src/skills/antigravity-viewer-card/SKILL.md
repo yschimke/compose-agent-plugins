@@ -58,6 +58,20 @@ the session or `brain/` folders, call `status`, `register_project` or
 and use the line it prints. If `preview` is rejected, call `list_previews`
 once, then `render_preview` with the `uri` and `inline=false`.
 
+**Without the MCP server** (`compose-preview-mcp` is not enabled, not listed,
+or not allowed in this context), run the same flow through the CLI from the
+workspace folder; never switch to the `compose-preview-catalog` server:
+
+1. `compose-preview show --preview <FunctionName> --json`, or, when the person
+   asks about accessibility, `compose-preview a11y --preview <FunctionName> --json`
+   (it renders too). Narrow to one preview; a miss lists the closest names.
+2. Look at the PNG at the preview's `pngPath` (R1).
+3. Run `python3 ~/.gemini/config/plugins/compose-preview/assets/compose-preview-card.py '<that JSON>'`
+   and reply with the line it prints, the bullets and the summary as above
+   (`Render: <id>`). An `a11y` run gives the card the same findings, overlay and
+   Audit view; layout bounds need the MCP server, so say they are unavailable
+   rather than describing them.
+
 When the person asks about accessibility or layout, add
 `details: ["a11y"]`, `["layout"]` or both to that same `render_preview` call:
 the card gains the overlay toggles and the result one summary line each. Don't

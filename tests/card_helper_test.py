@@ -123,4 +123,80 @@ with tempfile.TemporaryDirectory() as tmp:
         "too large",
     )
 
+    # Without the MCP server: `compose-preview a11y --preview <Name> --json` output builds the same
+    # card, with the findings and overlay as render details and layout named as unavailable.
+    overlay = png(4, 3, b"Comment\x00overlay")
+    overlay_path = home / "overlay.png"
+    overlay_path.write_bytes(overlay)
+    preview = {
+        "id": "com.example.PreviewKt.Sample_Devices - Small Round",
+        "module": ":app",
+        "pngPath": str(image_path),
+        "sha256": sha,
+        "dataExtensions": {
+            "a11y": {
+                "schema": "a11y/v1",
+                "payload": {
+                    "previewId": "Sample",
+                    "annotatedPath": str(overlay_path),
+                    "findings": [
+                        {"level": "WARNING", "type": "TextContrastCheck", "message": "Low contrast."},
+                        {
+                            "level": "ERROR",
+                            "type": "TouchTargetSizeCheck",
+                            "message": "41dp tall.",
+                            "viewDescription": "android.view.View",
+                            "boundsInScreen": "68,369,386,450",
+                        },
+                        {"level": "NOT_RUN", "type": "SpeakableTextPresentCheck", "message": ""},
+                    ],
+                },
+            }
+        },
+    }
+
+    def cli_envelope(argument: str) -> dict:
+        result = run(argument, home, "conv-1")
+        assert result.returncode == 0, result.stderr
+        block = card.read_text(encoding="utf-8")[len(VIEWER.read_text(encoding="utf-8")):]
+        match = re.fullmatch(r'<script type="application/json" id="compose-preview-result">(.*)</script>\n', block, re.S)
+        assert match, block[:200]
+        return json.loads(match.group(1))
+
+    for argument in (
+        json.dumps({"schema": "compose-preview-show/v1", "previews": [preview]}),
+        json.dumps(preview),
+    ):
+        envelope = cli_envelope(argument)
+        assert envelope["arguments"] == {}
+        image_block, text_block, details_block, overlay_block = envelope["result"]["content"]
+        assert image_block["data"] == base64.b64encode(image).decode("ascii")
+        assert json.loads(text_block["text"]) == {
+            "id": preview["id"],
+            "widthPx": 4,
+            "heightPx": 3,
+            "sha256": sha,
+        }
+        assert details_block["_meta"] == {"composePreview/detail": "details"}
+        details = json.loads(details_block["text"])
+        assert details["unavailable"] == {"layout": "the compose-preview CLI has no layout tree; render through compose-preview-mcp"}
+        assert details["a11y"]["summary"] == "a11y: 1 error, 1 warning (TextContrast ×1, TouchTargetSize ×1)"
+        assert details["a11y"]["findings"] == [
+            {"level": "ERROR", "rule": "TouchTargetSize", "message": "41dp tall.", "node": "android.view.View", "bounds": [68, 369, 386, 450]},
+            {"level": "WARNING", "rule": "TextContrast", "message": "Low contrast."},
+        ]
+        assert overlay_block["_meta"] == {"composePreview/detail": "a11y/overlay"}
+        assert overlay_block["data"] == base64.b64encode(overlay).decode("ascii")
+
+    # `show` without the a11y extension: no a11y detail, no overlay; layout still named.
+    plain = {key: value for key, value in preview.items() if key != "dataExtensions"}
+    content = cli_envelope(json.dumps({"previews": [plain]}))["result"]["content"]
+    assert len(content) == 3
+    assert json.loads(content[2]["text"]) == {"unavailable": {"layout": "the compose-preview CLI has no layout tree; render through compose-preview-mcp"}}
+
+    refused(
+        json.dumps({"previews": [preview, dict(preview, id="Other")]}),
+        "has 2 rendered previews",
+    )
+
 print("card helper tests passed")

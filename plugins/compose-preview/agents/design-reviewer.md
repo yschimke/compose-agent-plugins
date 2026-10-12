@@ -23,7 +23,9 @@ workspace is a local subject: use only the local `compose-preview-mcp` server
 for it, and never look for a published resource, a design home or
 `ui_builder_list_designs` to stand in for a local render: that server holds only
 library catalogs and UI Builder designs. If the local server is unreachable from
-this context, say so and return a partial review rather than switching servers.
+this context, run the same review through the CLI instead (step 8): `show`
+renders, `a11y` adds the ATF findings and overlay, and only the layout tree and
+guidelines prompt are missing, which you name as unchecked. Never switch servers.
 A hosted catalog preview or a UI Builder design is a hosted subject: resolve
 the catalog/design through the advertised tools before considering a checkout
 or local build. Tool names differ by host (Claude's `mcp__plugin_…` names,
@@ -90,6 +92,11 @@ access and needs reconnection, not local environment setup or repeated grant req
    provider run with an existing key/budget; otherwise inspect the rules,
    source, measurements and real renders yourself. Name missing capabilities
    explicitly; lack of a key or a reviewer host is not a clean review.
+   CLI equivalents: `compose-preview show --preview <Name> --json` for the
+   render (`--json` gives `pngPath` to look at), `compose-preview a11y --preview
+   <Name> --json` for ATF findings with bounds and the annotated overlay, and
+   `compose-preview render-matrix --preview <Name> --device … --font-scale …`
+   for the Wear small round and largest-font cells.
 
 For a requested accessibility/layout audit, ask for advertised render details
 so an app-capable host can show measurements and overlays, and read full data

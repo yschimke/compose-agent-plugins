@@ -4,6 +4,7 @@
 import base64
 import hashlib
 import json
+import re
 from pathlib import Path
 
 
@@ -26,20 +27,28 @@ assert len(source_bytes) <= MAX_STATIC_RESULT_BYTES
 provenance_bytes = PROVENANCE.read_bytes()
 provenance = json.loads(provenance_bytes)
 assert GENERATED_PROVENANCE.read_bytes() == provenance_bytes
-assert provenance == {
-    "repository": "https://github.com/yschimke/compose-preview-server",
-    "release": "v3.77.0",
-    "releaseAsset": (
-        "https://github.com/yschimke/compose-preview-server/releases/download/"
-        "v3.77.0/compose-preview-viewer.html"
-    ),
-    "commit": "1c065b55ac889d98df155dda0f6e9676327a57b6",
-    "path": "mcp-app/compose-preview-viewer.html",
-    # Stable MCP Apps UI protocol revision:
-    # https://github.com/modelcontextprotocol/ext-apps/tree/main/specification/2026-01-26
-    "mcpAppsProtocolVersion": "2026-01-26",
-    "sha256": "d5f6b776872dd70a29653a6e2712bdce1eecd961cea53b75d23c6a32a7afe221",
+# The release is whatever scripts/update-viewer.py last fetched; what is checked is that the
+# record is whole and describes these exact bytes.
+assert set(provenance) == {
+    "repository",
+    "release",
+    "releaseAsset",
+    "commit",
+    "path",
+    "mcpAppsProtocolVersion",
+    "sha256",
 }
+assert provenance["repository"] == "https://github.com/yschimke/compose-preview-server"
+assert re.fullmatch(r"v\d+\.\d+\.\d+", provenance["release"]), provenance["release"]
+assert provenance["releaseAsset"] == (
+    "https://github.com/yschimke/compose-preview-server/releases/download/"
+    f"{provenance['release']}/compose-preview-viewer.html"
+)
+assert re.fullmatch(r"[0-9a-f]{40}", provenance["commit"]), provenance["commit"]
+assert provenance["path"] == "mcp-app/compose-preview-viewer.html"
+# Stable MCP Apps UI protocol revision; a viewer on another one is a deliberate change here:
+# https://github.com/modelcontextprotocol/ext-apps/tree/main/specification/2026-01-26
+assert provenance["mcpAppsProtocolVersion"] == "2026-01-26"
 assert hashlib.sha256(source_bytes).hexdigest() == provenance["sha256"]
 assert f"protocolVersion: '{provenance['mcpAppsProtocolVersion']}'," in source
 

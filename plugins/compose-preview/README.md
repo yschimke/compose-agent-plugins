@@ -30,8 +30,9 @@ download or install it.
   agent working only when one fails to render or has accessibility errors.
 - The `harness-notes` and `antigravity-viewer-card` skills, the
   `design-reviewer` agent, and the preview viewer bundle in `assets/`. The
-  viewer is the unmodified `compose-preview-viewer.html` from a
-  compose-preview-server release; its provenance file pins the tag and SHA-256.
+  viewer is the unmodified `compose-preview-viewer.html` that compose-preview-mcp
+  releases re-publish from compose-preview-server; its provenance file pins the
+  tags and SHA-256.
 
 For requested design reviews, install the canonical `compose-skills` bundle
 from `yschimke/skills`. Its catalog guidelines checklist runs in every supported

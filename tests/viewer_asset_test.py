@@ -28,24 +28,46 @@ provenance_bytes = PROVENANCE.read_bytes()
 provenance = json.loads(provenance_bytes)
 assert GENERATED_PROVENANCE.read_bytes() == provenance_bytes
 # The release is whatever scripts/update-viewer.py last fetched; what is checked is that the
-# record is whole and describes these exact bytes.
-assert set(provenance) == {
-    "repository",
-    "release",
-    "releaseAsset",
-    "commit",
-    "path",
-    "mcpAppsProtocolVersion",
-    "sha256",
-}
-assert provenance["repository"] == "https://github.com/yschimke/compose-preview-server"
-assert re.fullmatch(r"v\d+\.\d+\.\d+", provenance["release"]), provenance["release"]
+# record is whole and describes these exact bytes. The viewer is compose-preview-server's page;
+# compose-preview-mcp re-publishes it with each release, and the record names both. A record taken
+# straight from a compose-preview-server release (before compose-preview-mcp's first) is still
+# accepted until the next update replaces it.
+MCP = "https://github.com/yschimke/compose-preview-mcp"
+SERVER = "https://github.com/yschimke/compose-preview-server"
+VIEWER_PATH = "mcp-app/compose-preview-viewer.html"
+TAG = r"v\d+\.\d+\.\d+"
+assert re.fullmatch(TAG, provenance["release"]), provenance["release"]
+if provenance["repository"] == MCP:
+    assert set(provenance) == {
+        "repository",
+        "release",
+        "releaseAsset",
+        "source",
+        "mcpAppsProtocolVersion",
+        "sha256",
+    }
+    origin = provenance["source"]
+    assert set(origin) == {"repository", "release", "commit", "path"}
+    assert origin["repository"] == SERVER
+    assert re.fullmatch(TAG, origin["release"]), origin["release"]
+else:
+    assert set(provenance) == {
+        "repository",
+        "release",
+        "releaseAsset",
+        "commit",
+        "path",
+        "mcpAppsProtocolVersion",
+        "sha256",
+    }
+    assert provenance["repository"] == SERVER
+    origin = provenance
 assert provenance["releaseAsset"] == (
-    "https://github.com/yschimke/compose-preview-server/releases/download/"
+    f"{provenance['repository']}/releases/download/"
     f"{provenance['release']}/compose-preview-viewer.html"
 )
-assert re.fullmatch(r"[0-9a-f]{40}", provenance["commit"]), provenance["commit"]
-assert provenance["path"] == "mcp-app/compose-preview-viewer.html"
+assert re.fullmatch(r"[0-9a-f]{40}", origin["commit"]), origin["commit"]
+assert origin["path"] == VIEWER_PATH
 # Stable MCP Apps UI protocol revision; a viewer on another one is a deliberate change here:
 # https://github.com/modelcontextprotocol/ext-apps/tree/main/specification/2026-01-26
 assert provenance["mcpAppsProtocolVersion"] == "2026-01-26"

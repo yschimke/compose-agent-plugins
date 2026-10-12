@@ -210,9 +210,11 @@ and the [cross-harness evals](evals/design-guidelines.md).
 
 `compose-preview` also ships the portable viewer bundle at
 `assets/compose-preview-viewer.html`, the unmodified `compose-preview-viewer.html`
-asset from the compose-preview-server v3.131.0 release; the adjacent provenance
-file pins that release tag, its source commit, the SHA-256, and the stable MCP
-Apps UI protocol revision. Antigravity renders `<agent-embed>` cards as
+asset from the compose-preview-server v3.131.0 release; compose-preview-mcp
+re-publishes it with each of its releases, and `scripts/update-viewer.py <tag>`
+takes it from there; the `Sync viewer` workflow runs it and opens the pull request when
+compose-preview-mcp releases. The adjacent provenance file pins the release tags, the
+source commit, the SHA-256, and the stable MCP Apps UI protocol revision. Antigravity renders `<agent-embed>` cards as
 `iframe srcdoc`, which drops the URL fragment the viewer reads (issue #6 Q9), so
 `assets/compose-preview-card.py` appends the result to a copy of the viewer as
 an inline `<script type="application/json" id="compose-preview-result">` block

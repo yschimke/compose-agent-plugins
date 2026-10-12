@@ -45,7 +45,11 @@ access and needs reconnection, not local environment setup or repeated grant req
 3. Run accessibility data checks. For a UI Builder design, start with
    `ui_builder_check_design` and draw the device/font-scale matrix in one call
    with `ui_builder_render_design_matrix` where advertised. For Wear, also cover
-   a small round device and the largest available font scale. Otherwise choose
+   a small round device and the largest available font scale. Check a widget
+   at 1.24x (Wear) or 1.5x (mobile/launcher), not 2x: 2x is a valid setting,
+   but a widget clips so widely there that the findings bury everything else.
+   Report clipping that appears only past those scales as low severity, and
+   only when asked for 2x. Otherwise choose
    the narrowest useful device/font-scale matrix. Start with hashes and fetch
    pixels only for cells that require visual inspection.
    On a round Wear screen, items of a `TransformingLazyColumn` (or

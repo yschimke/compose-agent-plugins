@@ -35,7 +35,7 @@ catalog just because their names look similar.
 | Available capability | Route |
 | --- | --- |
 | UI Builder prompt/result tools | Read/reuse the latest fresh result, or judge `ui_builder_guidelines_prompt` with the agent's model. Record a requested result at the server home with `ui_builder_record_guidelines` when permitted. |
-| Local preview prompt tool | Judge `preview_guidelines_prompt` with explicit `surface` and catalog rules. Keep preview verdicts separate from UI Builder records. |
+| Local preview prompt tool | Judge `preview_guidelines_prompt`, leaving `surface` and `profile` to the preview's manifest entry. A module with no `ui-builder.guidelines.json` gets the default packs for its surface (yschimke/compose-preview-server#1617); on older servers pass the matching catalog (`design-reviewer` lists them). Keep preview verdicts separate from UI Builder records. |
 | Published catalog `guidelines/result` | Read it with the catalog data-product tools. State its freshness and coverage; do not reuse it for override renders. |
 | No guidelines MCP, CLI with a configured provider key | Use the canonical checklist's `compose-preview guidelines` command only for a requested provider run and budget. The reviewer permits that specific command, not unrestricted shell execution. |
 | No provider key or dedicated guidelines tool | Inspect the catalog rules, source, measured checks and actual render images through available readers/tools. Report manual coverage and any missing evidence. |

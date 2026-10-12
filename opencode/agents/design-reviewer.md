@@ -125,8 +125,25 @@ access and needs reconnection, not local environment setup or repeated grant req
    advertised tools first. For a UI Builder design, read existing guidelines,
    request the keyless prompt when needed, and record the requested review at
    its server home when write access allows it. For local previews, use
-   `preview_guidelines_prompt` with explicit `surface` and the applicable rules.
-   For hosted previews, discover `guidelines/result` through data-product tools.
+   `preview_guidelines_prompt` (or `check_preview_guidelines` for a requested
+   provider run). Leave `surface` and `profile` to the preview's manifest
+   entry, which knows a Glance Wear widget from a screen; pass them only to
+   correct it. A module with no `ui-builder.guidelines.json` of its own (a
+   plain app, not a catalog) is asked the matching default packs by current
+   servers, which say so in a note. If the server instead asks for
+   `guidelines`, or answers that no rule applies, pass the catalog that covers
+   the preview's surface:
+   - Glance Wear widget (`androidx.glance.wear` previews, `@RemoteComposable`
+     content): `https://raw.githubusercontent.com/yschimke/remote-m3-catalog/main/remote-catalog/ui-builder.guidelines.json`
+     (remote-compose + wear-widgets).
+   - Wear Compose screen or component:
+     `https://raw.githubusercontent.com/yschimke/wear-m3-catalog/main/ui-builder.guidelines.json`.
+   - Phone, tablet or other Compose UI:
+     `https://raw.githubusercontent.com/yschimke/m3-catalog/main/ui-builder.guidelines.json`.
+
+   Never ask a widget the Wear Compose screen rules or the reverse: a call
+   whose rules match no subject is not a pass. Ask previews of different kinds
+   in separate calls. For hosted previews, discover `guidelines/result` through data-product tools.
    Fetch and inspect required comparison views, not just hashes: Wear device
    and scrolling content, mobile phone and tablet, or widget host frames.
    Return unchecked rules for missing evidence and preserve revision, rules

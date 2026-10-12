@@ -19,7 +19,7 @@ workflows themselves are in the `compose-preview` and `compose-ui-builder` skill
   change done (R1). If rendering fails, say so with the error. Never hand-build a mock of a render.
 - **Show it** with the `antigravity-viewer-card` skill: the `embed` line, a few bullets, no base64.
 - **Design reviews:** delegate with `invoke_subagent(TypeName="self")`, not the packaged
-  `design-reviewer` type or `define_subagent`, and start the task with "Follow ~/.gemini/config/plugins/compose-preview/agents/design-reviewer.md: review only, no edits; local previews through compose-preview-mcp or the CLI, never the catalog server; return its compact verdict. Subject: <preview or design>."
+  `design-reviewer` type or `define_subagent`, and start the task with `Follow ~/.gemini/config/plugins/compose-preview/agents/design-reviewer.md: review only, no edits; local previews through compose-preview-mcp or the CLI, never the catalog server; return its compact verdict. Subject: <preview or design>.`
 - **UI Builder designs:** before finishing work on one, run `compose-preview design status` once
   and report unacknowledged comments or unsaved temporary copies (R3, R4); this host has no
   session-start check that would.

@@ -34,7 +34,7 @@ In Claude Code, or OpenCode with `opencode-install.py` run, use the packaged
 Antigravity, delegate with `invoke_subagent(TypeName="self")`, which keeps the
 plugin's `compose-preview_compose-preview-mcp` server, and hand it the
 reviewer's instructions, since `self` does not carry them or its review-only
-boundary: "Follow ~/.gemini/config/plugins/compose-preview/agents/design-reviewer.md: review only, no edits; local previews through compose-preview-mcp or the CLI, never the catalog server; return its compact verdict. Subject: <preview or design>." With only `compose-catalogs` installed there is no such file; hand it the
+boundary: `Follow ~/.gemini/config/plugins/compose-preview/agents/design-reviewer.md: review only, no edits; local previews through compose-preview-mcp or the CLI, never the catalog server; return its compact verdict. Subject: <preview or design>.` With only `compose-catalogs` installed there is no such file; hand it the
 canonical checklist instead. Never use `define_subagent` for it: such a subagent is not
 granted plugin-scoped MCP servers. In Codex, a catalog-only install or any host
 without delegation, run the same checklist in the current context; never stop

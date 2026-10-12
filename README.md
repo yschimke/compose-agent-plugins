@@ -210,7 +210,7 @@ and the [cross-harness evals](evals/design-guidelines.md).
 
 `compose-preview` also ships the portable viewer bundle at
 `assets/compose-preview-viewer.html`, the unmodified `compose-preview-viewer.html`
-asset from the compose-preview-server v3.131.0 release; compose-preview-mcp
+asset from the compose-preview-mcp v4.0.0 release; compose-preview-mcp
 re-publishes it with each of its releases, and `scripts/update-viewer.py <tag>`
 takes it from there; the `Sync viewer` workflow runs it and opens the pull request when
 compose-preview-mcp releases. The adjacent provenance file pins the release tags, the

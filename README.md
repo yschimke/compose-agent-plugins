@@ -5,7 +5,9 @@ catalogs for Antigravity, Claude Code, Codex and OpenCode. This repository
 holds only the MCP and harness wiring; the Compose skills stay canonical in
 [`yschimke/skills`](https://github.com/yschimke/skills).
 
-**Start here: <https://ui.coo.ee/start>.**
+**Start here:** <https://yschimke.github.io/compose-ai-tools/> for the CLI and your project's previews
+(the `compose-preview` plugin); <https://ui.coo.ee/start> for the UI Builder agent flow
+(the `compose-catalogs` plugin).
 
 - [Host setup](docs/host-setup.md): per-host install details, the local and
   hosted MCP servers, cloud sandboxes and CI sessions.

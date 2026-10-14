@@ -103,14 +103,34 @@ access and needs reconnection, not local environment setup or repeated grant req
    failure by itself.
 3. Run accessibility data checks. For a UI Builder design, start with
    `ui_builder_check_design` and draw the device/font-scale matrix in one call
-   with `ui_builder_render_design_matrix` where advertised. For Wear, also cover
-   a small round device and the largest available font scale. Check a widget
+   with `ui_builder_render_design_matrix` where advertised. Split Wear by what
+   the subject is:
+   - **Wear app screen** (`wear-m3`, a Wear Compose `@Preview`): also cover a
+     small round device and the largest available font scale.
+   - **Wear widget** (root `remote-m3/widget-container-*`, a Glance Wear
+     widget preview): never the round watch presets (`wear_small_round`,
+     `wear_large_round`), which draw the widget as a band across a watch face.
+     Use the widget shapes its export targets — Samsung round
+     (`RoundSmallWidgetPreviewParams`), Pixel Watch squircle
+     (`SquircleSmallWidgetPreviewParams`) and rectangular
+     (`RectangularSmallWidgetPreviewParams`), plus the large variants — or,
+     in the design matrix, widget-sized custom `devices` (216×76 dp small,
+     216×124 dp large), at 1.0 and the widget scale below.
+   Check a widget
    at 1.24x (Wear) or 1.5x (mobile/launcher), not 2x: 2x is a valid setting,
    but a widget clips so widely there that the findings bury everything else.
    Report clipping that appears only past those scales as low severity, and
    only when asked for 2x. Otherwise choose
    the narrowest useful device/font-scale matrix. Start with hashes and fetch
-   pixels only for cells that require visual inspection.
+   pixels only for cells that require visual inspection. Look at the large
+   font-scale picture yourself: the accessibility pass does not see a line
+   that wraps and pushes its siblings out of a fixed widget frame.
+   An empty export `diagnostics` is not a compile. When the review covers the
+   Kotlin, call `ui_builder_render_native` where advertised: a `compileError`
+   (for example an icon key that needs `material-icons-extended`) is a
+   failure. A `check_design` skip reading "no native render was available"
+   can hide one on older hosts, so confirm with `render_native` before
+   reporting the rendered checks as clean.
    On a round Wear screen, items of a `TransformingLazyColumn` (or
    `ScalingLazyColumn`) that sit in the top or bottom bezel zone are scaled and
    squashed by `SurfaceTransformation` / `transformedHeight` by design, and the

@@ -51,6 +51,15 @@ first. An entry that an older CLI already wrote stays: delete any
 `compose-preview*` entry from `mcpServers` in that file and restart
 Antigravity.
 
+## `tool "Read" not found in registry` when starting `design-reviewer`
+
+A harness that does not use Claude Code's tool names (Antigravity and its agent) refuses to start an
+agent whose `tools:` lists `Read`, `Bash(…)` or `mcp__plugin_…` names. The portable
+`agents/design-reviewer.md` has carried only `name` and `description` since #148; the Claude-only
+allowlist is in `claude-agents/`. Antigravity copies plugins at install, so this error means the copy
+predates that fix: reinstall the plugin. Until then, delegate with `invoke_subagent(TypeName="self")`
+and the handoff line in `harness-notes`.
+
 ## Every catalog tool appears twice
 
 The hosted server is configured twice, usually once as `https://preview.coo.ee/mcp`

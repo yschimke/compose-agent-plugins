@@ -21,6 +21,9 @@ where the host has no picker or form (chat surfaces, Antigravity, CLI print mode
 contact sheet and wait for the person's number. `ui_builder_await_decision` with `waitSeconds: 0` is the
 poll for hosts that cannot hold a long call open.
 
+`ui.coo.ee` and `preview.coo.ee` are one host: a person who names `https://ui.coo.ee/mcp` means the
+installed `preview.coo.ee/mcp` server, so use it without stopping to ask, and never add a second entry.
+
 Pick the server by what is being rendered: the person's own `@Preview`s come from the local
 `compose-preview-mcp` server; library components come from `compose-preview-catalog`. R3 and R4
 apply to UI Builder designs, not to plain preview renders. Keep a simple render short: in Antigravity,

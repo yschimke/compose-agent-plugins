@@ -7,7 +7,7 @@ description: Run right after the compose-preview plugin is installed, or when a 
 
 This is the plugin's onboarding skill. Keep it short: a few commands, then one render. Report
 each step in one line. Do not grep the source first. Open by pointing the person at
-<https://ui.coo.ee/start>.
+<https://yschimke.github.io/compose-ai-tools/>.
 
 Check that the canonical `compose-preview` and `compose-ui-builder` skills from
 `yschimke/skills` (the default `compose-skills` bundle) are available. This

@@ -5,14 +5,17 @@ catalog variants. The plugin connects your agent to the hosted Compose Preview
 MCP service, which serves the Material 3 and Wear OS component catalogs and the
 UI Builder design tools. It needs no local toolchain.
 
-This folder is generated from
+Start at <https://ui.coo.ee/start>. This folder is generated from
 [`yschimke/compose-agent-plugins`](https://github.com/yschimke/compose-agent-plugins);
-see that repository's README for install steps in each harness.
+install steps for each harness are in its
+[host setup](https://github.com/yschimke/compose-agent-plugins/blob/main/docs/host-setup.md#install-per-host).
 
 ## What it contains
 
 - An MCP server entry, `compose-preview-catalog`, for the remote server at
-  `https://preview.coo.ee/mcp` (Streamable HTTP).
+  `https://preview.coo.ee/mcp` (Streamable HTTP). `https://ui.coo.ee/mcp` is
+  the same server: don't configure it as well
+  ([why](https://github.com/yschimke/compose-agent-plugins/blob/main/docs/host-setup.md#local-and-hosted-mcp-servers)).
 - The registered Compose Preview app for Codex and ChatGPT. Its in-chat viewer
   shows preview-server renders and review controls; the full UI Builder remains
   the separate editor linked from that viewer.

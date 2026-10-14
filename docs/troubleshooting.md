@@ -11,11 +11,8 @@ these. In OpenCode, run `python3 scripts/opencode-check.py`.
   new `PATH`. With fish, check that `~/.local/bin` is in `fish_user_paths`.
 - **Worked before, then stopped:** `~/.local/bin/compose-preview` may be a
   broken link. An older `npx skills add`/`update` wiped the CLI it pointed at
-  (fixed in yschimke/skills#101). Reinstall the CLI only:
-
-  ```sh
-  curl -fsSL https://raw.githubusercontent.com/yschimke/skills/main/scripts/install.sh | bash -s -- --cli-only
-  ```
+  (fixed in yschimke/skills#101). Reinstall the CLI only, as in the skills'
+  [setup guide](https://github.com/yschimke/skills/blob/main/skills/compose-preview/references/setup.md).
 
 ## `render_preview: project not prepared`
 
@@ -54,6 +51,13 @@ first. An entry that an older CLI already wrote stays: delete any
 `compose-preview*` entry from `mcpServers` in that file and restart
 Antigravity.
 
+## Every catalog tool appears twice
+
+The hosted server is configured twice, usually once as `https://preview.coo.ee/mcp`
+and once as `https://ui.coo.ee/mcp`. They are the same server, so remove the
+`ui.coo.ee/mcp` entry and keep `preview.coo.ee/mcp`; see
+[local and hosted MCP servers](host-setup.md#local-and-hosted-mcp-servers).
+
 ## Stale `mcp serve` processes
 
 After a CLI update, servers from the old version can keep running and answer
@@ -68,20 +72,8 @@ ps -axo pid=,command= | grep 'compose-preview.*mcp serve'
 
 The card came from an old plugin that expected an MCP Apps bridge, which
 Antigravity does not have. Antigravity copies plugins at install time, so
-uninstall and reinstall to pick up `main`. One command does all of it:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/yschimke/compose-agent-plugins/main/scripts/antigravity-install.py | python3 - --catalogs
-```
-
-By hand:
-
-```sh
-agy plugin uninstall compose-preview   # and compose-skills, compose-catalogs; repeat until agy plugin list no longer shows it
-agy plugin install https://github.com/yschimke/skills/tree/main/plugins/compose-skills
-agy plugin install https://github.com/yschimke/compose-agent-plugins/tree/main/plugins/compose-preview
-agy plugin install https://github.com/yschimke/compose-agent-plugins/tree/main/plugins/compose-catalogs   # if installed
-```
+uninstall and reinstall to pick up `main`: rerun the
+[install script](host-setup.md#antigravity), which does both.
 
 ## Antigravity `compose-preview` has no skills or hooks
 
@@ -89,7 +81,8 @@ agy plugin install https://github.com/yschimke/compose-agent-plugins/tree/main/p
 repository URL) reads the root `gemini-extension.json` and installs only its two
 MCP servers, listed in `agy plugin list` with `"source": "gemini-cli"`. Uninstall
 it, then install the plugin folder with the `/tree/main/plugins/compose-preview`
-URL above; `scripts/antigravity-install.py` does both.
+URL ([host setup](host-setup.md#antigravity)); `scripts/antigravity-install.py`
+does both.
 
 ## The render does not show my edit
 

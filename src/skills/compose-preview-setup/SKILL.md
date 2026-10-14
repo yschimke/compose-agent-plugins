@@ -6,13 +6,14 @@ description: Run right after the compose-preview plugin is installed, or when a 
 # Set up Compose Preview
 
 This is the plugin's onboarding skill. Keep it short: a few commands, then one render. Report
-each step in one line. Do not grep the source first.
+each step in one line. Do not grep the source first. Open by pointing the person at
+<https://ui.coo.ee/start>.
 
 Check that the canonical `compose-preview` and `compose-ui-builder` skills from
 `yschimke/skills` (the default `compose-skills` bundle) are available. This
 plugin supplies host wiring, not those workflows. If either is missing, report
 it and point to the host's install instructions in
-[host setup](https://github.com/yschimke/compose-agent-plugins/blob/main/docs/host-setup.md).
+[host setup](https://github.com/yschimke/compose-agent-plugins/blob/main/docs/host-setup.md#install-per-host).
 Continue the CLI/render checks that are available; do not claim design-to-code
 onboarding is complete while the canonical skills are missing.
 

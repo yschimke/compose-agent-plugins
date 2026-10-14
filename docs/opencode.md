@@ -1,18 +1,13 @@
 # OpenCode
 
-OpenCode does not use this repository's plugin manifests or marketplace.
-Configure its MCP servers directly and install the canonical skills from
-`yschimke/skills`.
+OpenCode does not use this repository's plugin manifests or marketplace. The
+three install commands are in [host setup](host-setup.md#opencode); this page
+explains what they do, the same configuration by hand, authentication and the
+check script.
 
 This guide uses the current OpenCode v2 configuration shape: server definitions live under `mcp.servers`, and `disabled` (rather than `enabled`) controls whether a configured server connects. OpenCode 1.18 (the npm `latest`) also reads this shape, so `scripts/opencode-check.py` accepts 1.18 and later. See the [OpenCode MCP documentation](https://opencode.ai/v2/docs/mcp-servers) for the current contract.
 
 ## One-step install
-
-```sh
-npx skills add yschimke/skills --global --yes --skill compose-preview --skill compose-ui-builder
-curl -fsSL https://raw.githubusercontent.com/yschimke/compose-agent-plugins/main/scripts/opencode-install.py | python3 -
-compose-preview mcp install --opencode   # from the Compose project root; prepares it and pins --project
-```
 
 `opencode-install.py` copies the generated [`opencode/`](../opencode) bundle into
 `$XDG_CONFIG_HOME/opencode` (default `~/.config/opencode`):
@@ -26,7 +21,7 @@ compose-preview mcp install --opencode   # from the Compose project root; prepar
 It then adds `compose-preview-mcp`, `compose-preview-catalog` and the
 [rendered-PNG read rule](#let-opencode-read-rendered-pngs) to `opencode.json`,
 keeping every existing key and any server entry already there (such as the one
-`mcp install --opencode` writes with `--project`). A config already in the v1
+`mcp install --opencode` writes). A config already in the v1
 `mcp.<name>` shape gets v1 entries. It never rewrites `opencode.jsonc` or a file
 with comments; it prints the snippet to merge instead. `--dry-run` prints what
 would change, and rerunning it updates the bundle. The sections below describe
@@ -70,7 +65,7 @@ compose-preview mcp install --opencode                  # user scope: ~/.config/
 compose-preview mcp install --opencode --scope project  # project scope: ./opencode.json
 ```
 
-It upserts `mcp.servers.compose-preview-mcp` with `--project=<absolute project path>` and keeps every other key. It never rewrites a `.jsonc` file or a file with comments. For those it prints the snippet and the file to merge it into by hand; `scripts/opencode-check.py` prints the same snippet. The first run resolves the project through Gradle and can take several minutes, so give an agent shell a 10-minute timeout. Plain `compose-preview mcp install` also selects OpenCode automatically when `opencode` is on `PATH`, `~/.config/opencode/` exists, or `OPENCODE=1` is set. It does not add the remote catalog server; add that entry from the block above.
+It upserts `mcp.servers.compose-preview-mcp` and keeps every other key. The user-scope entry carries no `--project`, so one entry serves every project; only `--scope project` writes `--project=<absolute project path>` into the project's `opencode.json`. It never rewrites a `.jsonc` file or a file with comments. For those it prints the snippet and the file to merge it into by hand; `scripts/opencode-check.py` prints the same snippet. The first run resolves the project through Gradle and can take several minutes, so give an agent shell a 10-minute timeout. Plain `compose-preview mcp install` also selects OpenCode automatically when `opencode` is on `PATH`, `~/.config/opencode/` exists, or `OPENCODE=1` is set. It does not add the remote catalog server; add that entry from the block above.
 
 Check the connections after restarting OpenCode:
 
@@ -105,13 +100,8 @@ or scripted run cannot ([#105](https://github.com/yschimke/compose-agent-plugins
 
 ## Skills
 
-Install the canonical Compose skills through the Skills CLI:
-
-```sh
-npx skills add yschimke/skills --global --yes --skill compose-preview --skill compose-ui-builder
-```
-
-This installs the skills into `~/.agents/skills`, which OpenCode reads, and also sets them up for any other agents the Skills CLI detects. Add `--agent opencode` to set up OpenCode only. The files land in the same `~/.agents/skills` directory.
+The `npx skills add` line in [host setup](host-setup.md#opencode) installs the
+canonical skills into `~/.agents/skills`, which OpenCode reads, and also sets them up for any other agents the Skills CLI detects. Add `--agent opencode` to set up OpenCode only. The files land in the same `~/.agents/skills` directory.
 
 This repository deliberately carries no copies of `compose-preview` or
 `compose-ui-builder`. Their detailed workflows, including catalog access, live

@@ -1,15 +1,15 @@
 # Harness matrix
 
 > Historical evidence below retains the repository and marketplace names used during the run.
-> For current installation and migration instructions, see the
-> [Compose Agent Plugins quick start](../README.md#quick-start).
+> For current installation instructions, see
+> [host setup](host-setup.md#install-per-host).
 
 This matrix records only observed results for the compatibility investigation in [issue #6](https://github.com/yschimke/compose-agent-plugins/issues/6). A blank result has not been inferred from documentation or another harness.
 
 ## Status for launch
 
 A summary of the detailed rows below as of 2026-09-27. "…" means not yet
-verified. Setup: [README quick start](../README.md#quick-start); fixes:
+verified. Setup: [host setup](host-setup.md#install-per-host); fixes:
 [troubleshooting](troubleshooting.md).
 
 | Harness | Install | Render path | Card / UI | Hooks | Elicitation | Known gaps |
@@ -18,7 +18,7 @@ verified. Setup: [README quick start](../README.md#quick-start); fixes:
 | Claude Code (2.1.283) | ✅ GitHub marketplace | ✅ image reaches the model; `inline=false` + Read planned | Print mode only; no MCP Apps in CLI/IDE | ✅ SessionStart, PostToolUse, Stop (cap 9) | Form advertised; URL mode … | [#40](https://github.com/yschimke/compose-agent-plugins/issues/40): URL elicitation, plugin directory |
 | Codex (0.157.1) | ✅ GitHub marketplace | ✅ Desktop: render, a11y/layout details, edit loop, compile-error recovery and `render_matrix` ([#76 run](https://github.com/yschimke/compose-agent-plugins/issues/76#issuecomment-5950380878)); `project` needed when the chat worktree is not the build | Desktop MCP App viewer ✅ shows; chooser, overlay toggle, variant sizing and matrix tiles failed on server 3.91.0 | Registered, `untrusted` until approved; behaviour … | Form ✅ shown; selection rejected ("Check this answer and try again") on server 3.91.0 | [#41](https://github.com/yschimke/compose-agent-plugins/issues/41): column gaps, no `design-reviewer`, MCP Apps |
 | OpenCode (1.18.35) | ✅ skills via npx; server via `mcp install --opencode`; agent, rules skill and edit-reminder plugin via `opencode-install.py` | … | None (no MCP Apps) | Edit reminder ✅ plugin `tool.execute.after` (scripted model); no Stop veto | None | [#42](https://github.com/yschimke/compose-agent-plugins/issues/42): v2 and a real render unverified |
-| Claude in Slack (Claude Tag) | … hosted `/mcp` as a connection (no local stdio server) | … signed https image link, attached or linked | None documented (text and attachments only) | None (plugins and skills via access bundle …) | Not documented; a thread reply is the answer | [#92](https://github.com/yschimke/compose-agent-plugins/issues/92): every cell, see [Chat surfaces](#chat-surfaces) |
+| Claude in Slack (Claude Tag) | … hosted `preview.coo.ee/mcp` as a connection (no local stdio server) | … signed https image link, attached or linked | None documented (text and attachments only) | None (plugins and skills via access bundle …) | Not documented; a thread reply is the answer | [#92](https://github.com/yschimke/compose-agent-plugins/issues/92): every cell, see [Chat surfaces](#chat-surfaces) |
 
 ## Fixture baseline
 
@@ -63,7 +63,7 @@ not.
 ## Chat surfaces
 
 Chat agents (Claude in Slack, also known as Claude Tag, and the ChatGPT Slack app) reach only the
-hosted `/mcp`, and show a person text and attachments: no MCP Apps, viewer, editor, buttons or
+hosted `https://preview.coo.ee/mcp`, and show a person text and attachments: no MCP Apps, viewer, editor, buttons or
 elicitation, according to the Claude Tag docs summarised in
 [compose-preview-server#1254](https://github.com/yschimke/compose-preview-server/issues/1254#issuecomment-5928444723).
 The server side shipped in compose-preview-server

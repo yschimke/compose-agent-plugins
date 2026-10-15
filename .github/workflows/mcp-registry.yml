@@ -34,7 +34,7 @@ jobs:
       SERVER_REPOSITORY: https://github.com/yschimke/compose-preview-server
       REGISTRY: https://registry.modelcontextprotocol.io
     steps:
-      - uses: actions/checkout@v5.1.0
+      - uses: actions/checkout@v7.0.1
       - name: Resolve the server release
         id: release
         env:

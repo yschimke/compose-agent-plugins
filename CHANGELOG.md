@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.8.0](https://github.com/yschimke/compose-agent-plugins/compare/v0.7.0...v0.8.0) (2026-10-14)
+
+
+### Features
+
+* **viewer:** bundle the compose-preview-server v3.131.0 viewer, and add a one-command viewer update ([#151](https://github.com/yschimke/compose-agent-plugins/issues/151)) ([f584c8d](https://github.com/yschimke/compose-agent-plugins/commit/f584c8d479fc9a03ca8bc544d162e6f1980fe91c))
+* **viewer:** take the bundled viewer from compose-preview-mcp releases ([#154](https://github.com/yschimke/compose-agent-plugins/issues/154)) ([d329edb](https://github.com/yschimke/compose-agent-plugins/commit/d329edbabb50397e6e46ee00002752aae43f25f4))
+
+
+### Bug Fixes
+
+* bundle the viewer from compose-preview-mcp v4.0.0 ([#155](https://github.com/yschimke/compose-agent-plugins/issues/155)) ([80c6745](https://github.com/yschimke/compose-agent-plugins/commit/80c674562c7d5a8961e651e046780d8527f24613))
+
 ## [0.7.0](https://github.com/yschimke/compose-agent-plugins/compare/v0.6.0...v0.7.0) (2026-10-12)
 
 

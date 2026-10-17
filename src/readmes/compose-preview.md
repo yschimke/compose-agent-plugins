@@ -5,7 +5,7 @@ accessibility checks. The plugin connects your agent to the `compose-preview`
 command-line tool, which renders previews from your own Gradle project on your
 machine.
 
-Start at <https://ui.coo.ee/start>. This folder is generated from
+Start at <https://yschimke.github.io/compose-ai-tools/>. This folder is generated from
 [`yschimke/compose-agent-plugins`](https://github.com/yschimke/compose-agent-plugins);
 install steps for each harness are in its
 [host setup](https://github.com/yschimke/compose-agent-plugins/blob/main/docs/host-setup.md#install-per-host).

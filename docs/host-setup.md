@@ -1,7 +1,8 @@
 # Host setup
 
 The one page for wiring each agent host (Antigravity, Claude Code, Codex, OpenCode) to the
-Compose preview tools. People new to the tools should start at <https://ui.coo.ee/start>. The
+Compose preview tools. People new to the tools should start at <https://yschimke.github.io/compose-ai-tools/> (CLI and project previews) or <https://ui.coo.ee/start> (UI
+Builder agent flow). The
 generic skills in [yschimke/skills](https://github.com/yschimke/skills) say what to do and which
 tools to use; this page says how each host is wired up for them. Installing and updating the
 `compose-preview` CLI and the skills themselves is owned by the skills'
@@ -24,7 +25,7 @@ There are two different MCP servers, and most setups use both:
 `https://ui.coo.ee/mcp` is an alias of the same server process: same tools, same catalogs.
 Access tokens are stored per origin, so configuring both gives every tool twice and two separate
 access grants. If a host already has a `ui.coo.ee/mcp` entry, replace it rather than adding a
-second one. `https://ui.coo.ee/start` is a page for people, not an MCP endpoint.
+second one. `https://ui.coo.ee/start` is the UI Builder start page for people, not an MCP endpoint.
 
 ## Canonical workflow skills
 

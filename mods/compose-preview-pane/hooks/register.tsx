@@ -102,6 +102,17 @@ async function keepBefore($: $, shot: PreviewShot | undefined) {
   return copied.exitCode === 0 ? to : undefined
 }
 
+// render_preview answers `pending` while the project's daemon starts; the same call again
+// gets the render (harness-notes R1).
+async function renderSettled($: $, args: Record<string, unknown>) {
+  let result = await callMcp($, 'render_preview', args)
+  for (let attempt = 0; attempt < 20 && /pending/i.test(JSON.stringify(result ?? '')); attempt++) {
+    await $.clock.sleep(3000)
+    result = await callMcp($, 'render_preview', args)
+  }
+  return result
+}
+
 async function renderOverMcp($: $, file: string, root: string, previous: Map<string, PreviewShot>) {
   let found = await callMcp($, 'find_previews_for_file', { path: file })
   // A server that has not rendered this project yet maps no file to previews. One render by
@@ -109,23 +120,23 @@ async function renderOverMcp($: $, file: string, root: string, previous: Map<str
   if (previewUris(found).length === 0) {
     const name = previewFunctions(await $.fs.read(file).catch(() => ''))[0]
     if (name !== undefined) {
-      for (let attempt = 0; attempt < 20; attempt++) {
-        const warm = JSON.stringify(await callMcp($, 'render_preview', { preview: name, project: root, inline: false }))
-        if (!/pending/i.test(warm)) break
-        await $.clock.sleep(3000)
-      }
+      await renderSettled($, { preview: name, project: root, inline: false })
       found = await callMcp($, 'find_previews_for_file', { path: file })
     }
   }
   const uris = previewUris(found).slice(0, config.maxPreviews)
-  await setRender($, r => ({ ...r, via: 'mcp', message: uris.length === 0 ? 'No previews in this file.' : undefined }))
+  await setRender($, r =>
+    uris.length === 0
+      ? { ...r, via: 'mcp', shots: [], message: 'No previews in this file.' }
+      : { ...r, via: 'mcp', shots: r.shots.filter(s => uris.includes(s.id)), message: undefined },
+  )
 
   let a11yMissing = false
   for (const uri of uris) {
     const before = await keepBefore($, previous.get(uri))
     let shot: PreviewShot
     try {
-      const out = renderResult(await callMcp($, 'render_preview', { uri, inline: false }))
+      const out = renderResult(await renderSettled($, { uri, inline: false }))
       const a11y = a11yMissing
         ? undefined
         : await callMcp($, 'get_preview_data', { uri, kind: 'a11y/atf' }).catch(err => {

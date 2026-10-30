@@ -145,7 +145,9 @@ export function sameSource(file: string, source: string): boolean {
   const norm = (p: string) => p.replace(/\\/g, '/')
   const f = norm(file)
   const s = norm(source)
-  return f === s || f.endsWith(`/${s}`) || s.split('/').pop() === f.split('/').pop()
+  // A bare name matches by basename alone; a path must be a suffix of the file, so two
+  // same-named files in different packages stay apart.
+  return f === s || f.endsWith(`/${s}`) || (!s.includes('/') && s === f.split('/').pop())
 }
 
 /** A Gradle path for the module that holds `file`, from the nearest build file's folder. */

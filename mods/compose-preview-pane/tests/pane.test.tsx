@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { cliShots, labelOf, previewFunctions, previewUris, renderResult } from '../hooks/parse'
+import { cliShots, labelOf, previewFunctions, previewUris, renderResult, sameSource } from '../hooks/parse'
 
 // Shapes recorded from compose-preview CLI 2.77.0 and compose-preview-mcp 4.12.0 against
 // android/wear-os-samples ComposeStarter (a Groovy settings.gradle, previews in MainActivity.kt).
@@ -61,10 +61,12 @@ const A11Y_STDOUT = JSON.stringify({
 })
 
 type Server = 'up' | 'cold' | 'down'
+type Options = { pendingOnce?: boolean; previews?: () => boolean }
 
-function engine(on: On, server: Server, a11y: 'advertised' | 'missing' = 'advertised') {
+function engine(on: On, server: Server, a11y: 'advertised' | 'missing' = 'advertised', options: Options = {}) {
   const calls: string[] = []
   let warmed = server !== 'cold'
+  let pending = options.pendingOnce === true
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('ui.status', () => ({ value: undefined }))
   on('ui.toast', () => ({ value: undefined }))
@@ -90,7 +92,7 @@ function engine(on: On, server: Server, a11y: 'advertised' | 'missing' = 'advert
     calls.push(`mcp ${e.server} ${e.tool} ${JSON.stringify(e.args)}`)
     if (server === 'down') throw new Error('not connected')
     if (e.tool === 'find_previews_for_file') {
-      if (!warmed) return text({ previews: [] })
+      if (!warmed || options.previews?.() === false) return text({ previews: [] })
       return text({
         previews: [
           { uri: URI('Devices - Large Round'), fqn: `${FQN}.GreetingScreenPreview_Devices - Large Round`, bodyLine: 344 },
@@ -99,6 +101,10 @@ function engine(on: On, server: Server, a11y: 'advertised' | 'missing' = 'advert
       })
     }
     if (e.tool === 'render_preview') {
+      if (pending) {
+        pending = false
+        return text({ status: 'pending', message: 'project is starting; call again' })
+      }
       warmed = true
       const uri = String(e.args.uri ?? URI('Devices - Large Round'))
       return text({ uri, pngPath: `/tmp/compose-preview-mcp-1/${uri.length}.png`, widthPx: 454, heightPx: 454, sha256: 'ac86', changed: true, durationMs: 6338 })
@@ -122,6 +128,9 @@ test('parse reads the recorded payloads', () => {
   expect(renderResult({ pngPath: '/p.png', widthPx: 454, heightPx: 454, sha256: 's', changed: true })).toEqual({
     pngPath: '/p.png', sha: 's', changed: true, width: 454, height: 454,
   })
+  expect(sameSource('/p/app/src/main/java/a/Home.kt', 'src/main/java/a/Home.kt')).toBe(true)
+  expect(sameSource('/p/app/src/main/java/a/Home.kt', 'src/main/java/b/Home.kt')).toBe(false)
+  expect(sameSource('/p/app/src/main/java/a/Home.kt', 'Home.kt')).toBe(true)
   const shots = cliShots(A11Y_STDOUT, FILE)
   expect(shots.length).toBe(1)
   expect(shots[0]?.findings[0]?.view).toBe('Show list')
@@ -211,5 +220,37 @@ test('the running-app tab launches the simulator from the edited file\'s project
   expect(calls).toContain(`mcp plugin:compose-preview:compose-preview-mcp simulator_launch {"project":"${ROOT}","headless":true}`)
   expect(calls.some(c => c.includes('simulator_screenshot'))).toBe(true)
   expect(await ui.find({ key: 'app-back' })).toBeDefined()
+  await ui.unmount()
+})
+
+test('a pending render is asked again before the shot is stored', async ($, on) => {
+  const clock = mock.clock(on)
+  const calls = engine(on, 'up', 'advertised', { pendingOnce: true })
+  await $.session.start({ cwd: '/home/user', surface: 'desktop', isInteractive: true })
+  await $.tool.call({ tool: 'Edit', file_path: FILE, old_string: 'a', new_string: 'b' })
+  await clock.advance(1000)
+  await clock.advance(5000)
+
+  expect(calls.filter(c => c.includes(' render_preview ')).length).toBe(3)
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await ui.find({ type: 'Svg' })).toBeDefined()
+  await ui.unmount()
+})
+
+test('an edit that removes every preview clears the old renders', async ($, on) => {
+  const clock = mock.clock(on)
+  let hasPreviews = true
+  engine(on, 'up', 'advertised', { previews: () => hasPreviews })
+  await $.session.start({ cwd: '/home/user', surface: 'desktop', isInteractive: true })
+  await $.tool.call({ tool: 'Edit', file_path: FILE, old_string: 'a', new_string: 'b' })
+  await clock.advance(1000)
+  hasPreviews = false
+  await $.tool.call({ tool: 'Edit', file_path: FILE, old_string: 'b', new_string: 'c' })
+  await clock.advance(1000)
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await ui.find({ type: 'Text', text: /No previews in this file/ })).toBeDefined()
+  expect(await ui.find({ type: 'Svg' })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /0 previews/ })).toBeDefined()
   await ui.unmount()
 })

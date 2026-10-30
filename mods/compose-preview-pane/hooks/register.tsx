@@ -303,7 +303,7 @@ export const register: Register = (on, options) => {
 
   on('session.start', async ($, e, next) => {
     await $.command.register({
-      name: 'compose-preview',
+      name: 'preview-pane',
       description: 'Open the Compose preview pane',
     })
     await $.command.register({
@@ -314,7 +314,7 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
-  on('command.run', { command: 'compose-preview' }, async $ => {
+  on('command.run', { command: 'preview-pane' }, async $ => {
     await $.ui.open({ id: PANE, title: TITLE })
     await setUi($, u => ({ ...u, tab: 'previews' }))
     return { text: 'Compose preview pane opened. It re-renders after each Kotlin edit.' }

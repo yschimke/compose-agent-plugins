@@ -36,7 +36,7 @@ It is not in the marketplace yet. The plan is to fold it into the `compose-previ
   running app follows the code. The simulator needs the MCP server; the CLI fallback covers
   renders only.
 
-Commands: `/compose-preview` opens the pane; `/compose-app` opens it on the running app.
+Commands: `/preview-pane` opens the pane (named so it does not clash with the `compose-preview` skill); `/compose-app` opens it on the running app.
 
 ## Surfaces
 

@@ -6,8 +6,8 @@
 // until the user or agent opens the pane. When `compose-preview` is not installed yet or the
 // workspace has no Gradle/Bazel/Buck build, it serves a self-healing setup and mode-switcher page.
 
-import { spawn, spawnSync } from 'node:child_process';
-import { accessSync, constants, existsSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { accessSync, constants, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import http from 'node:http';
 import net from 'node:net';
 import os from 'node:os';
@@ -63,11 +63,135 @@ function findCli() {
   return null;
 }
 
-function resolveWorkspace() {
-  const explicit = process.env.COMPOSE_PREVIEW_WORKSPACE;
-  if (explicit && existsSync(explicit)) {
-    return path.resolve(explicit);
+let workspaceOverride = '';
+
+function cleanWorkspaceCandidate(raw) {
+  if (!raw || typeof raw !== 'string') return null;
+  const trimmed = raw.trim().replace(/^file:\/\//, '');
+  if (!trimmed) return null;
+  try {
+    const resolved = path.resolve(trimmed);
+    if (existsSync(resolved)) return resolved;
+  } catch {
+    // ignore invalid path
   }
+  return null;
+}
+
+function parseWorkspaceList(raw) {
+  if (!raw || typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  if (trimmed.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        for (const item of parsed) {
+          const candidate =
+            typeof item === 'string' ? item : item && (item.uri || item.path || item.fsPath);
+          const valid = cleanWorkspaceCandidate(candidate);
+          if (valid) return valid;
+        }
+      }
+    } catch {
+      // fall through to delimiter split
+    }
+  }
+  for (const part of trimmed.split(path.delimiter)) {
+    const valid = cleanWorkspaceCandidate(part);
+    if (valid) return valid;
+  }
+  return null;
+}
+
+function workspaceCacheFile() {
+  const cacheBase = process.env.XDG_CACHE_HOME || path.join(os.homedir(), '.cache');
+  return path.join(cacheBase, 'composeai', 'antigravity-workspace');
+}
+
+function mcpWorkspacesFile() {
+  const cacheBase = process.env.XDG_CACHE_HOME || path.join(os.homedir(), '.cache');
+  return path.join(cacheBase, 'composeai', 'mcp', 'workspaces.json');
+}
+
+function readRecentMcpWorkspaces() {
+  try {
+    const file = mcpWorkspacesFile();
+    if (!existsSync(file)) return [];
+    const parsed = JSON.parse(readFileSync(file, 'utf8'));
+    const list = Array.isArray(parsed?.workspaces) ? parsed.workspaces : [];
+    const sorted = [...list].sort((a, b) => Number(b?.lastUsed || 0) - Number(a?.lastUsed || 0));
+    const results = [];
+    const seen = new Set();
+    for (const entry of sorted) {
+      const valid = cleanWorkspaceCandidate(entry?.path);
+      if (valid && !seen.has(valid) && detectBuildProject(valid)) {
+        seen.add(valid);
+        results.push(valid);
+      }
+    }
+    return results;
+  } catch {
+    return [];
+  }
+}
+
+function persistWorkspaceOverride(dir) {
+  const valid = cleanWorkspaceCandidate(dir);
+  if (!valid) return null;
+  workspaceOverride = valid;
+  try {
+    const file = workspaceCacheFile();
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, `${valid}\n`, 'utf8');
+  } catch {
+    // ignore cache write errors
+  }
+  return valid;
+}
+
+function resolveWorkspace() {
+  const override = cleanWorkspaceCandidate(workspaceOverride);
+  if (override) return override;
+
+  for (const key of [
+    'COMPOSE_PREVIEW_WORKSPACE',
+    'ANTIGRAVITY_WORKSPACE_PATH',
+    'ANTIGRAVITY_WORKSPACE_ROOT',
+    'WORKSPACE_PATH',
+    'WORKSPACE_FOLDER',
+    'VSCODE_WORKSPACE_FOLDER',
+    'VSCODE_CWD',
+    'PROJECT_ROOT',
+    'INIT_CWD',
+  ]) {
+    const candidate = cleanWorkspaceCandidate(process.env[key]);
+    if (candidate) return candidate;
+  }
+
+  for (const listKey of ['ANTIGRAVITY_WORKSPACE_PATHS', 'WORKSPACE_FOLDER_PATHS']) {
+    const candidate = parseWorkspaceList(process.env[listKey]);
+    if (candidate) return candidate;
+  }
+
+  if (detectBuildProject(process.cwd())) {
+    return process.cwd();
+  }
+
+  try {
+    const cacheFile = workspaceCacheFile();
+    if (existsSync(cacheFile)) {
+      const cached = cleanWorkspaceCandidate(readFileSync(cacheFile, 'utf8'));
+      if (cached) return cached;
+    }
+  } catch {
+    // ignore cache read errors
+  }
+
+  const recentMcp = readRecentMcpWorkspaces();
+  if (recentMcp.length > 0) {
+    return recentMcp[0];
+  }
+
   return process.cwd();
 }
 
@@ -278,6 +402,7 @@ function getStatusPayload() {
   const cli = findCli();
   const workspace = resolveWorkspace();
   const projectRoot = detectBuildProject(workspace);
+  const recentWorkspaces = readRecentMcpWorkspaces().slice(0, 5);
   return {
     ok: state === 'ready',
     mode: activeMode,
@@ -285,6 +410,7 @@ function getStatusPayload() {
     cliPath: cli,
     workspace,
     projectRoot,
+    recentWorkspaces,
     hasProject: Boolean(projectRoot),
     backendPort,
     adbSerial,
@@ -323,12 +449,23 @@ function renderControlPage() {
         <button class="primary" onclick="switchMode('${escapeHtml(status.mode)}')">Retry</button>
       </div>`;
   } else if (status.state === 'no-project') {
+    const recentButtons = (status.recentWorkspaces || [])
+      .map(
+        (w) =>
+          `<button onclick="selectWorkspace('${escapeHtml(w)}')">${escapeHtml(path.basename(w))}</button>`,
+      )
+      .join('');
     bodySection = `
       <h2>No Compose / Gradle project detected</h2>
       <p>Checked <code>${escapeHtml(status.workspace)}</code> for <code>settings.gradle(.kts)</code>, <code>gradlew</code>, <code>MODULE.bazel</code>, or <code>.buckconfig</code>.</p>
-      <p>Open a Compose project workspace, or boot a standalone Robolectric virtual device on <code>adb</code> for the Android Device Hub:</p>
+      <p>Enter your Compose project directory below, or boot a standalone Robolectric virtual device on <code>adb</code> for the Android Device Hub:</p>
+      <div class="actions" style="margin-bottom: 12px;">
+        <input id="workspaceInput" type="text" value="${escapeHtml(status.workspace)}" placeholder="/path/to/your/compose-project" style="flex: 1; min-width: 240px; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--card); color: var(--fg); font: inherit;" />
+        <button class="primary" onclick="setWorkspace()">Use Workspace</button>
+      </div>
+      ${recentButtons ? `<div class="actions" style="margin-bottom: 12px;">${recentButtons}</div>` : ''}
       <div class="actions">
-        <button class="primary" onclick="switchMode('simulator')">Boot Simulator (<code>launch --adb</code>)</button>
+        <button onclick="switchMode('simulator')">Boot Simulator (<code>launch --adb</code>)</button>
         <button onclick="switchMode('browse')">Retry Project Discovery</button>
       </div>`;
   } else if (status.state === 'simulator' || status.mode === 'simulator') {
@@ -435,6 +572,15 @@ async function switchMode(mode) {
   await fetch('/__sidecar/mode?mode=' + encodeURIComponent(mode), { method: 'POST' });
   location.reload();
 }
+async function setWorkspace() {
+  const input = document.getElementById('workspaceInput');
+  if (!input || !input.value.trim()) return;
+  await selectWorkspace(input.value.trim());
+}
+async function selectWorkspace(dir) {
+  await fetch('/__sidecar/workspace?workspace=' + encodeURIComponent(dir), { method: 'POST' });
+  location.reload();
+}
 setInterval(async () => {
   try {
     const res = await fetch('/__sidecar/status', { cache: 'no-store' });
@@ -456,6 +602,10 @@ setInterval(async () => {
 
 const server = http.createServer(async (req, res) => {
   const reqUrl = new URL(req.url || '/', `http://127.0.0.1:${port}`);
+  const queryWorkspace = reqUrl.searchParams.get('workspace');
+  if (queryWorkspace) {
+    persistWorkspaceOverride(queryWorkspace);
+  }
 
   if (reqUrl.pathname === '/__sidecar/status') {
     const payload = JSON.stringify(getStatusPayload(), null, 2);
@@ -464,6 +614,17 @@ const server = http.createServer(async (req, res) => {
       'Cache-Control': 'no-store',
     });
     res.end(payload);
+    return;
+  }
+
+  if (reqUrl.pathname === '/__sidecar/workspace') {
+    const requestedWorkspace = reqUrl.searchParams.get('workspace') || '';
+    const updated = persistWorkspaceOverride(requestedWorkspace);
+    if (updated) {
+      await startBackend(activeMode);
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify(getStatusPayload()));
     return;
   }
 

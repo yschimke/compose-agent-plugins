@@ -1,0 +1,24 @@
+{
+  "name": "compose-preview-pane",
+  "version": "0.1.0",
+  "description": "A pane beside the chat with the latest Compose preview renders, before/after and accessibility findings for the Kotlin file just edited, plus the running app in the compose-preview simulator.",
+  "author": {
+    "name": "Yuri Schimke"
+  },
+  "license": "Apache-2.0",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "mcp_server": {
+      "type": "string",
+      "title": "compose-preview MCP server",
+      "description": "The MCP server name as /mcp lists it. Leave blank to try the compose-preview plugin's server, then a standalone compose-preview-mcp, then the CLI.",
+      "default": ""
+    },
+    "max_previews": {
+      "type": "number",
+      "title": "Previews per edit",
+      "description": "How many previews of the edited file to render after each edit.",
+      "default": 6
+    }
+  }
+}

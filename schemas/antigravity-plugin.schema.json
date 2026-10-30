@@ -2,11 +2,43 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Antigravity plugin manifest (vendored v1 contract)",
   "type": "object",
-  "required": ["name"],
+  "required": [
+    "name",
+    "displayName",
+    "version",
+    "description",
+    "author",
+    "homepage",
+    "repository",
+    "license",
+    "keywords",
+    "suggestedPrompts"
+  ],
   "properties": {
     "$schema": {"const": "https://antigravity.google/schemas/v1/plugin.json"},
     "name": {"type": "string", "pattern": "^[a-zA-Z0-9-_]+$"},
-    "description": {"type": "string"}
+    "displayName": {"type": "string"},
+    "version": {"type": "string"},
+    "description": {"type": "string"},
+    "author": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "homepage": {"type": "string"},
+    "repository": {"type": "string"},
+    "license": {"type": "string"},
+    "keywords": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "suggestedPrompts": {
+      "type": "array",
+      "items": {"type": "string"}
+    }
   },
   "additionalProperties": false
 }

@@ -1,5 +1,25 @@
 {
   "$schema": "https://antigravity.google/schemas/v1/plugin.json",
+  "author": {
+    "name": "Yuri Schimke"
+  },
   "description": "Discover Compose components, inspect properties, and render catalog variants.",
-  "name": "compose-catalogs"
+  "displayName": "Compose Catalogs",
+  "homepage": "https://github.com/yschimke/compose-agent-plugins/tree/main/plugins/compose-catalogs",
+  "keywords": [
+    "compose",
+    "catalog",
+    "material3",
+    "wear",
+    "design-review",
+    "guidelines"
+  ],
+  "license": "Apache-2.0",
+  "name": "compose-catalogs",
+  "repository": "https://github.com/yschimke/compose-agent-plugins",
+  "suggestedPrompts": [
+    "Show the available Compose component catalogs.",
+    "Review this UI Builder design against its catalog design guidelines."
+  ],
+  "version": "0.7.0"
 }

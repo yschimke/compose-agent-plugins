@@ -25,8 +25,11 @@ from generate import (
     README_SOURCE_ROOT,
     RULES_SOURCE_ROOT,
     RULES_TARGET,
+    SIDECAR_LAUNCHER_NAME,
+    SIDECAR_SOURCE_ROOT,
     SKILL_SOURCE_ROOT,
     render_antigravity_hooks,
+    render_antigravity_manifest,
     render_claude_manifest,
     render_codex_manifest,
     codex_skill_config,
@@ -499,11 +502,12 @@ def main() -> None:
         validate_manifest_schema(
             codex, "codex-plugin.schema.json", root / ".codex-plugin" / "plugin.json"
         )
-        expected_antigravity = {
-            "$schema": ANTIGRAVITY_SCHEMA,
-            "description": plugin["description"],
-            "name": name,
-        }
+        expected_antigravity = render_antigravity_manifest(
+            plugin=plugin,
+            owner=source["owner"],
+            repository=source["repository"],
+            license_name=source["license"],
+        )
         expected_core = {key: plugin[key] for key in ("name", "version", "description")}
         if antigravity != expected_antigravity:
             raise ValueError(f"{root}/plugin.json does not match the Antigravity contract")
@@ -604,6 +608,21 @@ def main() -> None:
                 raise ValueError(f"{generated_asset}: missing shared source")
             if generated_asset.read_bytes() != shared_asset.read_bytes():
                 raise ValueError(f"{generated_asset}: generated copy differs from shared source")
+        sidecars = plugin.get("sidecars", [])
+        if not isinstance(sidecars, list) or not all(isinstance(sidecar, str) for sidecar in sidecars):
+            raise ValueError(f"{name}.sidecars must be a list of strings")
+        for sidecar in sidecars:
+            generated_sidecar = root / "sidecars" / sidecar / "sidecar.json"
+            shared_sidecar = SIDECAR_SOURCE_ROOT / sidecar / "sidecar.json"
+            if not generated_sidecar.is_file():
+                raise ValueError(f"{generated_sidecar}: missing generated sidecar manifest")
+            if read_json(generated_sidecar) != read_json(shared_sidecar):
+                raise ValueError(f"{generated_sidecar}: generated copy differs from shared source")
+        if sidecars:
+            generated_launcher = root / "sidecars" / SIDECAR_LAUNCHER_NAME
+            shared_launcher = SIDECAR_SOURCE_ROOT / SIDECAR_LAUNCHER_NAME
+            if not generated_launcher.is_file() or generated_launcher.read_bytes() != shared_launcher.read_bytes():
+                raise ValueError(f"{generated_launcher}: generated launcher differs from shared source")
         hooks = plugin.get("hooks", [])
         antigravity_hooks = render_antigravity_hooks(name, hooks) if hooks else None
         antigravity_hook_manifest = root / ANTIGRAVITY_HOOK_MANIFEST

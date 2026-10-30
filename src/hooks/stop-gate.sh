@@ -107,6 +107,14 @@ json_string_field() {
   sed -n 's/.*"'"$1"'"[[:space:]]*:[[:space:]]*"\([^"\\]*\)".*/\1/p' "$hook_input" | head -n 1
 }
 
+# Antigravity sends terminationReason on Stop. Only block when the agent chose
+# to stop normally (NO_TOOL_CALL); never block on USER_CANCELED, ERROR or a
+# budget/invocation cap.
+termination_reason=$(json_string_field terminationReason)
+if [ -n "$termination_reason" ] && [ "$termination_reason" != "NO_TOOL_CALL" ]; then
+  exit 0
+fi
+
 # Claude Code and Codex send session_id; Antigravity sends conversationId (and
 # exports ANTIGRAVITY_CONVERSATION_ID to hooks).
 session_id=$(json_string_field session_id)

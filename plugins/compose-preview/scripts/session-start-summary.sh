@@ -1,5 +1,5 @@
 #!/bin/sh
-# Emit a safe SessionStart context summary for Claude Code and Codex.
+# Emit a safe SessionStart context summary for Claude Code, Codex and Antigravity.
 #
 # Probe capabilities before invoking them so an older installation remains a
 # silent no-op. Every subprocess is bounded independently and receives closed
@@ -7,6 +7,19 @@
 # long-running stdio server. Diagnostics may include machine-specific paths,
 # configuration details or credentials, so only fixed statuses and integers read
 # from the CLI's versioned status envelope are surfaced.
+
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd) || exit 0
+if [ -f "$script_dir/lib/harness.sh" ]; then
+  # shellcheck source=lib/harness.sh
+  . "$script_dir/lib/harness.sh" || exit 0
+  harness_detect "$@" 2>/dev/null || exit 0
+  case "$HARNESS" in
+    claude|codex|antigravity|unknown) ;;
+    *) exit 0 ;;
+  esac
+else
+  HARNESS=unknown
+fi
 
 probe_timeout_seconds=3
 # The manifest gives the whole hook 10 seconds. Reserve time for cleanup and the final JSON write;
@@ -78,8 +91,39 @@ run_probe() {
 }
 
 emit_context() {
-  printf '%s\n' "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"$1\"}}"
+  if command -v harness_emit_session_start >/dev/null 2>&1; then
+    harness_emit_session_start "$1" 2>/dev/null || true
+  else
+    printf '%s\n' "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"$1\"}}"
+  fi
 }
+
+antigravity_workspace=
+if [ "${HARNESS-}" = "antigravity" ]; then
+  hook_input="$temporary_root/input.json"
+  exec 3<&0
+  cat <&3 >"$hook_input" 2>/dev/null &
+  probe_pid=$!
+  exec 3<&-
+  input_ticks=0
+  while kill -0 "$probe_pid" 2>/dev/null && [ "$input_ticks" -lt 5 ]; do
+    sleep 0.1
+    input_ticks=$((input_ticks + 1))
+    hook_tick_budget=$((hook_tick_budget - 1))
+  done
+  if kill -0 "$probe_pid" 2>/dev/null; then
+    kill "$probe_pid" 2>/dev/null || true
+    kill -KILL "$probe_pid" 2>/dev/null || true
+    : >"$hook_input"
+  fi
+  wait "$probe_pid" 2>/dev/null
+  probe_pid=
+  antigravity_workspace=$(sed -n 's/.*"workspacePaths"[[:space:]]*:[[:space:]]*\[[[:space:]]*"\([^"\\]*\)".*/\1/p' "$hook_input" | head -n 1)
+  antigravity_workspace=${antigravity_workspace#file://}
+  if [ -n "$antigravity_workspace" ] && [ -d "$antigravity_workspace" ]; then
+    cd "$antigravity_workspace" 2>/dev/null || true
+  fi
+fi
 
 context_message=
 
@@ -149,7 +193,7 @@ status_summary() {
   fi
 }
 
-workspace_root=${CLAUDE_PROJECT_DIR:-$PWD}
+workspace_root=${CLAUDE_PROJECT_DIR:-${antigravity_workspace:-$PWD}}
 
 # The CLI installer (yschimke/skills scripts/install.sh) puts the launcher in ~/.local/bin, which a
 # fresh sandbox shell may not have on PATH yet: the installer adds it to the shell startup files,

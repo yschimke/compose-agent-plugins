@@ -23,6 +23,9 @@ PORTABLE_AGENT_FIELDS = ("name", "description")
 HOOK_SOURCE_ROOT = ROOT / "src" / "hooks"
 ASSET_SOURCE_ROOT = ROOT / "src" / "assets"
 ASSET_LEDGER_NAME = ".generated-assets.json"
+SIDECAR_SOURCE_ROOT = ROOT / "src" / "sidecars"
+SIDECAR_LEDGER_NAME = ".generated-sidecars.json"
+SIDECAR_LAUNCHER_NAME = "launch.mjs"
 README_SOURCE_ROOT = ROOT / "src" / "readmes"
 RULES_SOURCE_ROOT = ROOT / "src" / "rules"
 # Antigravity loads a plugin's rules/AGENTS.md on every turn (harness matrix Q6); Claude Code does not.
@@ -36,12 +39,11 @@ LICENSE_SOURCE = ROOT / "LICENSE"
 # Claude Code reads hooks/hooks.json by default. Codex would read that same file,
 # so the Codex manifest names its own copy, whose commands pass --harness=codex.
 HOOK_MANIFESTS = {"claude": "hooks/hooks.json", "codex": "hooks/codex-hooks.json"}
-# Antigravity reads a root hooks.json keyed by plugin name (the spike/prepare.py
-# shape from #6). It has no SessionStart event, and it runs the installed copy
-# under ~/.gemini/config/plugins/<name>, so only Stop hooks are rendered there.
+# Antigravity reads a root hooks.json keyed by plugin name and runs commands
+# with cwd set to the plugin folder, so "./scripts/<script>" is portable across
+# installed copies and local agy plugin validate runs.
 ANTIGRAVITY_HOOK_MANIFEST = "hooks.json"
-ANTIGRAVITY_HOOK_EVENTS = ("Stop",)
-ANTIGRAVITY_PLUGIN_ROOT = "$HOME/.gemini/config/plugins"
+ANTIGRAVITY_HOOK_EVENTS = ("SessionStart", "Stop")
 ANTIGRAVITY_SCHEMA = "https://antigravity.google/schemas/v1/plugin.json"
 MCP_REGISTRY_SCHEMA = "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json"
 MARKETPLACE_NAME = "compose-agent-plugins"
@@ -436,6 +438,55 @@ def write_asset(plugin_root: Path, asset: str) -> None:
     target.write_bytes(source.read_bytes())
 
 
+def write_sidecar(plugin_root: Path, sidecar: str) -> None:
+    if not SKILL_NAME.fullmatch(sidecar):
+        raise ValueError(f"invalid sidecar name: {sidecar}")
+    source_manifest = SIDECAR_SOURCE_ROOT / sidecar / "sidecar.json"
+    if not source_manifest.is_file():
+        raise ValueError(f"missing shared sidecar manifest: {source_manifest.relative_to(ROOT)}")
+    target_manifest = plugin_root / "sidecars" / sidecar / "sidecar.json"
+    write_json(target_manifest, json.loads(source_manifest.read_text(encoding="utf-8")))
+    launcher_source = SIDECAR_SOURCE_ROOT / SIDECAR_LAUNCHER_NAME
+    if not launcher_source.is_file():
+        raise ValueError(f"missing shared sidecar launcher: {launcher_source.relative_to(ROOT)}")
+    launcher_target = plugin_root / "sidecars" / SIDECAR_LAUNCHER_NAME
+    launcher_target.parent.mkdir(parents=True, exist_ok=True)
+    launcher_target.write_text(launcher_source.read_text(encoding="utf-8"), encoding="utf-8")
+    launcher_target.chmod(0o755)
+
+
+def synchronize_generated_sidecars(plugin_root: Path, sidecars: list[str]) -> None:
+    import shutil
+
+    sidecars_root = plugin_root / "sidecars"
+    ledger = sidecars_root / SIDECAR_LEDGER_NAME
+    previous: list[str] = []
+    if ledger.is_file():
+        value = json.loads(ledger.read_text(encoding="utf-8"))
+        if (
+            not isinstance(value, dict)
+            or not isinstance(value.get("sidecars"), list)
+            or not all(isinstance(item, str) for item in value["sidecars"])
+        ):
+            raise ValueError(f"invalid generated sidecar ledger: {ledger.relative_to(ROOT)}")
+        previous = value["sidecars"]
+    expected = set(sidecars)
+    for item in previous:
+        if not SKILL_NAME.fullmatch(item):
+            raise ValueError(f"invalid generated sidecar ledger entry: {item!r}")
+        if item not in expected:
+            stale_dir = sidecars_root / item
+            if stale_dir.is_dir():
+                shutil.rmtree(stale_dir)
+    if sidecars:
+        write_json(ledger, {"sidecars": sorted(expected)})
+    else:
+        ledger.unlink(missing_ok=True)
+        (sidecars_root / SIDECAR_LAUNCHER_NAME).unlink(missing_ok=True)
+        if sidecars_root.is_dir() and not any(sidecars_root.iterdir()):
+            sidecars_root.rmdir()
+
+
 def write_readme(plugin_root: Path, name: str) -> None:
     """Every plugin folder carries its own README and LICENSE (directory submission rules)."""
     source = README_SOURCE_ROOT / f"{name}.md"
@@ -541,9 +592,9 @@ def render_antigravity_hooks(plugin_name: str, entries: object) -> dict[str, obj
         event = entry["event"].strip()
         if event not in ANTIGRAVITY_HOOK_EVENTS:
             continue
-        script = f"{ANTIGRAVITY_PLUGIN_ROOT}/{plugin_name}/{entry['command'].strip()}"
+        script = f"./{entry['command'].strip()}"
         events.setdefault(event, []).append(
-            {"command": f'"{script}" --harness=antigravity', "type": "command"}
+            {"command": f"{script} --harness=antigravity", "type": "command"}
         )
     if not events:
         return None
@@ -768,6 +819,40 @@ def render_mcp_servers(
             raise ValueError(f"{plugin_name}.mcp.{name}.kind must be stdio or http")
         servers[name] = server
     return servers
+
+
+def render_antigravity_manifest(
+    *,
+    plugin: dict[str, object],
+    owner: str,
+    repository: str,
+    license_name: str,
+) -> dict[str, object]:
+    """Render root plugin.json for Antigravity (v1 schema + agy 1.4.x metadata)."""
+    name = plugin["name"]
+    interface = plugin.get("interface")
+    if not isinstance(interface, dict):
+        raise ValueError(f"{name}.interface must be an object")
+    default_prompt = interface.get("defaultPrompt", [])
+    if not isinstance(default_prompt, list):
+        raise ValueError(f"{name}.interface.defaultPrompt must be a list of non-empty strings")
+    rendered_prompts = [
+        require_string(prompt, f"{name}.interface.defaultPrompt[{index}]")
+        for index, prompt in enumerate(default_prompt)
+    ]
+    return {
+        "$schema": ANTIGRAVITY_SCHEMA,
+        "author": {"name": owner},
+        "description": plugin["description"],
+        "displayName": require_string(interface.get("displayName"), f"{name}.interface.displayName"),
+        "homepage": f"{repository}/tree/main/plugins/{name}",
+        "keywords": plugin.get("keywords", []),
+        "license": license_name,
+        "name": name,
+        "repository": repository,
+        "suggestedPrompts": rendered_prompts,
+        "version": plugin["version"],
+    }
 
 
 def render_claude_manifest(
@@ -1031,6 +1116,7 @@ def main() -> None:
         keywords = plugin.get("keywords", [])
         skills = plugin.get("skills", [])
         agents = plugin.get("agents", [])
+        sidecars = plugin.get("sidecars", [])
         hooks = plugin.get("hooks", [])
         assets = plugin.get("assets", [])
         mcp = plugin.get("mcp", [])
@@ -1045,6 +1131,8 @@ def main() -> None:
             raise ValueError(f"{name}.skills must be a list of strings")
         if not isinstance(agents, list) or not all(isinstance(agent, str) for agent in agents):
             raise ValueError(f"{name}.agents must be a list of strings")
+        if not isinstance(sidecars, list) or not all(isinstance(sidecar, str) for sidecar in sidecars):
+            raise ValueError(f"{name}.sidecars must be a list of strings")
         if not isinstance(hooks, list):
             raise ValueError(f"{name}.hooks must be a list")
         if not isinstance(assets, list) or not all(isinstance(asset, str) for asset in assets):
@@ -1062,6 +1150,9 @@ def main() -> None:
             synchronize_generated_agents(root, agents, directory)
         for agent in agents:
             write_agent(root, agent)
+        synchronize_generated_sidecars(root, sidecars)
+        for sidecar in sidecars:
+            write_sidecar(root, sidecar)
         remove_obsolete_generated_hooks(root, hooks)
         synchronize_generated_assets(root, assets)
         for asset in assets:
@@ -1080,7 +1171,12 @@ def main() -> None:
             write_hook(root, hook["command"])
         write_json(
             root / "plugin.json",
-            {"$schema": ANTIGRAVITY_SCHEMA, "description": description, "name": name},
+            render_antigravity_manifest(
+                plugin=plugin,
+                owner=owner,
+                repository=repository,
+                license_name=license_name,
+            ),
         )
         write_json(
             root / ".claude-plugin" / "plugin.json",

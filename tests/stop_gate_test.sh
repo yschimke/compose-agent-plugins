@@ -7,7 +7,7 @@ set -euo pipefail
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 gate="$repository_root/plugins/compose-preview/scripts/stop-gate.sh"
 golden="$repository_root/tests/golden/stop-gate"
-temporary_root="$(mktemp -d)"
+temporary_root="$(cd "$(mktemp -d)" && pwd -P)"
 trap 'rm -rf "$temporary_root"' EXIT
 
 failures=0
@@ -117,7 +117,8 @@ run_gate() {
   # Each call runs in a command-substitution subshell, so a fresh session id
   # comes from that subshell's pid unless SESSION_ID pins one.
   local harness=$1 cwd=$2 active=${3:-false}
-  local session=${SESSION_ID:-session-$BASHPID}
+  local subshell_pid=${BASHPID:-$(sh -c 'echo "$PPID"')}
+  local session=${SESSION_ID:-session-$subshell_pid}
   printf '{"session_id":"%s","cwd":"%s","hook_event_name":"Stop","stop_hook_active":%s}' \
     "$session" "$cwd" "$active" |
     TMPDIR="$temporary_root/tmp" "$gate" --harness="$harness"
@@ -264,6 +265,18 @@ reset_fake
 FAKE_SHOW_JSON="$data/show-render-failed.json" FAKE_SHOW_STATUS=2
 expect_golden 'file:// workspacePaths are accepted' render-failure.antigravity.json \
   "$(run_antigravity_gate "file://$workspace" conversation-file-url)"
+
+for non_normal_reason in USER_CANCELED ERROR MAX_INVOCATIONS; do
+  reset_fake
+  FAKE_SHOW_JSON="$data/show-render-failed.json" FAKE_SHOW_STATUS=2
+  actual_reason_out=$(
+    printf '{"conversationId":"conv-%s","terminationReason":"%s","workspacePaths":["%s"]}' \
+      "$non_normal_reason" "$non_normal_reason" "$workspace" |
+      (cd / && TMPDIR="$temporary_root/tmp" "$gate" --harness=antigravity)
+  )
+  expect_output "Antigravity terminationReason=$non_normal_reason allows the stop" '' "$actual_reason_out"
+  expect_no_cli "Antigravity terminationReason=$non_normal_reason"
+done
 
 reset_fake
 expect_output 'no changed Kotlin allows the stop' '' "$(run_gate claude "$clean_workspace")"

@@ -47,10 +47,14 @@ def check_agy() -> None:
 
 
 def differing_files(left: Path, right: Path) -> list[str]:
-    compare = filecmp.dircmp(left, right, ignore=[".generated-assets.json"])
+    compare = filecmp.dircmp(
+        left,
+        right,
+        ignore=[".generated-assets.json", ".generated-agents.json", ".generated-sidecars.json"],
+    )
     found = [f"{name} (only in checkout)" for name in compare.left_only]
     found += compare.diff_files
-    for name in compare.subdirs:
+    for name, sub in compare.subdirs.items():
         found += [f"{name}/{item}" for item in differing_files(left / name, right / name)]
     return found
 
@@ -68,11 +72,42 @@ def check_plugins() -> None:
             report("ok", f"{name}: installed copy matches this checkout")
     helper = INSTALLED / "compose-preview" / "assets" / "compose-preview-card.py"
     report("ok" if helper.is_file() else "FIX", f"card helper: {helper}")
+    sidecar = INSTALLED / "compose-preview" / "sidecars" / "compose-preview" / "sidecar.json"
+    launcher = INSTALLED / "compose-preview" / "sidecars" / "launch.mjs"
+    if sidecar.is_file() and launcher.is_file():
+        report("ok", f"Compose Preview sidecar: {sidecar}")
+    else:
+        report("FIX", f"Compose Preview sidecar missing: reinstall with agy plugin install {REPO_URL}/compose-preview")
     hooks = INSTALLED / "compose-preview" / "hooks.json"
     if hooks.is_file():
-        report("ok", f"Stop gate hooks.json: {hooks} (runs only with COMPOSE_PREVIEW_GATE=1)")
+        report("ok", f"hooks.json (SessionStart + Stop gate): {hooks} (Stop gate runs with COMPOSE_PREVIEW_GATE=1)")
     else:
-        report("FIX", f"Stop gate hooks.json missing: reinstall with agy plugin install {REPO_URL}/compose-preview")
+        report("FIX", f"hooks.json missing: reinstall with agy plugin install {REPO_URL}/compose-preview")
+    if shutil.which("agy"):
+        for name in PLUGINS:
+            raw = run(["agy", "plugin", "validate", "--json", str(ROOT / "plugins" / name)])
+            if not raw:
+                continue
+            try:
+                validated = json.loads(raw)
+            except ValueError:
+                continue
+            errors = [
+                f.get("message", "")
+                for f in validated.get("findings", [])
+                if isinstance(f, dict) and f.get("severity") == "error"
+            ]
+            if errors:
+                report("FIX", f"agy plugin validate {name}: {'; '.join(errors)}")
+            else:
+                components = validated.get("components", {})
+                report(
+                    "ok",
+                    f"agy plugin validate {name}: skills={components.get('skills', 0)}, "
+                    f"mcpServers={components.get('mcpServers', 0)}, "
+                    f"hooks={components.get('hooks', 0)}, "
+                    f"sidecars={components.get('sidecars', 0)}",
+                )
 
 
 def check_imports() -> None:
@@ -155,6 +190,10 @@ def mcp_probe(command: list[str]) -> tuple[dict, dict]:
 
 def check_cli() -> None:
     cli = shutil.which("compose-preview")
+    if not cli:
+        fallback = HOME / ".local" / "bin" / "compose-preview"
+        if fallback.is_file() and os.access(fallback, os.X_OK):
+            cli = str(fallback)
     if not cli:
         report("FIX", "compose-preview: not on PATH (open a new terminal, or compose-preview update)")
         return

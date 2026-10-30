@@ -129,6 +129,26 @@ for no_notice_harness in antigravity opencode gemini unknown; do
   assert_equal '' "$notice_output" "$no_notice_harness notice output"
 done
 
+for session_harness in claude codex unknown; do
+  harness_detect --harness="$session_harness"
+  session_output=$(harness_emit_session_start 'start "here"')
+  assert_equal '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"start \"here\""}}' "$session_output" "$session_harness session-start contract"
+done
+
+harness_detect --harness=antigravity
+agy_session_output=$(harness_emit_session_start 'start "here"')
+assert_equal '{"injectSteps":[{"systemMessage":{"systemMessage":"start \"here\""}}]}' "$agy_session_output" 'antigravity session-start contract'
+
+for no_session_harness in opencode gemini; do
+  harness_detect --harness="$no_session_harness"
+  if session_output=$(harness_emit_session_start 'start' 2>/dev/null); then
+    fail "$no_session_harness must not emit a session-start payload"
+  else
+    assert_status 2 "$?" "$no_session_harness session-start status"
+  fi
+  assert_equal '' "$session_output" "$no_session_harness session-start output"
+done
+
 for continue_harness in claude codex antigravity; do
   harness_detect --harness="$continue_harness"
   case "$continue_harness" in

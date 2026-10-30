@@ -1,5 +1,24 @@
 {
   "$schema": "https://antigravity.google/schemas/v1/plugin.json",
+  "author": {
+    "name": "Yuri Schimke"
+  },
   "description": "Iterate on local Compose previews with live rendering and accessibility checks.",
-  "name": "compose-preview"
+  "displayName": "Compose Preview",
+  "homepage": "https://github.com/yschimke/compose-agent-plugins/tree/main/plugins/compose-preview",
+  "keywords": [
+    "compose",
+    "preview",
+    "accessibility",
+    "android",
+    "design-review",
+    "guidelines"
+  ],
+  "license": "Apache-2.0",
+  "name": "compose-preview",
+  "repository": "https://github.com/yschimke/compose-agent-plugins",
+  "suggestedPrompts": [
+    "Render and review the Compose previews in this project."
+  ],
+  "version": "0.7.0"
 }

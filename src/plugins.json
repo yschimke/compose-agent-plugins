@@ -114,6 +114,9 @@
       "agents": [
         "design-reviewer"
       ],
+      "sidecars": [
+        "compose-preview"
+      ],
       "assets": [
         "compose-preview-viewer.html",
         "compose-preview-card.py",

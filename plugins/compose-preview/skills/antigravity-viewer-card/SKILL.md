@@ -44,6 +44,30 @@ build folders. If the image still shows the old code, call `render_preview`
 once more with `force: {"reason": "<what you edited>"}`; if it is still stale,
 say so and stop.
 
+**Token-frugal iteration.** For intermediate checks before the final visual
+sign-off, pass `observe: "semantics"` (default) or `observe: "hash"` to avoid
+repeated full-screen PNG payloads, or pass `crop: {"ref": "n3"}` (or `testTag` /
+`role` + `text`) with `observe: "png"` to inspect a single node's pixels. Always
+inspect the rendered PNG (`observe: "png"` or `pngPath`) before calling a visual
+change done (R1).
+
+## Compose Preview Sidecar & App Simulator
+
+The `compose-preview` plugin ships an Antigravity Auxiliary Pane sidecar with
+three interactive modes (`browse`, `ui-builder`, and `simulator` via
+`compose-preview launch --adb`). Surface a one-click pill in chat when the
+person wants an interactive gallery, the local UI Builder, or a live
+interactive app simulator:
+
+- Open [Compose Preview](sidecar://compose-preview/compose-preview/) in the side
+  pane to browse all `@Preview`s live, switch to the local UI Builder, or run
+  `compose-preview launch --adb` in the browser simulator.
+- When `Simulator (launch --adb)` is active in the sidecar (or started from the
+  CLI with `compose-preview launch --project <dir> --live --adb`), it registers
+  `emulator-5554` + gRPC `8554` with `adb`, so the person can also mirror and
+  control the running app in [Android Device Hub](sidecar://android-cli-plugin/device-hub/)
+  if `android-cli-plugin` is installed.
+
 **Never fake a render.** Don't hand-build HTML, CSS, SVG or any other mock
 of the preview, and don't draw it from the source. Only the PNG and card
 from `render_preview` count as a preview. If rendering fails, say so, include

@@ -9,6 +9,7 @@ gate="$repository_root/plugins/compose-preview/scripts/stop-gate.sh"
 golden="$repository_root/tests/golden/stop-gate"
 temporary_root="$(cd "$(mktemp -d)" && pwd -P)"
 trap 'rm -rf "$temporary_root"' EXIT
+export XDG_CACHE_HOME="$temporary_root/cache"
 
 failures=0
 fail() {

@@ -30,6 +30,29 @@ apply to UI Builder designs, not to plain preview renders. Keep a simple render 
 follow `antigravity-viewer-card` (`render_preview preview=<Name>`, look at the PNG, a few bullets); elsewhere, one
 render call and a short reply.
 
+**Token-frugal MCP loop.** `render_preview` defaults to `observe="semantics"` (one compact line per
+visible node with ref IDs `n1`, `n2`, bounds, roles, text and actions — ~10× smaller than a PNG). Use
+`observe="hash"` when checking that a refactor did not alter output, `diff_semantics(baseUri, headUri)`
+to compare structure between two previews or revisions, `render_matrix` to sweep device sizes / font
+scales / themes in one call, and `record_preview(uri, steps, emitTest=true)` to drive multi-step
+interactions and emit a ready-to-paste `createComposeRule()` test. Fetch `observe="png"` (or `crop` by
+`ref`, `testTag`, or `role` + `text`) when visually verifying a change for R1 or when the user asks to
+see the preview.
+
+**Whole-app simulator (`compose-preview launch`).** When a task needs navigation, `ViewModel` flows,
+intents, broadcasts, or Wear OS Data Layer sync beyond a single `@Preview`:
+
+- Run `compose-preview launch --project <dir> --live --control stdio` (or `<app.apk> --control stdio`)
+  to boot the app in Robolectric's desktop simulator (requires Java 21+ and Android SDK `android.jar`)
+  and drive it over JSON-lines (`tap`, `swipe`, `text`, `key`, `tree`, `screenshot`, `activity`,
+  `broadcast`, `reload`, `update`, `network`, `playServices`, `device`, `dataLayer`).
+- Pair a phone and watch APK with `--pair <watch.apk>` or inspect/inject Wear Data Layer items with
+  `--data-layer agent`.
+- Pass `--adb` to expose `emulator-5554` + gRPC `8554` to `adb`, Android Studio's Running Devices, and
+  Antigravity's [Android Device Hub](sidecar://android-cli-plugin/device-hub/). In Antigravity, also
+  surface [Compose Preview](sidecar://compose-preview/compose-preview/) to open the Auxiliary Pane
+  sidecar (`browse`, `ui-builder`, or `simulator`).
+
 **Requested design review.** Load the canonical `compose-preview` skill's
 [catalog guidelines checklist](https://github.com/yschimke/skills/blob/main/skills/compose-preview/references/design-guidelines.md).
 In Claude Code, or OpenCode with `opencode-install.py` run, use the packaged

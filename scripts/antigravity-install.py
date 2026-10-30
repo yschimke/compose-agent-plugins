@@ -53,8 +53,14 @@ def imports() -> list[dict]:
     listing = agy("list")
     if "no imported plugins" in listing.lower():  # agy 1.2.x prints this instead of JSON when empty
         return []
+    if "{" not in listing and "[" not in listing:
+        listing = agy("list", "--json")
     try:
-        return json.loads(listing[listing.index("{"):]).get("imports", [])
+        start = min(i for i in (listing.find("{"), listing.find("[")) if i >= 0)
+        parsed = json.loads(listing[start:])
+        if isinstance(parsed, list):
+            return [entry for entry in parsed if isinstance(entry, dict)]
+        return parsed.get("imports", parsed.get("plugins", []))
     except (ValueError, AttributeError):
         sys.exit("could not read `agy plugin list` output")
 

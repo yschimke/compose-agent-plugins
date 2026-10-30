@@ -33,6 +33,10 @@ in `yschimke/skills`. The plugin does not download or install it.
   asking for a render after the agent edits a Compose `*.kt` file. All three
   hooks are described in
   [hooks](https://github.com/yschimke/compose-agent-plugins/blob/main/docs/hooks.md).
+- An Antigravity Auxiliary Pane sidecar, `sidecars/compose-preview/sidecar.json`
+  (`sidecars/launch.mjs`), that lazily proxies `compose-preview browse`,
+  `compose-preview ui-builder`, or `compose-preview launch --adb` (which also
+  exposes `emulator-5554` + gRPC `8554` to `adb` and Android Device Hub).
 - The `harness-notes` and `antigravity-viewer-card` skills, the
   `design-reviewer` agent, and the preview viewer bundle in `assets/`. The
   viewer is the unmodified `compose-preview-viewer.html` that compose-preview-mcp

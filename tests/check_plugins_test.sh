@@ -239,15 +239,21 @@ for harness, name in (("claude", "hooks.json"), ("codex", "codex-hooks.json")):
                 assert hook["command"].endswith(f" --harness={harness}"), hook
 codex = json.loads((root / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8"))
 assert codex["hooks"] == "./hooks/codex-hooks.json", codex
-# Antigravity gets only the Stop gate (it has no SessionStart), from its
-# installed copy, with its own --harness (#9, #39).
+# Antigravity gets SessionStart and the Stop gate via plugin-relative paths
+# (agy plugin validate verifies that ./scripts/... exists inside the plugin root).
 antigravity = json.loads((root / "hooks.json").read_text(encoding="utf-8"))
 assert antigravity == {
     "compose-preview": {
         "enabled": True,
+        "SessionStart": [
+            {
+                "command": "./scripts/session-start-summary.sh --harness=antigravity",
+                "type": "command",
+            }
+        ],
         "Stop": [
             {
-                "command": "\"$HOME/.gemini/config/plugins/compose-preview/scripts/stop-gate.sh\" --harness=antigravity",
+                "command": "./scripts/stop-gate.sh --harness=antigravity",
                 "type": "command",
             }
         ],

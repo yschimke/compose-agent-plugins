@@ -1,0 +1,5 @@
+{
+  "sidecars": [
+    "compose-preview"
+  ]
+}

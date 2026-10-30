@@ -135,3 +135,27 @@ harness_emit_notice() {
       ;;
   esac
 }
+
+# Emits the harness's SessionStart context payload to stdout.
+#
+# - Claude Code / Codex (and default no-arg invocations): hookSpecificOutput.additionalContext
+# - Antigravity: injectSteps[].systemMessage.systemMessage
+harness_emit_session_start() {
+  if [ "$#" -ne 1 ] || [ -z "${1-}" ]; then
+    printf '%s\n' 'harness: harness_emit_session_start requires one non-empty message' >&2
+    return 2
+  fi
+  harness_json_message=$(harness_json_string "$1") || return 2
+  case "${HARNESS:-unknown}" in
+    antigravity)
+      printf '{"injectSteps":[{"systemMessage":{"systemMessage":"%s"}}]}\n' "$harness_json_message"
+      ;;
+    claude|codex|unknown)
+      printf '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"%s"}}\n' "$harness_json_message"
+      ;;
+    *)
+      printf 'harness: %s is not a SessionStart-hook target\n' "$HARNESS" >&2
+      return 2
+      ;;
+  esac
+}

@@ -39,8 +39,8 @@ access and needs reconnection, not local environment setup or repeated grant req
    before reviewing, and prefer an already-published resource before spending
    a live render. A local preview has no home; render it.
 2. Compare semantics before and after when two revisions or workspaces are
-   available. Treat an intentional visual migration as information, never as a
-   failure by itself.
+   available (`diff_semantics` or `history_diff`). Treat an intentional visual
+   migration as information, never as a failure by itself.
 3. Run accessibility data checks. For a UI Builder design, start with
    `ui_builder_check_design` and draw the device/font-scale matrix in one call
    with `ui_builder_render_design_matrix` where advertised. Split Wear by what

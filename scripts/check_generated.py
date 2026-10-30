@@ -19,6 +19,8 @@ from generate import (
     OPENCODE_ROOT,
     ROOT,
     RULES_TARGET,
+    SIDECAR_LAUNCHER_NAME,
+    SIDECAR_LEDGER_NAME,
     SOURCE,
     hook_script,
     codex_skill_config,
@@ -77,6 +79,13 @@ def generated_paths(source: object) -> tuple[list[Path], set[str]]:
             paths.extend(plugin_root / directory / f"{agent}.md" for agent in agents)
             if agents:
                 paths.append(plugin_root / directory / AGENT_LEDGER_NAME)
+        sidecars = plugin.get("sidecars", [])
+        if not isinstance(sidecars, list) or not all(isinstance(sidecar, str) for sidecar in sidecars):
+            raise ValueError(f"{name}.sidecars must be a list of strings")
+        paths.extend(plugin_root / "sidecars" / sidecar / "sidecar.json" for sidecar in sidecars)
+        if sidecars:
+            paths.append(plugin_root / "sidecars" / SIDECAR_LAUNCHER_NAME)
+            paths.append(plugin_root / "sidecars" / SIDECAR_LEDGER_NAME)
         hooks = plugin.get("hooks", [])
         if not isinstance(hooks, list) or not all(isinstance(hook, dict) for hook in hooks):
             raise ValueError(f"{name}.hooks must be a list of objects")

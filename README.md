@@ -79,8 +79,11 @@ See [host setup → Updating](docs/host-setup.md#updating).
 - **`compose-preview`**: the local `compose-preview mcp serve` server, a
   post-edit render reminder and an opt-in Stop gate ([hooks](docs/hooks.md)),
   the `design-reviewer` agent, the `compose-preview-setup` onboarding skill,
-  the Antigravity-only viewer-card skill and the portable viewer bundle in
-  `assets/` ([viewer handoff](src/assets/compose-preview-viewer-fallback.md)).
+  the Antigravity-only viewer-card skill, the Antigravity `Compose Preview`
+  Auxiliary Pane sidecar (`sidecars/compose-preview/sidecar.json` +
+  `sidecars/launch.mjs` for `browse`, `ui-builder`, and `launch --adb`), and the
+  portable viewer bundle in `assets/`
+  ([viewer handoff](src/assets/compose-preview-viewer-fallback.md)).
   The viewer is an unmodified compose-preview-mcp release asset; its
   provenance file pins the release tags, source commit, SHA-256 and MCP Apps
   UI protocol revision, and the `Sync viewer` workflow runs

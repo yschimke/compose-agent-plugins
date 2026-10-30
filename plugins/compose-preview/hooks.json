@@ -1,8 +1,14 @@
 {
   "compose-preview": {
+    "SessionStart": [
+      {
+        "command": "./scripts/session-start-summary.sh --harness=antigravity",
+        "type": "command"
+      }
+    ],
     "Stop": [
       {
-        "command": "\"$HOME/.gemini/config/plugins/compose-preview/scripts/stop-gate.sh\" --harness=antigravity",
+        "command": "./scripts/stop-gate.sh --harness=antigravity",
         "type": "command"
       }
     ],

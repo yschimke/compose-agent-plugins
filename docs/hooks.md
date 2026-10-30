@@ -75,12 +75,13 @@ its harness explicitly:
 - Claude Code (`hooks/hooks.json`, `--harness=claude`) and Codex
   (`hooks/codex-hooks.json`, `--harness=codex`) use the
   `{"decision":"block","reason":…}` response.
-- Antigravity (the root `hooks.json`, `--harness=antigravity`) uses
-  `{"decision":"continue","reason":…}`. It has no SessionStart event, so it
-  gets only the Stop gate, run from the installed copy under
-  `~/.gemini/config/plugins/compose-preview`. Its Stop payload has no
-  `stop_hook_active` and #6 Q4 observed no host cap, so the two-turn cap,
-  keyed by `conversationId`, is the only loop guard. The gate finds the
-  checkout from the first `workspacePaths` entry. Antigravity has no
-  non-blocking Stop message, so the design reminder is not shown there. A live
-  Antigravity block has not been recorded yet (#39).
+- Antigravity (the root `hooks.json`, `--harness=antigravity`) runs plugin-relative
+  `./scripts/session-start-summary.sh --harness=antigravity` on `SessionStart`
+  (emitting `injectSteps` when setup or design status needs attention) and
+  `./scripts/stop-gate.sh --harness=antigravity` on `Stop` (emitting
+  `{"decision":"continue","reason":…}`). Its Stop gate ignores non-normal
+  `terminationReason` values (`USER_CANCELED`, `ERROR`, `MAX_INVOCATIONS`, etc.)
+  and keys its two-turn consecutive-block cap by `conversationId`. The gate
+  finds the checkout from the first `workspacePaths` entry. Antigravity has no
+  non-blocking Stop message, so the design reminder is emitted on `SessionStart`
+  rather than `Stop`.

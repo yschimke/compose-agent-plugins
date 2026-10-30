@@ -41,8 +41,10 @@ onboarding is complete while the canonical skills are missing.
    at the image and describe it in one or two lines. A failed render is reported as failed, with
    its error text.
 4. **Close** with one line on what to do next: ask for any preview by name ("render the
-   `ListScreenPreview`"); in ChatGPT/Codex desktop the Previews tab and `@`-mentions of
-   previews are available when the host shows them.
+   `ListScreenPreview`"); in Antigravity, offer [Compose Preview](sidecar://compose-preview/compose-preview/)
+   to open the Auxiliary Pane gallery, local UI Builder, or live app simulator
+   (`compose-preview launch --project <dir> --live`, requires Java 21+); in ChatGPT/Codex desktop
+   the Previews tab and `@`-mentions of previews are available when the host shows them.
 
 Never edit build files by hand, never run `./gradlew clean`, and never hand-build a mock of a
 render.

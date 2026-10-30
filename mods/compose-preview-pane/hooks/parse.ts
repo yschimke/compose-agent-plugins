@@ -49,9 +49,26 @@ export function previewUris(payload: Json): string[] {
   })
 }
 
-export function labelOf(uri: string): string {
-  const tail = uri.split(/[/#?]/).filter(Boolean).pop() ?? uri
-  return tail.split('.').pop() ?? tail
+/**
+ * A preview's short name from its id or URI: the function, then the multi-preview variant the
+ * id appends after `_` (`GreetingScreenPreview · Devices - Large Round`).
+ */
+export function labelOf(id: string): string {
+  let tail = id.split(/[/#?]/).filter(Boolean).pop() ?? id
+  try {
+    tail = decodeURIComponent(tail)
+  } catch {
+    // Not percent-encoded.
+  }
+  const name = tail.split('.').pop() ?? tail
+  const at = name.indexOf('_')
+  return at > 0 ? `${name.slice(0, at)} · ${name.slice(at + 1)}` : name
+}
+
+/** The functions a Kotlin source annotates with a `@…Preview`, in order. */
+export function previewFunctions(source: string): string[] {
+  const names = [...source.matchAll(/@\w*Preview\w*\b[\s\S]*?\bfun\s+([A-Za-z_]\w*)/g)].map(m => m[1] ?? '')
+  return [...new Set(names.filter(Boolean))]
 }
 
 /** The first `findings` array anywhere in the value, as a11y/atf and the CLI's extension carry it. */
@@ -93,7 +110,10 @@ export function renderResult(payload: Json): Pick<PreviewShot, 'pngPath' | 'sha'
   }
 }
 
-/** The rows of `compose-preview show --json` (schema compose-preview-show/v2) for one source file. */
+/**
+ * The rows of `compose-preview a11y --json` (or `show --json`; both are compose-preview-show/v2)
+ * for one source file.
+ */
 export function cliShots(stdout: string, file: string): PreviewShot[] {
   let envelope: Json
   try {
@@ -111,7 +131,7 @@ export function cliShots(stdout: string, file: string): PreviewShot[] {
 
     return [{
       id,
-      label: str(row.functionName) ?? labelOf(id),
+      label: labelOf(id),
       pngPath: capture ? str(capture.pngPath) : undefined,
       sha: capture ? str(capture.sha256) : undefined,
       changed: capture && typeof capture.changed === 'boolean' ? capture.changed : undefined,

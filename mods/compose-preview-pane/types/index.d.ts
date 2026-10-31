@@ -18,6 +18,10 @@ export type PreviewShot = {
   changed?: boolean
   findings: Finding[]
   error?: string
+  /** Its picture predates the latest edit: it is re-rendered when the person selects it. */
+  stale?: boolean
+  /** Edit to pixels, in milliseconds, when this render followed an edit. */
+  ms?: number
 }
 
 export type RenderState = {

@@ -62,6 +62,11 @@ let rerun: string | undefined
 const a11yUnavailable = new Set<string>()
 // Project roots warmed this session (or found to have no server): one warm-up each.
 const warmed = new Set<string>()
+/**
+ * Kotlin files edited since the running app last reloaded them: `simulator_reload`'s `files`, so
+ * the server compiles them in its warm preview build and the reload runs no Gradle.
+ */
+const unreloaded = new Set<string>()
 const svgCache = new Map<string, string | undefined>()
 
 // Set from the plugin's options each time register runs.
@@ -350,6 +355,8 @@ async function launch($: $, target: string) {
     const args = isApk ? { apk: target, headless: true } : { project: target || root, headless: true }
     const info = simInfo(await callMcp($, 'simulator_launch', args))
     if (info.error !== undefined) throw new ToolError(info.error)
+    // The launch built the app from the sources as they are now.
+    unreloaded.clear()
     await setSim($, v => ({ ...v, status: 'running', simulator: info.simulator, package: info.package, message: undefined }))
     await settle($, SETTLE_START_MS)
     await screenshot($)
@@ -366,7 +373,12 @@ async function reloadApp($: $) {
   if (s.status !== 'running' || s.target?.endsWith('.apk')) return
   await setSim($, v => ({ ...v, status: 'reloading', message: 'Reloading the edit…' }))
   try {
-    const info = await simCall($, 'simulator_reload')
+    // compose-preview-mcp 4.14.0 compiles `files` in the preview build and reloads without Gradle;
+    // an older server ignores the argument and compiles with Gradle, as before.
+    const files = [...unreloaded]
+    const info = await simCall($, 'simulator_reload', files.length > 0 ? { files } : {})
+    // Kept on a failed reload, so the next one compiles them again.
+    if (info.error === undefined) for (const f of files) unreloaded.delete(f)
     await setSim($, v => ({ ...v, status: 'running', message: info.error }))
   } catch (err) {
     // A compile error is the reload's error; the running app is left alone.
@@ -469,6 +481,7 @@ export const register: Register = (on, options) => {
     const tool = String(e.tool)
     const path = 'file_path' in e && typeof e.file_path === 'string' ? e.file_path : undefined
     if ((tool === 'Edit' || tool === 'Write' || tool === 'MultiEdit') && path !== undefined && isKotlin(path)) {
+      unreloaded.add(path)
       const editedAt = pending?.editedAt ?? Date.now()
       pending?.timer.cancel()
       pending = {

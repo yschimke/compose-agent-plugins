@@ -186,7 +186,8 @@ export function simInfo(payload: Json): { simulator?: string; package?: string; 
   const errors = build && Array.isArray(build.errors) ? build.errors.filter(e => typeof e === 'string') : []
   return {
     simulator: str(p.simulator) ?? str(p.id) ?? str(result.simulator),
-    package: str(p.package) ?? str(result.package),
+    // simulator_launch (compose-preview-mcp 4.13.0) puts the app under `info`.
+    package: str(p.package) ?? str(result.package) ?? (isObj(p.info) ? str(p.info.package) : undefined),
     error: str(p.error) ?? (errors.length > 0 ? errors.join('\n') : undefined),
   }
 }

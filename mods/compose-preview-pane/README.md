@@ -10,8 +10,10 @@ Status: a prototype. Its hooks validate, type-check and pass `claude plugin test
 fixtures are payloads recorded from compose-preview CLI 2.77.0 and compose-preview-mcp 4.12.0
 and 4.13.0
 against [android/wear-os-samples](https://github.com/android/wear-os-samples) `ComposeStarter`.
-The pane itself has not been watched in a live session yet. It is not in the marketplace yet.
-The plan is to fold it into the `compose-preview` plugin.
+The pane itself has not been watched in a live session yet. It is not in the marketplace yet, so
+for now it loads only in a **terminal** session started with `--plugin-dir` (see
+[Run it from this checkout](#run-it-from-this-checkout)); the desktop app cannot load it. The plan
+is to fold it into the `compose-preview` plugin.
 
 ## What it does
 
@@ -47,8 +49,11 @@ The plan is to fold it into the `compose-preview` plugin.
   a project-launched simulator runs `simulator_reload` and the screenshot refreshes, so the
   running app follows the code. It passes the Kotlin files edited since the last reload as
   `files`: compose-preview-mcp 4.14.0 compiles them in the warm preview build and reloads
-  without Gradle (with CLI 2.79.0 or later), about 2 s from edit to pixels instead of 5 to 7. The simulator needs the MCP server; the CLI fallback covers
-  renders only.
+  without Gradle (with CLI 2.79.0 or later), about 2 s from edit to pixels instead of 5 to 7.
+  A line under the screenshot says what each reload did, the agent's own `simulator_reload`
+  included: `Hot swap · 1.1 s · no Gradle`, or `Restarted · 3.2 s · Gradle 1.6 s · <why>` with
+  the reload's `hotswapSkipped` and `precompileSkipped` reasons. The simulator needs the MCP
+  server; the CLI fallback covers renders only.
 
 ## Speed
 
@@ -95,11 +100,20 @@ its path instead.
 
 ## Run it from this checkout
 
-For one session:
+In a terminal, from your Compose project, for one session (the Claude desktop app has no way to
+load a plugin folder, so it cannot run the pane until it is in the marketplace):
 
 ```bash
-claude --plugin-dir mods/compose-preview-pane
+git clone https://github.com/yschimke/compose-agent-plugins ~/src/compose-agent-plugins
 ```
+
+```bash
+claude --plugin-dir ~/src/compose-agent-plugins/mods/compose-preview-pane
+```
+
+It needs the `compose-preview` plugin's MCP server (4.14.0 or later for the fast reload; check
+with `/mcp`) and the compose-preview CLI 2.79.0 or later. Then `/preview-pane` opens it and
+`/compose-app` starts the app.
 
 Check it:
 

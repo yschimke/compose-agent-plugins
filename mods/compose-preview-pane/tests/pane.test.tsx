@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { cliShots, labelOf, previewFunctions, previewUris, renderResult, sameSource } from '../hooks/parse'
+import { cliShots, labelOf, previewFunctions, previewUris, reloadSummary, renderResult, sameSource } from '../hooks/parse'
 
 // Shapes recorded from compose-preview CLI 2.77.0 and compose-preview-mcp 4.12.0 against
 // android/wear-os-samples ComposeStarter (a Groovy settings.gradle, previews in MainActivity.kt).
@@ -121,7 +121,13 @@ function engine(on: On, server: Server, a11y: 'advertised' | 'missing' = 'advert
       return text({ simulator: 'sim-1', info: { package: 'com.example.android.wearable.composestarter', formFactor: 'wear', round: true, width: 454, height: 454 } })
     }
     if (e.tool === 'simulator_screenshot') return text({ width: 454, height: 454, rotation: 0, path: e.args.path, events: [] })
-    if (e.tool === 'simulator_reload') return text({ mode: 'unchanged', build: { ok: true, ms: 1657, tasks: [':app:compileDebugJavaWithJavac'] }, totalMs: 1674, events: [] })
+    // Shapes from compose-preview-mcp 4.15 over CLI 2.79.0: a precompiled hot swap with `files`,
+    // a Gradle restart without.
+    if (e.tool === 'simulator_reload') {
+      return e.args.files !== undefined
+        ? text({ mode: 'hotswap', build: { ok: true, ms: 0, tasks: [], errors: [] }, hotswap: { redefined: 2, redefineMs: 80, recreateMs: 190 }, totalMs: 820, precompiled: true, precompileMs: 280, events: [] })
+        : text({ mode: 'classes', build: { ok: true, ms: 1657, tasks: [':app:compileDebugKotlin'] }, hotswapSkipped: 'MainActivity.onCreate changed, and it is not a composable', totalMs: 3200, events: [] })
+    }
     if (e.tool === 'simulator_command' && e.args.cmd === 'wait') return text({ result: { waitedMs: e.args.ms }, events: [] })
     if (e.tool === 'simulator_command' && e.args.cmd === 'tap') {
       return text({ result: { x: 227, y: 400, display: 0, node: { cls: 'android.widget.TextView', text: e.args.text, bounds: [162, 382, 292, 418] } }, events: [] })
@@ -146,6 +152,19 @@ test('parse reads the recorded payloads', () => {
   const shots = cliShots(A11Y_STDOUT, FILE)
   expect(shots.length).toBe(1)
   expect(shots[0]?.findings[0]?.view).toBe('Show list')
+})
+
+test('reloadSummary says what a reload did and why it did not hot-swap or skip Gradle', () => {
+  expect(reloadSummary({ mode: 'hotswap', totalMs: 820, precompiled: true, precompileMs: 280, build: { ms: 0 } })).toBe('Hot swap · 1.1 s · no Gradle')
+  expect(reloadSummary({ mode: 'hotswap', totalMs: 2200, build: { ms: 1600 } })).toBe('Hot swap · 2.2 s · Gradle 1.6 s')
+  expect(reloadSummary({
+    mode: 'classes', totalMs: 3200, build: { ms: 1600 }, precompiled: false,
+    hotswapSkipped: 'first edit of MainActivityKt since launch',
+    precompileSkipped: 'no preview daemon is running for MainActivity.kt\'s module',
+  })).toBe("Restarted · 3.2 s · Gradle 1.6 s · first edit of MainActivityKt since launch · no preview daemon is running for MainActivity.kt's module")
+  // CLI answers arrive wrapped in `result` from simulator_command.
+  expect(reloadSummary({ result: { mode: 'unchanged', totalMs: 400 } })).toBe('Nothing to reload · 0.4 s')
+  expect(reloadSummary({ error: 'boom' })).toBeUndefined()
 })
 
 test('an Edit to a Kotlin file renders the selected preview over MCP, without a model turn', async ($, on) => {
@@ -264,11 +283,14 @@ test('a reload after edits passes the edited files, so the server compiles them 
   await clock.advance(1000)
   expect(reloads()).toHaveLength(1)
   expect(reloads()[0]).toContain(`simulator_reload {"simulator":"sim-1","files":["${FILE}","${other}"]}`)
+  // What the reload did, under the screenshot.
+  expect(await ui.find({ type: 'Text', text: 'Hot swap · 1.1 s · no Gradle' })).toBeDefined()
 
   // Reloaded: the Reload button with no new edit sends no files.
   await ui.press({ key: 'app-reload' })
   await clock.advance(10)
   expect(reloads()[1]).toContain('simulator_reload {"simulator":"sim-1"}')
+  expect(await ui.find({ type: 'Text', text: /^Restarted · 3\.2 s · Gradle 1\.7 s · MainActivity\.onCreate changed/ })).toBeDefined()
   await ui.unmount()
 })
 

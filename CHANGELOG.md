@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.8.0](https://github.com/yschimke/compose-agent-plugins/compare/v0.7.0...v0.8.0) (2026-10-31)
+
+
+### Features
+
+* **antigravity:** add Compose Preview sidecar, SessionStart hook, and launch simulator support ([#164](https://github.com/yschimke/compose-agent-plugins/issues/164)) ([fa6e46e](https://github.com/yschimke/compose-agent-plugins/commit/fa6e46eb7a51379561b74f7ff59c8b4289c315e8))
+* **mods:** prototype a compose-preview pane mod ([#163](https://github.com/yschimke/compose-agent-plugins/issues/163)) ([d6e8365](https://github.com/yschimke/compose-agent-plugins/commit/d6e83654fb396033255a14bd8ad1679057f81f2b))
+* **viewer:** bundle the compose-preview-server v3.131.0 viewer, and add a one-command viewer update ([#151](https://github.com/yschimke/compose-agent-plugins/issues/151)) ([f584c8d](https://github.com/yschimke/compose-agent-plugins/commit/f584c8d479fc9a03ca8bc544d162e6f1980fe91c))
+* **viewer:** take the bundled viewer from compose-preview-mcp releases ([#154](https://github.com/yschimke/compose-agent-plugins/issues/154)) ([d329edb](https://github.com/yschimke/compose-agent-plugins/commit/d329edbabb50397e6e46ee00002752aae43f25f4))
+
+
+### Bug Fixes
+
+* bundle the viewer from compose-preview-mcp v4.0.0 ([#155](https://github.com/yschimke/compose-agent-plugins/issues/155)) ([80c6745](https://github.com/yschimke/compose-agent-plugins/commit/80c674562c7d5a8961e651e046780d8527f24613))
+* bundle the viewer from compose-preview-mcp v4.12.0 ([#162](https://github.com/yschimke/compose-agent-plugins/issues/162)) ([c2dd317](https://github.com/yschimke/compose-agent-plugins/commit/c2dd317ed87880f99227632fe7f12ede318e2c3c))
+* **mods:** match the compose-preview CLI and MCP server as ComposeStarter answers them ([#166](https://github.com/yschimke/compose-agent-plugins/issues/166)) ([ff17bea](https://github.com/yschimke/compose-agent-plugins/commit/ff17bea451fd1216b324742f54a1b8843a12f41f))
+* **sidecar:** resolve open workspace from Antigravity hooks, env, and MCP registry ([#167](https://github.com/yschimke/compose-agent-plugins/issues/167)) ([75f3abf](https://github.com/yschimke/compose-agent-plugins/commit/75f3abff58af98b650294863f85e60bddf2ab83f))
+
 ## [0.7.0](https://github.com/yschimke/compose-agent-plugins/compare/v0.6.0...v0.7.0) (2026-10-12)
 
 

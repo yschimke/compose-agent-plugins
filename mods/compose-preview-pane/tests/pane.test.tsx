@@ -61,13 +61,13 @@ const A11Y_STDOUT = JSON.stringify({
 })
 
 type Server = 'up' | 'cold' | 'down'
-type Options = { pendingOnce?: boolean; previews?: () => boolean }
+type Options = { pendingOnce?: boolean; previews?: () => boolean; placed?: () => boolean; failing?: () => boolean }
 
 function engine(on: On, server: Server, a11y: 'advertised' | 'missing' = 'advertised', options: Options = {}) {
   const calls: string[] = []
   let warmed = server !== 'cold'
   let pending = options.pendingOnce === true
-  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('ui.open', () => ({ value: options.placed?.() === false ? { isPlaced: false, reason: 'not seated' } : { isPlaced: true } }))
   on('ui.status', () => ({ value: undefined }))
   on('ui.toast', () => ({ value: undefined }))
   on('command.register', (_, e) => ({ value: { command: e.name } }))
@@ -91,6 +91,7 @@ function engine(on: On, server: Server, a11y: 'advertised' | 'missing' = 'advert
   on('mcp.call', (_, e) => {
     calls.push(`mcp ${e.server} ${e.tool} ${JSON.stringify(e.args)}`)
     if (server === 'down') throw new Error('not connected')
+    if (options.failing?.() === true) return text('daemon exited', true)
     if (e.tool === 'find_previews_for_file') {
       if (!warmed || options.previews?.() === false) return text({ previews: [] })
       return text({
@@ -146,21 +147,23 @@ test('parse reads the recorded payloads', () => {
   expect(shots[0]?.findings[0]?.view).toBe('Show list')
 })
 
-test('an Edit to a Kotlin file renders its previews over MCP, without a model turn', async ($, on) => {
+test('an Edit to a Kotlin file renders the selected preview over MCP, without a model turn', async ($, on) => {
   const clock = mock.clock(on)
   const calls = engine(on, 'up')
   await $.session.start({ cwd: '/home/user', surface: 'desktop', isInteractive: true })
   await $.tool.call({ tool: 'Edit', file_path: FILE, old_string: 'a', new_string: 'b' })
-  await clock.advance(1000)
+  await clock.advance(300)
 
-  expect(calls.filter(c => c.includes(' render_preview ')).length).toBe(2)
+  // One render, not one per preview: the server renders one at a time, and the agent's own
+  // render_preview should not wait behind the pane's.
+  expect(calls.filter(c => c.includes(' render_preview ')).length).toBe(1)
   const notify = calls.findIndex(c => c.includes(' notify_file_changed '))
   expect(calls[notify]).toContain(`{"workspaceId":"ComposeStarter-44f65eb9","path":"${FILE}"}`)
   expect(notify).toBeLessThan(calls.findIndex(c => c.includes(' render_preview ')))
   for (const surface of ['terminal', 'desktop', 'vscode', 'mobile'] as const) {
     const ui = await $.ui.mount({ ...PANE, surface })
     expect(await ui.find({ type: 'Text', text: /MainActivity\.kt/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /2 a11y errors/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /1 a11y error/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /Contrast 2\.1:1/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /Devices - Large Round/ })).toBeDefined()
     expect(await ui.find({ key: 'shot-1' })).toBeDefined()
@@ -179,7 +182,7 @@ test('a cold server is warmed by one render by name, then asked again', async ($
   expect(mcp[0]).toContain('find_previews_for_file')
   expect(mcp[1]).toContain(`render_preview {"preview":"GreetingScreenPreview","project":"${ROOT}","inline":false}`)
   expect(mcp[2]).toContain('find_previews_for_file')
-  expect(mcp.filter(c => c.includes('"uri"') && c.includes('render_preview')).length).toBe(2)
+  expect(mcp.filter(c => c.includes('"uri"') && c.includes('render_preview')).length).toBe(1)
 })
 
 test('a server without a11y/atf says so once and still shows the renders', async ($, on) => {
@@ -252,7 +255,7 @@ test('a pending render is asked again before the shot is stored', async ($, on) 
   await clock.advance(1000)
   await clock.advance(5000)
 
-  expect(calls.filter(c => c.includes(' render_preview ')).length).toBe(3)
+  expect(calls.filter(c => c.includes(' render_preview ')).length).toBe(2)
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
   expect(await ui.find({ type: 'Svg' })).toBeDefined()
   await ui.unmount()
@@ -274,4 +277,78 @@ test('an edit that removes every preview clears the old renders', async ($, on) 
   expect(await ui.find({ type: 'Svg' })).toBeUndefined()
   expect(await ui.find({ type: 'Text', text: /0 previews/ })).toBeDefined()
   await ui.unmount()
+})
+
+test('the other previews keep their picture marked stale, and render when selected', async ($, on) => {
+  const clock = mock.clock(on)
+  const calls = engine(on, 'up')
+  await $.session.start({ cwd: '/home/user', surface: 'desktop', isInteractive: true })
+  await $.tool.call({ tool: 'Edit', file_path: FILE, old_string: 'a', new_string: 'b' })
+  await clock.advance(300)
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await ui.find({ type: 'Text', text: /Edit to pixels in/ })).toBeDefined()
+  await ui.press({ key: 'shot-1' })
+  await clock.advance(10)
+  expect(calls.filter(c => c.includes(' render_preview ') && c.includes('Fonts%20-%20Small')).length).toBe(1)
+  expect(await ui.find({ type: 'Text', text: /From before the last edit/ })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('with the pane closed an edit only starts the compile, so the agent\'s render finds it done', async ($, on) => {
+  const clock = mock.clock(on)
+  const calls = engine(on, 'up', 'advertised', { placed: () => false })
+  await $.session.start({ cwd: '/home/user', surface: 'desktop', isInteractive: true })
+  await $.tool.call({ tool: 'Edit', file_path: FILE, old_string: 'a', new_string: 'b' })
+  await clock.advance(300)
+
+  const mcp = calls.filter(c => c.startsWith('mcp '))
+  expect(mcp.some(c => c.includes(' notify_file_changed '))).toBe(true)
+  expect(mcp.some(c => c.includes(' render_preview '))).toBe(false)
+})
+
+test('a burst of edits is one compile, sent 250 ms after the last edit', async ($, on) => {
+  const clock = mock.clock(on)
+  const calls = engine(on, 'up', 'advertised', { placed: () => false })
+  await $.session.start({ cwd: '/home/user', surface: 'desktop', isInteractive: true })
+  for (const n of [1, 2, 3]) {
+    await $.tool.call({ tool: 'Edit', file_path: FILE, old_string: `${n}`, new_string: `${n + 1}` })
+    await clock.advance(100)
+  }
+  expect(calls.filter(c => c.includes(' notify_file_changed ')).length).toBe(0)
+  await clock.advance(200)
+  expect(calls.filter(c => c.includes(' notify_file_changed ')).length).toBe(1)
+})
+
+test('reading a Kotlin file with previews warms its project once: render by name, then the compiler', async ($, on) => {
+  const clock = mock.clock(on)
+  const calls = engine(on, 'cold')
+  await $.session.start({ cwd: '/home/user', surface: 'desktop', isInteractive: true })
+  await $.tool.call({ tool: 'Read', file_path: FILE })
+  await clock.advance(10)
+
+  const mcp = calls.filter(c => c.startsWith('mcp plugin:compose-preview'))
+  expect(mcp[0]).toContain('find_previews_for_file')
+  expect(mcp[1]).toContain(`render_preview {"preview":"GreetingScreenPreview","project":"${ROOT}","inline":false}`)
+  expect(mcp[2]).toContain(`notify_file_changed {"workspaceId":"ComposeStarter-44f65eb9","path":"${FILE}"}`)
+
+  await $.tool.call({ tool: 'Read', file_path: FILE })
+  await clock.advance(10)
+  expect(calls.filter(c => c.startsWith('mcp plugin:compose-preview')).length).toBe(3)
+})
+
+test('a warm-up that fails is tried again on the next read, and never blocks the read', async ($, on) => {
+  const clock = mock.clock(on)
+  let fail = true
+  const calls = engine(on, 'up', 'advertised', { failing: () => fail })
+  await $.session.start({ cwd: '/home/user', surface: 'desktop', isInteractive: true })
+  const read = await $.tool.call({ tool: 'Read', file_path: FILE })
+  expect(read.deny).toBeUndefined()
+  await clock.advance(10)
+  const tools = () => calls.filter(c => c.startsWith('mcp plugin:compose-preview')).map(c => c.split(' ')[2])
+  expect(tools()).toEqual(['find_previews_for_file'])
+  fail = false
+  await $.tool.call({ tool: 'Read', file_path: FILE })
+  await clock.advance(10)
+  expect(tools().slice(1)).toEqual(['find_previews_for_file', 'notify_file_changed'])
 })

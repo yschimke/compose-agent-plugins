@@ -15,10 +15,13 @@ The plan is to fold it into the `compose-preview` plugin.
 
 ## What it does
 
-- **After every `Edit`, `Write` or `MultiEdit` of a `.kt` file** (debounced 700 ms), it renders
-  that file's previews and shows them in the pane. No model turn is spent.
-  - Over MCP: `find_previews_for_file`, then `render_preview {inline: false}` and
-    `get_preview_data {kind: "a11y/atf"}` for each preview. It uses the warm daemon the
+- **After every `Edit`, `Write` or `MultiEdit` of a `.kt` file** (debounced 250 ms), it renders
+  the file's selected preview and shows it in the pane. No model turn is spent.
+  - Over MCP: `find_previews_for_file`, `notify_file_changed`, then `render_preview {inline: false}`
+    and `get_preview_data {kind: "a11y/atf"}` for the selected preview. The file's other previews
+    keep their last picture, marked as from before the edit, and render when selected: the
+    server renders one at a time, so rendering them all would queue ahead of the agent's own
+    `render_preview`. It uses the warm daemon the
     `compose-preview` plugin already runs, called through `$.mcp.call`. A server that has not
     rendered the project yet maps no file to previews, so the mod first renders the file's first
     `@…Preview` function by name, then asks again.
@@ -44,6 +47,34 @@ The plan is to fold it into the `compose-preview` plugin.
   a project-launched simulator runs `simulator_reload` and the screenshot refreshes, so the
   running app follows the code. The simulator needs the MCP server; the CLI fallback covers
   renders only.
+
+## Speed
+
+The mod makes the agent's own renders faster, not only its own:
+
+- **Warm-up on read.** The first time the agent reads a `.kt` file with `@…Preview` functions,
+  the mod warms that project in the background: one render by name brings up the render
+  daemon, and `notify_file_changed` for the unchanged file warms its in-process Kotlin compiler.
+  The read is never delayed, and a warm-up that fails is tried again on the next read.
+- **Compile on edit.** 250 ms after a Kotlin edit the mod sends `notify_file_changed`, even with
+  the pane closed, so the compile is done, or under way, when the agent's `render_preview`
+  arrives.
+
+Both are speed only. A render that arrives while that compile runs waits for it, and a render
+with no notice at all still compiles the edit itself, so neither can produce a stale picture.
+
+Measured with compose-preview-mcp 4.13.0 on android/wear-os-samples `ComposeStarter`, 4 cores,
+30 edit cycles over one MCP connection, replaying the mod's calls:
+
+| Case | Agent's `render_preview` wait, p50 / p95 | Pane edit to pixels, p50 / p95 |
+| --- | --- | --- |
+| Agent renders 1.5 s after the edit | 0.36 s / 1.22 s | 1.67 s / 2.72 s |
+| Burst of 3 edits | 0.40 s / 0.71 s | 1.64 s / 2.02 s |
+| Agent renders 0.3 s after the edit | 1.41 s / 1.83 s | 1.71 s / 2.12 s |
+| No notice (before this change) | about 1.5 s every time | |
+
+All 30 renders were fresh, and the pane's and the agent's PNGs had the same sha256. The warm-up
+took 21 s from a fully cold server, while the agent was still reading.
 
 Commands: `/preview-pane` opens the pane (named so it does not clash with the `compose-preview` skill); `/compose-app` opens it on the running app.
 

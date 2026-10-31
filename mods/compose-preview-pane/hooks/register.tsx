@@ -51,9 +51,15 @@ class NoServer extends Error {}
 
 // Debounce and single-flight: module state is fine here, a reload drops a
 // pending render along with its timer.
-let pending: { file: string; timer: { cancel(): void } } | undefined
+let pending: { file: string; editedAt: number; timer: { cancel(): void } } | undefined
+const EDIT_DEBOUNCE_MS = 250
+// The render daemon's workspace per Gradle root, learnt from preview URIs.
+const workspaces = new Map<string, string>()
 let running = false
 let rerun: string | undefined
+let a11yUnavailable = false
+// Project roots warmed this session (or found to have no server): one warm-up each.
+const warmed = new Set<string>()
 const svgCache = new Map<string, string | undefined>()
 
 // Set from the plugin's options each time register runs.
@@ -114,7 +120,7 @@ async function renderSettled($: $, args: Record<string, unknown>) {
   return result
 }
 
-async function renderOverMcp($: $, file: string, root: string, previous: Map<string, PreviewShot>) {
+async function renderOverMcp($: $, file: string, root: string, previous: Map<string, PreviewShot>, editedAt: number) {
   let found = await callMcp($, 'find_previews_for_file', { path: file })
   // A server that has not rendered this project yet maps no file to previews. One render by
   // name loads the module, and the lookup answers after it.
@@ -129,40 +135,100 @@ async function renderOverMcp($: $, file: string, root: string, previous: Map<str
   // The daemon renders from what it last loaded: tell it the file changed first, as
   // scripts/edit-render-bench.py does, or the render can be the pre-edit image.
   const workspaceId = uris.map(workspaceOf).find(w => w !== undefined)
+  if (workspaceId !== undefined) workspaces.set(root, workspaceId)
   if (workspaceId !== undefined) {
     await callMcp($, 'notify_file_changed', { workspaceId, path: file }).catch(() => undefined)
   }
+  // Every preview of the file is listed; only the selected one renders now. The server renders
+  // one at a time, so rendering all of them would queue ahead of the agent's own render_preview.
+  // The rest keep their last picture, marked stale, and render when selected.
+  const selected = (await read($, paneUi)).index
   await setRender($, r =>
     uris.length === 0
       ? { ...r, via: 'mcp', shots: [], message: 'No previews in this file.' }
-      : { ...r, via: 'mcp', shots: r.shots.filter(s => uris.includes(s.id)), message: undefined },
+      : {
+          ...r,
+          via: 'mcp',
+          shots: uris.map(uri => ({ ...(previous.get(uri) ?? { id: uri, uri, label: labelOf(uri), findings: [] }), stale: true })),
+          message: undefined,
+        },
   )
+  const first = uris[Math.min(selected, uris.length - 1)]
+  if (first !== undefined) await renderShot($, first, editedAt)
+}
 
-  let a11yMissing = false
-  for (const uri of uris) {
-    const before = await keepBefore($, previous.get(uri))
-    let shot: PreviewShot
-    try {
-      const out = renderResult(await renderSettled($, { uri, inline: false }))
-      const a11y = a11yMissing
-        ? undefined
-        : await callMcp($, 'get_preview_data', { uri, kind: 'a11y/atf' }).catch(err => {
-            // compose-preview-mcp 4.12.0 advertises only compose/semantics by default.
-            if (/not advertised/.test(String((err as Error).message))) a11yMissing = true
-            return undefined
-          })
-      shot = { id: uri, uri, label: labelOf(uri), ...out, beforePath: before, findings: findingsIn(a11y) }
-    } catch (err) {
-      if (err instanceof NoServer) throw err
-      shot = { id: uri, uri, label: labelOf(uri), beforePath: before, findings: [], error: String((err as Error).message ?? err) }
-    }
-    await setRender($, r => ({ ...r, shots: upsert(r.shots, shot) }))
+/** Renders one preview over MCP into the pane, its earlier picture kept as Before. */
+async function renderShot($: $, uri: string, editedAt?: number) {
+  const prev = (await read($, render)).shots.find(s => s.id === uri)
+  const before = prev?.stale === true || prev?.beforePath === undefined ? await keepBefore($, prev) : prev.beforePath
+  let shot: PreviewShot
+  try {
+    const out = renderResult(await renderSettled($, { uri, inline: false }))
+    const a11y = a11yUnavailable
+      ? undefined
+      : await callMcp($, 'get_preview_data', { uri, kind: 'a11y/atf' }).catch(err => {
+          // compose-preview-mcp 4.13.0 still advertises only compose/semantics by default.
+          if (/not advertised/.test(String((err as Error).message))) a11yUnavailable = true
+          return undefined
+        })
+    const ms = editedAt === undefined ? undefined : Date.now() - editedAt
+    shot = { id: uri, uri, label: labelOf(uri), ...out, beforePath: before, findings: findingsIn(a11y), ms }
+  } catch (err) {
+    if (err instanceof NoServer) throw err
+    shot = { id: uri, uri, label: labelOf(uri), beforePath: before, findings: [], error: String((err as Error).message ?? err) }
   }
-  if (a11yMissing) {
-    await setRender($, r => ({
-      ...r,
-      message: 'The MCP server does not offer a11y/atf here; `compose-preview a11y` has the findings.',
-    }))
+  await setRender($, r => ({
+    ...r,
+    shots: upsert(r.shots, shot),
+    message: a11yUnavailable ? 'The MCP server does not offer a11y/atf here; `compose-preview a11y` has the findings.' : r.message,
+  }))
+}
+
+/** Starts the daemon's compile of an edited file without rendering anything. */
+async function notifyEdit($: $, file: string) {
+  try {
+    const root = await projectRoot($, file)
+    let workspaceId = workspaces.get(root)
+    if (workspaceId === undefined) {
+      const uri = previewUris(await callMcp($, 'find_previews_for_file', { path: file }))[0]
+      workspaceId = uri === undefined ? undefined : workspaceOf(uri)
+      if (workspaceId === undefined) return
+      workspaces.set(root, workspaceId)
+    }
+    await callMcp($, 'notify_file_changed', { workspaceId, path: file })
+  } catch {
+    // Speed only: the agent's render compiles the edit itself.
+  }
+}
+
+/**
+ * Warms the project that holds `file` the first time the agent reads a Kotlin file with
+ * previews, so the first edit does not pay a cold start (~20-40 s): one render by name brings
+ * up the render daemon, and a notice for the unchanged file warms its in-process compiler.
+ * Speed only: a render that finds the daemon cold still compiles and answers correctly.
+ */
+async function warmFor($: $, file: string) {
+  const root = await projectRoot($, file)
+  if (warmed.has(root)) return
+  warmed.add(root)
+  try {
+    const name = previewFunctions(await $.fs.read(file).catch(() => ''))[0]
+    if (name === undefined) {
+      warmed.delete(root)
+      return
+    }
+    let uri = previewUris(await callMcp($, 'find_previews_for_file', { path: file }))[0]
+    if (uri === undefined) {
+      const rendered = await renderSettled($, { preview: name, project: root, inline: false })
+      uri = (rendered as { uri?: string } | undefined)?.uri
+    }
+    const workspaceId = uri === undefined ? undefined : workspaceOf(uri)
+    if (workspaceId === undefined) return
+    workspaces.set(root, workspaceId)
+    await callMcp($, 'notify_file_changed', { workspaceId, path: file })
+  } catch (err) {
+    // With no server there is nothing to warm; anything else may succeed on a later read.
+    if (!(err instanceof NoServer)) warmed.delete(root)
   }
 }
 
@@ -204,7 +270,7 @@ async function renderOverCli($: $, file: string, root: string, previous: Map<str
   await setRender($, r => ({ ...r, shots, message: shots.length === 0 ? 'No previews in this file.' : undefined }))
 }
 
-async function renderFile($: $, file: string) {
+async function renderFile($: $, file: string, editedAt = Date.now()) {
   if (running) {
     rerun = file
     return
@@ -222,7 +288,7 @@ async function renderFile($: $, file: string) {
     $.ui.status(`compose-preview: rendering ${file.split('/').pop()}`)
     const root = await projectRoot($, file)
     try {
-      await renderOverMcp($, file, root, previous)
+      await renderOverMcp($, file, root, previous, editedAt)
     } catch (err) {
       if (!(err instanceof NoServer)) throw err
       await renderOverCli($, file, root, previous)
@@ -323,6 +389,8 @@ async function handle($: $, key: string) {
   } else if (key.startsWith('shot-')) {
     const index = Number(key.slice(5))
     await setUi($, u => ({ ...u, index, show: 'after' }))
+    const shot = (await read($, render)).shots[index]
+    if (shot?.stale === true && shot.uri !== undefined) void renderShot($, shot.uri).catch(() => undefined)
   } else if (key === 'show-before' || key === 'show-after') {
     await setUi($, u => ({ ...u, show: key === 'show-before' ? 'before' : 'after' }))
   } else if (key === 'rerender') {
@@ -397,20 +465,32 @@ export const register: Register = (on, options) => {
     const tool = String(e.tool)
     const path = 'file_path' in e && typeof e.file_path === 'string' ? e.file_path : undefined
     if ((tool === 'Edit' || tool === 'Write' || tool === 'MultiEdit') && path !== undefined && isKotlin(path)) {
+      const editedAt = pending?.editedAt ?? Date.now()
       pending?.timer.cancel()
       pending = {
         file: path,
-        timer: $.clock.after(700, () => {
-          const file = pending?.file
+        editedAt,
+        // Short: long enough to fold a burst of edits into one compile, short enough that the
+        // compile is done before the agent's own render_preview arrives.
+        timer: $.clock.after(EDIT_DEBOUNCE_MS, () => {
+          const edit = pending
           pending = undefined
-          if (file === undefined) return
+          if (edit === undefined) return
           void (async () => {
             const opened = await $.ui.open({ id: PANE, title: TITLE })
-            if (opened.isPlaced) await renderFile($, file)
+            // The pane renders (and notifies first); with no pane, the notice alone starts the
+            // compile, so the agent's render_preview finds it done.
+            if (opened.isPlaced) await renderFile($, edit.file, edit.editedAt)
+            else await notifyEdit($, edit.file)
             await reloadApp($)
           })()
         }),
       }
+      return ran
+    }
+
+    if (tool === 'Read' && path !== undefined && isKotlin(path)) {
+      $.clock.after(0, () => void warmFor($, path))
       return ran
     }
 
@@ -519,7 +599,7 @@ export const register: Register = (on, options) => {
         {r.shots.length > 1 && (
           <Box flexDirection="row" flexWrap="wrap" gap={1}>
             {r.shots.map((s, i) => (
-              <Button key={`shot-${i}`} onPress={() => void handle($, `shot-${i}`)} plain={i !== index ? true : undefined} variant={i === index ? 'primary' : undefined}>
+              <Button key={`shot-${i}`} onPress={() => void handle($, `shot-${i}`)} plain={i !== index ? true : undefined} variant={i === index ? 'primary' : undefined} dimColor={s.stale === true && i !== index}>
                 {s.label}
                 {s.changed === true ? <Text color="warning"> •</Text> : ''}
                 {countBy(s.findings, 'ERROR') > 0 ? <Text color="error"> !</Text> : ''}
@@ -541,6 +621,8 @@ export const register: Register = (on, options) => {
             </Box>
             {shot.error !== undefined && <Text color="error">{shot.error}</Text>}
             {path !== undefined && (await picture($, e, path, r.at ?? 0, `${shot.label} (${showBefore ? 'before' : 'after'})`, columns))}
+            {shot.stale === true && <Text dimColor>From before the last edit; rendering it now.</Text>}
+            {shot.stale !== true && shot.ms !== undefined && <Text dimColor>Edit to pixels in {(shot.ms / 1000).toFixed(1)} s.</Text>}
             {shot.changed === false && <Text dimColor>Pixel-identical to the previous render.</Text>}
             {shot.findings.length > 0 && findingsList($, e, shot.findings)}
             {shot.findings.length > 0 && <Button key="fix" onPress={() => void handle($, 'fix')} label="Ask Claude to fix these" />}

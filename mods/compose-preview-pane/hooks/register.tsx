@@ -14,6 +14,7 @@ import {
   previewFunctions,
   previewUris,
   renderResult,
+  reloadSummary,
   simInfo,
   workspaceOf,
 } from './parse'
@@ -376,10 +377,13 @@ async function reloadApp($: $) {
     // compose-preview-mcp 4.14.0 compiles `files` in the preview build and reloads without Gradle;
     // an older server ignores the argument and compiles with Gradle, as before.
     const files = [...unreloaded]
-    const info = await simCall($, 'simulator_reload', files.length > 0 ? { files } : {})
+    const { simulator } = await read($, sim)
+    const payload = await callMcp($, 'simulator_reload', { ...(simulator ? { simulator } : {}), ...(files.length > 0 ? { files } : {}) })
+    const info = simInfo(payload)
     // Kept on a failed reload, so the next one compiles them again.
     if (info.error === undefined) for (const f of files) unreloaded.delete(f)
-    await setSim($, v => ({ ...v, status: 'running', message: info.error }))
+    // What the reload did, under the screenshot: "Hot swap · 1.1 s · no Gradle", or why not.
+    await setSim($, v => ({ ...v, status: 'running', message: info.error ?? reloadSummary(payload) }))
   } catch (err) {
     // A compile error is the reload's error; the running app is left alone.
     await setSim($, v => ({ ...v, status: 'running', message: String((err as Error).message ?? err) }))
@@ -536,6 +540,15 @@ export const register: Register = (on, options) => {
       await screenshot($)
     } else if (name === 'simulator_stop') {
       await setSim($, v => ({ status: 'off', frame: v.frame }))
+    } else if (name === 'simulator_reload') {
+      let summary: string | undefined
+      try {
+        summary = reloadSummary(mcpPayload(ran.result as Parameters<typeof mcpPayload>[0]))
+      } catch {
+        // Not an MCP result shape; the screenshot still refreshes.
+      }
+      if (summary !== undefined) await setSim($, v => ({ ...v, message: summary }))
+      await screenshot($)
     } else {
       await screenshot($)
     }

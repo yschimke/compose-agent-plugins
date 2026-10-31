@@ -191,3 +191,32 @@ export function simInfo(payload: Json): { simulator?: string; package?: string; 
     error: str(p.error) ?? (errors.length > 0 ? errors.join('\n') : undefined),
   }
 }
+
+const RELOAD_MODES: Record<string, string> = {
+  hotswap: 'Hot swap',
+  classes: 'Restarted',
+  resources: 'Restarted with new resources',
+  apk: 'Reinstalled',
+  unchanged: 'Nothing to reload',
+}
+
+/**
+ * One line for a simulator_reload answer: what happened, how long it took, whether Gradle ran,
+ * and why a hot swap or the Gradle-free path was not taken (`hotswapSkipped`,
+ * `precompileSkipped`). For example `Hot swap · 1.1 s · no Gradle`, or
+ * `Restarted · 3.2 s · Gradle 1.6 s · MainActivity.onCreate is not a composable`.
+ */
+export function reloadSummary(payload: Json): string | undefined {
+  const p = isObj(payload) ? payload : {}
+  const r = isObj(p.result) ? p.result : p
+  const mode = str(r.mode)
+  if (mode === undefined) return undefined
+  const seconds = (ms: number) => `${(ms / 1000).toFixed(1)} s`
+  const total = (num(r.totalMs) ?? 0) + (num(r.precompileMs) ?? 0)
+  const buildMs = isObj(r.build) ? num(r.build.ms) : undefined
+  const gradle = r.precompiled === true ? 'no Gradle' : buildMs !== undefined && buildMs > 0 ? `Gradle ${seconds(buildMs)}` : undefined
+  const why = [mode === 'hotswap' ? undefined : str(r.hotswapSkipped), r.precompiled === true ? undefined : str(r.precompileSkipped)]
+  return [RELOAD_MODES[mode] ?? mode, total > 0 ? seconds(total) : undefined, gradle, ...why]
+    .filter((part): part is string => part !== undefined && part !== '')
+    .join(' · ')
+}

@@ -256,6 +256,15 @@ async function screenshot($: $) {
   }
 }
 
+// A screenshot right after a launch, reload or restart catches the app's entrance fade
+// (ComposeStarter's button is not there yet), so let it run first; a tap needs less.
+const SETTLE_START_MS = 1500
+const SETTLE_TAP_MS = 400
+
+async function settle($: $, ms: number) {
+  await simCall($, 'simulator_command', { cmd: 'wait', ms }).catch(() => undefined)
+}
+
 async function simCall($: $, tool: string, args: Record<string, unknown> = {}) {
   const s = await read($, sim)
   const payload = await callMcp($, tool, { ...(s.simulator ? { simulator: s.simulator } : {}), ...args })
@@ -272,6 +281,7 @@ async function launch($: $, target: string) {
     const info = simInfo(await callMcp($, 'simulator_launch', args))
     if (info.error !== undefined) throw new ToolError(info.error)
     await setSim($, v => ({ ...v, status: 'running', simulator: info.simulator, package: info.package, message: undefined }))
+    await settle($, SETTLE_START_MS)
     await screenshot($)
   } catch (err) {
     const text = err instanceof NoServer
@@ -292,13 +302,14 @@ async function reloadApp($: $) {
     // A compile error is the reload's error; the running app is left alone.
     await setSim($, v => ({ ...v, status: 'running', message: String((err as Error).message ?? err) }))
   }
+  await settle($, SETTLE_START_MS)
   await screenshot($)
 }
 
-async function act($: $, tool: string, args: Record<string, unknown> = {}) {
+async function act($: $, tool: string, args: Record<string, unknown> = {}, settleMs = SETTLE_TAP_MS) {
   try {
     await simCall($, tool, args)
-    await simCall($, 'simulator_command', { cmd: 'wait', ms: 400 }).catch(() => undefined)
+    await settle($, settleMs)
   } catch (err) {
     await setSim($, v => ({ ...v, message: String((err as Error).message ?? err) }))
   }
@@ -330,7 +341,7 @@ async function handle($: $, key: string) {
   } else if (key === 'app-back') {
     void act($, 'simulator_command', { cmd: 'back' })
   } else if (key === 'app-restart') {
-    void act($, 'simulator_restart')
+    void act($, 'simulator_restart', {}, SETTLE_START_MS)
   } else if (key === 'app-reload') {
     void reloadApp($)
   } else if (key === 'app-stop') {

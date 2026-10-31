@@ -8,6 +8,7 @@ without the model spending a turn or image tokens on them.
 
 Status: a prototype. Its hooks validate, type-check and pass `claude plugin test`. The test
 fixtures are payloads recorded from compose-preview CLI 2.77.0 and compose-preview-mcp 4.12.0
+and 4.13.0
 against [android/wear-os-samples](https://github.com/android/wear-os-samples) `ComposeStarter`.
 The pane itself has not been watched in a live session yet. It is not in the marketplace yet.
 The plan is to fold it into the `compose-preview` plugin.
@@ -82,8 +83,11 @@ claude plugin test mods/compose-preview-pane
 - compose-preview-mcp 4.12.0, the newest release, advertises only `compose/semantics` by
   default. `get_preview_data {kind: "a11y/atf"}` answers "kind not advertised", so over MCP
   the pane shows renders without findings and says so. The CLI fallback does have the findings.
-- The `simulator_*` tools ship in the compose-preview-mcp release after 4.12.0, so the Running
-  app tab has only been exercised against mocks.
+- The Running app tab needs compose-preview-mcp 4.13.0 or later, which adds the `simulator_*`
+  tools; its test uses payloads recorded from 4.13.0 running ComposeStarter. `simulator_launch`
+  finds the Android SDK from the MCP server's working folder (its `local.properties`) or
+  `ANDROID_HOME`. A server started outside the project can fail with "needs an Android SDK
+  platform's android.jar"; start the session in the project folder.
 
 - There is no pixel diff yet: Before/After switches between the two pictures. MCP
   `history_diff` could add one.

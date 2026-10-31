@@ -114,6 +114,16 @@ function engine(on: On, server: Server, a11y: 'advertised' | 'missing' = 'advert
         ? text('get_preview_data: DataProductUnknown: data/fetch: kind not advertised: a11y/atf', true)
         : text({ kind: 'a11y/atf', payload: { findings: [{ level: 'ERROR', type: 'TextContrastCheck', message: 'Contrast 2.1:1' }] } })
     }
+    // Recorded from compose-preview-mcp 4.13.0 running ComposeStarter's debug APK.
+    if (e.tool === 'simulator_launch') {
+      return text({ simulator: 'sim-1', info: { package: 'com.example.android.wearable.composestarter', formFactor: 'wear', round: true, width: 454, height: 454 } })
+    }
+    if (e.tool === 'simulator_screenshot') return text({ width: 454, height: 454, rotation: 0, path: e.args.path, events: [] })
+    if (e.tool === 'simulator_reload') return text({ mode: 'unchanged', build: { ok: true, ms: 1657, tasks: [':app:compileDebugJavaWithJavac'] }, totalMs: 1674, events: [] })
+    if (e.tool === 'simulator_command' && e.args.cmd === 'wait') return text({ result: { waitedMs: e.args.ms }, events: [] })
+    if (e.tool === 'simulator_command' && e.args.cmd === 'tap') {
+      return text({ result: { x: 227, y: 400, display: 0, node: { cls: 'android.widget.TextView', text: e.args.text, bounds: [162, 382, 292, 418] } }, events: [] })
+    }
     return text({})
   })
   return calls
@@ -220,9 +230,17 @@ test('the running-app tab launches the simulator from the edited file\'s project
   await ui.press({ key: 'tab-app' })
   await ui.press({ key: 'app-launch' })
   await clock.advance(10)
-  expect(calls).toContain(`mcp plugin:compose-preview:compose-preview-mcp simulator_launch {"project":"${ROOT}","headless":true}`)
-  expect(calls.some(c => c.includes('simulator_screenshot'))).toBe(true)
+  const sim = calls.filter(c => c.includes(' simulator_'))
+  expect(sim[0]).toContain(`simulator_launch {"project":"${ROOT}","headless":true}`)
+  // The entrance fade runs before the first screenshot is taken.
+  expect(sim[1]).toContain('simulator_command {"simulator":"sim-1","cmd":"wait","ms":1500}')
+  expect(sim[2]).toContain('simulator_screenshot {"simulator":"sim-1","path":"/tmp/cpp/app.png"}')
+  expect(await ui.find({ type: 'Text', text: /com\.example\.android\.wearable\.composestarter/ })).toBeDefined()
   expect(await ui.find({ key: 'app-back' })).toBeDefined()
+
+  await ui.input({ key: 'app-tap', text: 'Show list' })
+  await clock.advance(10)
+  expect(calls.some(c => c.includes('simulator_command {"simulator":"sim-1","cmd":"tap","text":"Show list"}'))).toBe(true)
   await ui.unmount()
 })
 

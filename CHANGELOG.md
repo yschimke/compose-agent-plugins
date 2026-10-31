@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.0](https://github.com/yschimke/compose-agent-plugins/compare/v0.10.0...v0.11.0) (2026-10-31)
+
+
+### Features
+
+* **compose-preview-pane:** show what each reload did, and how to load the pane ([#176](https://github.com/yschimke/compose-agent-plugins/issues/176)) ([f313250](https://github.com/yschimke/compose-agent-plugins/commit/f313250278fd6b767abe28f1ea1f32990a032f29))
+
 ## [0.10.0](https://github.com/yschimke/compose-agent-plugins/compare/v0.9.0...v0.10.0) (2026-10-31)
 
 

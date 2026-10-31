@@ -57,7 +57,9 @@ const EDIT_DEBOUNCE_MS = 250
 const workspaces = new Map<string, string>()
 let running = false
 let rerun: string | undefined
-let a11yUnavailable = false
+// MCP servers that answered get_preview_data with `kind not advertised: a11y/atf`, by name: a
+// server the pane switches to later is asked again.
+const a11yUnavailable = new Set<string>()
 // Project roots warmed this session (or found to have no server): one warm-up each.
 const warmed = new Set<string>()
 const svgCache = new Map<string, string | undefined>()
@@ -161,14 +163,16 @@ async function renderOverMcp($: $, file: string, root: string, previous: Map<str
 async function renderShot($: $, uri: string, editedAt?: number) {
   const prev = (await read($, render)).shots.find(s => s.id === uri)
   const before = prev?.stale === true || prev?.beforePath === undefined ? await keepBefore($, prev) : prev.beforePath
+  let server = ''
   let shot: PreviewShot
   try {
     const out = renderResult(await renderSettled($, { uri, inline: false }))
-    const a11y = a11yUnavailable
+    server = await read($, backend)
+    const a11y = a11yUnavailable.has(server)
       ? undefined
-      : await callMcp($, 'get_preview_data', { uri, kind: 'a11y/atf' }).catch(err => {
+      : await callMcp($, 'get_preview_data', { uri, kind: 'a11y/atf' }).catch(async err => {
           // compose-preview-mcp 4.13.0 still advertises only compose/semantics by default.
-          if (/not advertised/.test(String((err as Error).message))) a11yUnavailable = true
+          if (/not advertised/.test(String((err as Error).message))) a11yUnavailable.add(await read($, backend))
           return undefined
         })
     const ms = editedAt === undefined ? undefined : Date.now() - editedAt
@@ -180,7 +184,7 @@ async function renderShot($: $, uri: string, editedAt?: number) {
   await setRender($, r => ({
     ...r,
     shots: upsert(r.shots, shot),
-    message: a11yUnavailable ? 'The MCP server does not offer a11y/atf here; `compose-preview a11y` has the findings.' : r.message,
+    message: a11yUnavailable.has(server) ? 'The MCP server does not offer a11y/atf here; `compose-preview a11y` has the findings.' : r.message,
   }))
 }
 

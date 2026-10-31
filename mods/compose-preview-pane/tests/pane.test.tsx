@@ -61,7 +61,7 @@ const A11Y_STDOUT = JSON.stringify({
 })
 
 type Server = 'up' | 'cold' | 'down'
-type Options = { pendingOnce?: boolean; previews?: () => boolean; placed?: () => boolean; failing?: () => boolean }
+type Options = { pendingOnce?: boolean; previews?: () => boolean; placed?: () => boolean; failing?: () => boolean; a11yOn?: (server: string) => boolean }
 
 function engine(on: On, server: Server, a11y: 'advertised' | 'missing' = 'advertised', options: Options = {}) {
   const calls: string[] = []
@@ -111,7 +111,8 @@ function engine(on: On, server: Server, a11y: 'advertised' | 'missing' = 'advert
       return text({ uri, pngPath: `/tmp/compose-preview-mcp-1/${uri.length}.png`, widthPx: 454, heightPx: 454, sha256: 'ac86', changed: true, durationMs: 6338 })
     }
     if (e.tool === 'get_preview_data') {
-      return a11y === 'missing'
+      const missing = options.a11yOn ? !options.a11yOn(e.server) : a11y === 'missing'
+      return missing
         ? text('get_preview_data: DataProductUnknown: data/fetch: kind not advertised: a11y/atf', true)
         : text({ kind: 'a11y/atf', payload: { findings: [{ level: 'ERROR', type: 'TextContrastCheck', message: 'Contrast 2.1:1' }] } })
     }
@@ -351,4 +352,24 @@ test('a warm-up that fails is tried again on the next read, and never blocks the
   await $.tool.call({ tool: 'Read', file_path: FILE })
   await clock.advance(10)
   expect(tools().slice(1)).toEqual(['find_previews_for_file', 'notify_file_changed'])
+})
+
+test('a server without a11y/atf does not stop the next server from being asked', async ($, on) => {
+  const clock = mock.clock(on)
+  const calls = engine(on, 'up', 'advertised', {
+    a11yOn: server => server !== 'plugin:compose-preview:compose-preview-mcp',
+  })
+  await $.session.start({ cwd: '/home/user', surface: 'desktop', isInteractive: true })
+  await $.tool.call({ tool: 'Edit', file_path: FILE, old_string: 'a', new_string: 'b' })
+  await clock.advance(300)
+  // The agent's own call names another server: the pane follows it.
+  await $.tool.call({ tool: 'mcp__other-preview__render_preview', uri: URI('Devices - Large Round') })
+  await $.tool.call({ tool: 'Edit', file_path: FILE, old_string: 'b', new_string: 'c' })
+  await clock.advance(300)
+
+  const asked = calls.filter(c => c.includes(' get_preview_data ')).map(c => c.split(' ')[1])
+  expect(asked).toEqual(['plugin:compose-preview:compose-preview-mcp', 'other-preview'])
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await ui.find({ type: 'Text', text: /Contrast 2\.1:1/ })).toBeDefined()
+  await ui.unmount()
 })

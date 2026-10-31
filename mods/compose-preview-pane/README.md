@@ -6,9 +6,11 @@ shows the Compose previews of the Kotlin file Claude just edited, and the app ru
 [harness matrix](../../docs/harness-matrix.md#status-for-launch): the person sees the renders
 without the model spending a turn or image tokens on them.
 
-Status: a prototype. Its hooks validate, type-check and pass `claude plugin test` against mocked
-MCP and CLI answers; it has not yet been run against a live `compose-preview mcp serve`.
-It is not in the marketplace yet. The plan is to fold it into the `compose-preview` plugin.
+Status: a prototype. Its hooks validate, type-check and pass `claude plugin test`. The test
+fixtures are payloads recorded from compose-preview CLI 2.77.0 and compose-preview-mcp 4.12.0
+against [android/wear-os-samples](https://github.com/android/wear-os-samples) `ComposeStarter`.
+The pane itself has not been watched in a live session yet. It is not in the marketplace yet.
+The plan is to fold it into the `compose-preview` plugin.
 
 ## What it does
 
@@ -16,10 +18,16 @@ It is not in the marketplace yet. The plan is to fold it into the `compose-previ
   that file's previews and shows them in the pane. No model turn is spent.
   - Over MCP: `find_previews_for_file`, then `render_preview {inline: false}` and
     `get_preview_data {kind: "a11y/atf"}` for each preview. It uses the warm daemon the
-    `compose-preview` plugin already runs, called through `$.mcp.call`.
-  - Without an MCP server it falls back to the CLI: `compose-preview show --json
-    --with-extension a11y --module <the edited file's module>`, keeping only the rows whose
-    `sourceFile` is the edited file.
+    `compose-preview` plugin already runs, called through `$.mcp.call`. A server that has not
+    rendered the project yet maps no file to previews, so the mod first renders the file's first
+    `@…Preview` function by name, then asks again.
+  - Without an MCP server it falls back to the CLI: `compose-preview a11y --json --module <the
+    edited file's module>`, run in the Gradle build that holds the file (the nearest
+    `settings.gradle(.kts)`). It keeps only the rows whose `sourceFile` is the edited file. It
+    does not use `show --with-extension a11y`, which drops the extension
+    ([compose-ai-tools#6341](https://github.com/yschimke/compose-ai-tools/issues/6341)).
+  - Multi-preview variants are labelled by function and variant, for example
+    `GreetingScreenPreview · Devices - Large Round`.
 - **Before and after.** It copies each preview's previous PNG aside before re-rendering, so the
   pane can switch between Before and After. A preview whose render did not change is marked
   "pixel-identical".
@@ -70,6 +78,12 @@ claude plugin test mods/compose-preview-pane
 ```
 
 ## Known gaps
+
+- compose-preview-mcp 4.12.0, the newest release, advertises only `compose/semantics` by
+  default. `get_preview_data {kind: "a11y/atf"}` answers "kind not advertised", so over MCP
+  the pane shows renders without findings and says so. The CLI fallback does have the findings.
+- The `simulator_*` tools ship in the compose-preview-mcp release after 4.12.0, so the Running
+  app tab has only been exercised against mocks.
 
 - There is no pixel diff yet: Before/After switches between the two pictures. MCP
   `history_diff` could add one.

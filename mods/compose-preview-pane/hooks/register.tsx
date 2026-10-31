@@ -11,9 +11,11 @@ import {
   labelOf,
   mcpPayload,
   pngSize,
+  previewFunctions,
   previewUris,
   renderResult,
   simInfo,
+  workspaceOf,
 } from './parse'
 
 type $ = EngineInterface
@@ -101,23 +103,54 @@ async function keepBefore($: $, shot: PreviewShot | undefined) {
   return copied.exitCode === 0 ? to : undefined
 }
 
-async function renderOverMcp($: $, file: string, previous: Map<string, PreviewShot>) {
-  const found = await callMcp($, 'find_previews_for_file', { path: file })
+// render_preview answers `pending` while the project's daemon starts; the same call again
+// gets the render (harness-notes R1).
+async function renderSettled($: $, args: Record<string, unknown>) {
+  let result = await callMcp($, 'render_preview', args)
+  for (let attempt = 0; attempt < 20 && /pending/i.test(JSON.stringify(result ?? '')); attempt++) {
+    await $.clock.sleep(3000)
+    result = await callMcp($, 'render_preview', args)
+  }
+  return result
+}
+
+async function renderOverMcp($: $, file: string, root: string, previous: Map<string, PreviewShot>) {
+  let found = await callMcp($, 'find_previews_for_file', { path: file })
+  // A server that has not rendered this project yet maps no file to previews. One render by
+  // name loads the module, and the lookup answers after it.
+  if (previewUris(found).length === 0) {
+    const name = previewFunctions(await $.fs.read(file).catch(() => ''))[0]
+    if (name !== undefined) {
+      await renderSettled($, { preview: name, project: root, inline: false })
+      found = await callMcp($, 'find_previews_for_file', { path: file })
+    }
+  }
   const uris = previewUris(found).slice(0, config.maxPreviews)
-  const workspaceId = Array.isArray(found)
-    ? undefined
-    : (found as { workspaceId?: string } | undefined)?.workspaceId
+  // The daemon renders from what it last loaded: tell it the file changed first, as
+  // scripts/edit-render-bench.py does, or the render can be the pre-edit image.
+  const workspaceId = uris.map(workspaceOf).find(w => w !== undefined)
   if (workspaceId !== undefined) {
     await callMcp($, 'notify_file_changed', { workspaceId, path: file }).catch(() => undefined)
   }
-  await setRender($, r => ({ ...r, via: 'mcp', message: uris.length === 0 ? 'No previews in this file.' : undefined }))
+  await setRender($, r =>
+    uris.length === 0
+      ? { ...r, via: 'mcp', shots: [], message: 'No previews in this file.' }
+      : { ...r, via: 'mcp', shots: r.shots.filter(s => uris.includes(s.id)), message: undefined },
+  )
 
+  let a11yMissing = false
   for (const uri of uris) {
     const before = await keepBefore($, previous.get(uri))
     let shot: PreviewShot
     try {
-      const out = renderResult(await callMcp($, 'render_preview', { uri, inline: false }))
-      const a11y = await callMcp($, 'get_preview_data', { uri, kind: 'a11y/atf' }).catch(() => undefined)
+      const out = renderResult(await renderSettled($, { uri, inline: false }))
+      const a11y = a11yMissing
+        ? undefined
+        : await callMcp($, 'get_preview_data', { uri, kind: 'a11y/atf' }).catch(err => {
+            // compose-preview-mcp 4.12.0 advertises only compose/semantics by default.
+            if (/not advertised/.test(String((err as Error).message))) a11yMissing = true
+            return undefined
+          })
       shot = { id: uri, uri, label: labelOf(uri), ...out, beforePath: before, findings: findingsIn(a11y) }
     } catch (err) {
       if (err instanceof NoServer) throw err
@@ -125,27 +158,41 @@ async function renderOverMcp($: $, file: string, previous: Map<string, PreviewSh
     }
     await setRender($, r => ({ ...r, shots: upsert(r.shots, shot) }))
   }
+  if (a11yMissing) {
+    await setRender($, r => ({
+      ...r,
+      message: 'The MCP server does not offer a11y/atf here; `compose-preview a11y` has the findings.',
+    }))
+  }
 }
 
-async function moduleOf($: $, root: string, file: string) {
-  let dir = file.slice(0, file.lastIndexOf('/'))
-  while (dir.length >= root.length) {
-    if ((await $.fs.exists(`${dir}/build.gradle.kts`)) || (await $.fs.exists(`${dir}/build.gradle`))) {
-      return gradlePath(root, dir)
-    }
+async function nearest($: $, from: string, names: readonly string[], stop = '/') {
+  let dir = from
+  while (dir.length > 0 && dir.length >= stop.length) {
+    for (const name of names) if (await $.fs.exists(`${dir}/${name}`)) return dir
     dir = dir.slice(0, dir.lastIndexOf('/'))
   }
   return undefined
 }
 
-async function renderOverCli($: $, file: string, previous: Map<string, PreviewShot>) {
-  const root = await $.session.cwd()
+/** The Gradle build that holds `file`: the nearest folder with a settings file. */
+async function projectRoot($: $, file: string) {
+  return (await nearest($, dirOf(file), ['settings.gradle.kts', 'settings.gradle'])) ?? (await $.session.cwd())
+}
+
+async function moduleOf($: $, root: string, file: string) {
+  const dir = await nearest($, dirOf(file), ['build.gradle.kts', 'build.gradle'], root)
+  return dir === undefined ? undefined : gradlePath(root, dir)
+}
+
+async function renderOverCli($: $, file: string, root: string, previous: Map<string, PreviewShot>) {
   const module = await moduleOf($, root, file)
   const befores = new Map<string, string | undefined>()
   for (const [id, shot] of previous) befores.set(id, await keepBefore($, shot))
-  await setRender($, r => ({ ...r, via: 'cli', message: `compose-preview show${module ? ` --module ${module}` : ''}…` }))
+  await setRender($, r => ({ ...r, via: 'cli', message: `compose-preview a11y${module ? ` --module ${module}` : ''}…` }))
 
-  const argv = ['compose-preview', 'show', '--json', '--with-extension', 'a11y', ...(module ? ['--module', module] : [])]
+  // `a11y`, not `show --with-extension a11y`: show drops the extension (compose-ai-tools#6341).
+  const argv = ['compose-preview', 'a11y', '--json', ...(module ? ['--module', module] : [])]
   const ran = await $.process.run(argv, { cwd: root, timeoutMs: 600_000 })
   const shots = cliShots(ran.stdout, file)
     .slice(0, config.maxPreviews)
@@ -173,11 +220,12 @@ async function renderFile($: $, file: string) {
       shots: prior.file === file ? prior.shots : [],
     }))
     $.ui.status(`compose-preview: rendering ${file.split('/').pop()}`)
+    const root = await projectRoot($, file)
     try {
-      await renderOverMcp($, file, previous)
+      await renderOverMcp($, file, root, previous)
     } catch (err) {
       if (!(err instanceof NoServer)) throw err
-      await renderOverCli($, file, previous)
+      await renderOverCli($, file, root, previous)
     }
     const done = await setRender($, r => ({ ...r, status: 'done', at: Date.now() }))
     const errors = done.shots.reduce((n, s) => n + countBy(s.findings, 'ERROR'), 0)
@@ -215,7 +263,8 @@ async function simCall($: $, tool: string, args: Record<string, unknown> = {}) {
 }
 
 async function launch($: $, target: string) {
-  const root = await $.session.cwd()
+  const { file } = await read($, render)
+  const root = file !== undefined ? await projectRoot($, file) : await $.session.cwd()
   const isApk = target.endsWith('.apk')
   await setSim($, v => ({ status: 'starting', frame: v.frame, target: target || root, message: 'Starting the simulator…' }))
   try {
@@ -489,6 +538,10 @@ export const register: Register = (on, options) => {
       </Box>
     )
   })
+}
+
+function dirOf(path: string) {
+  return path.slice(0, path.lastIndexOf('/'))
 }
 
 function upsert(shots: readonly PreviewShot[], shot: PreviewShot): PreviewShot[] {

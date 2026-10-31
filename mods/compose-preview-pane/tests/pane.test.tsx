@@ -144,6 +144,9 @@ test('an Edit to a Kotlin file renders its previews over MCP, without a model tu
   await clock.advance(1000)
 
   expect(calls.filter(c => c.includes(' render_preview ')).length).toBe(2)
+  const notify = calls.findIndex(c => c.includes(' notify_file_changed '))
+  expect(calls[notify]).toContain(`{"workspaceId":"ComposeStarter-44f65eb9","path":"${FILE}"}`)
+  expect(notify).toBeLessThan(calls.findIndex(c => c.includes(' render_preview ')))
   for (const surface of ['terminal', 'desktop', 'vscode', 'mobile'] as const) {
     const ui = await $.ui.mount({ ...PANE, surface })
     expect(await ui.find({ type: 'Text', text: /MainActivity\.kt/ })).toBeDefined()

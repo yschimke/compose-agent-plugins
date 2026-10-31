@@ -65,6 +65,11 @@ export function labelOf(id: string): string {
   return at > 0 ? `${name.slice(0, at)} · ${name.slice(at + 1)}` : name
 }
 
+/** The workspace a compose-preview MCP URI names: `compose-preview://<workspaceId>/…`. */
+export function workspaceOf(uri: string): string | undefined {
+  return /^compose-preview:\/\/([^/]+)\//.exec(uri)?.[1]
+}
+
 /** The functions a Kotlin source annotates with a `@…Preview`, in order. */
 export function previewFunctions(source: string): string[] {
   const names = [...source.matchAll(/@\w*Preview\w*\b[\s\S]*?\bfun\s+([A-Za-z_]\w*)/g)].map(m => m[1] ?? '')

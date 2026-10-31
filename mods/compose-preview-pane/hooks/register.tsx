@@ -15,6 +15,7 @@ import {
   previewUris,
   renderResult,
   simInfo,
+  workspaceOf,
 } from './parse'
 
 type $ = EngineInterface
@@ -125,6 +126,12 @@ async function renderOverMcp($: $, file: string, root: string, previous: Map<str
     }
   }
   const uris = previewUris(found).slice(0, config.maxPreviews)
+  // The daemon renders from what it last loaded: tell it the file changed first, as
+  // scripts/edit-render-bench.py does, or the render can be the pre-edit image.
+  const workspaceId = uris.map(workspaceOf).find(w => w !== undefined)
+  if (workspaceId !== undefined) {
+    await callMcp($, 'notify_file_changed', { workspaceId, path: file }).catch(() => undefined)
+  }
   await setRender($, r =>
     uris.length === 0
       ? { ...r, via: 'mcp', shots: [], message: 'No previews in this file.' }

@@ -122,6 +122,10 @@ if [ "${HARNESS-}" = "antigravity" ]; then
   antigravity_workspace=${antigravity_workspace#file://}
   if [ -n "$antigravity_workspace" ] && [ -d "$antigravity_workspace" ]; then
     cd "$antigravity_workspace" 2>/dev/null || true
+    cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/composeai"
+    if mkdir -p "$cache_dir" 2>/dev/null; then
+      printf '%s\n' "$antigravity_workspace" >"$cache_dir/antigravity-workspace" 2>/dev/null || true
+    fi
   fi
 fi
 

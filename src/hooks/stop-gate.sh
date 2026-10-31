@@ -148,6 +148,12 @@ hook_cwd=$(json_string_field cwd)
 if [ -z "$hook_cwd" ]; then
   hook_cwd=$(sed -n 's/.*"workspacePaths"[[:space:]]*:[[:space:]]*\[[[:space:]]*"\([^"\\]*\)".*/\1/p' "$hook_input" | head -n 1)
   hook_cwd=${hook_cwd#file://}
+  if [ -n "$hook_cwd" ] && [ -d "$hook_cwd" ]; then
+    cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/composeai"
+    if mkdir -p "$cache_dir" 2>/dev/null; then
+      printf '%s\n' "$hook_cwd" >"$cache_dir/antigravity-workspace" 2>/dev/null || true
+    fi
+  fi
 fi
 if [ -n "$hook_cwd" ] && [ -d "$hook_cwd" ]; then
   cd "$hook_cwd" 2>/dev/null || exit 0

@@ -5,6 +5,7 @@ repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 script="$repository_root/plugins/compose-preview/scripts/session-start-summary.sh"
 temporary_root="$(mktemp -d)"
 trap 'rm -rf "$temporary_root"' EXIT
+export XDG_CACHE_HOME="$temporary_root/cache"
 unset CLAUDECODE CLAUDE_PLUGIN_ROOT CODEX_THREAD_ID __CFBundleIdentifier ANTIGRAVITY_CLI_ALIAS OPENCODE GEMINI_CLI HARNESS
 
 assert_equal() {
@@ -131,9 +132,11 @@ status_output="$(STATUS_JSON="$status_json" STATUS_ARGS="$status_args" CLAUDE_PR
 assert_equal "$(expected_output 'Compose Preview needs attention: 2 unacknowledged design comments; 1 unsaved temporary copy; design server not running.')" "$status_output" 'actionable workspace design status'
 assert_equal "design status --workspace $temporary_root/project with spaces --json --timeout 2" "$(cat "$status_args")" 'status workspace and bound'
 
+mkdir -p "$temporary_root/project with spaces"
 agy_status_output="$(printf '{"workspacePaths":["file://%s"]}' "$temporary_root/project with spaces" | STATUS_JSON="$status_json" STATUS_ARGS="$status_args" PATH="$fake_bin:$PATH" "$script" --harness=antigravity)"
 assert_equal '{"injectSteps":[{"systemMessage":{"systemMessage":"Compose Preview needs attention: 2 unacknowledged design comments; 1 unsaved temporary copy; design server not running."}}]}' "$agy_status_output" 'Antigravity SessionStart injectSteps output and workspacePaths parsing'
 assert_equal "design status --workspace $temporary_root/project with spaces --json --timeout 2" "$(cat "$status_args")" 'Antigravity status workspace and bound'
+assert_equal "$temporary_root/project with spaces" "$(cat "$XDG_CACHE_HOME/composeai/antigravity-workspace")" 'Antigravity SessionStart caches active workspace for sidecar'
 
 # Until designs record a home (compose-preview-server#1157) every repo-published design reports
 # MISSING_HOME. That is not an actionable problem and must not produce a warning on every session.

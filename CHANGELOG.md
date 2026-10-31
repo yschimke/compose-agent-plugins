@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/yschimke/compose-agent-plugins/compare/v0.9.0...v0.10.0) (2026-10-31)
+
+
+### Features
+
+* **compose-preview-pane:** reload the running app with the edited files, skipping Gradle ([#173](https://github.com/yschimke/compose-agent-plugins/issues/173)) ([e3f05b4](https://github.com/yschimke/compose-agent-plugins/commit/e3f05b43899ef4fded797d847cef0bc779ef8991))
+
 ## [0.9.0](https://github.com/yschimke/compose-agent-plugins/compare/v0.8.0...v0.9.0) (2026-10-31)
 
 

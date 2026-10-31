@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.9.0](https://github.com/yschimke/compose-agent-plugins/compare/v0.8.0...v0.9.0) (2026-10-31)
+
+
+### Features
+
+* **mods:** warm the preview daemon on read and compile on edit, so renders answer in ~0.4 s ([#171](https://github.com/yschimke/compose-agent-plugins/issues/171)) ([d73d599](https://github.com/yschimke/compose-agent-plugins/commit/d73d599161ed61268d3c8adaebaa4ef6db807525))
+
+
+### Bug Fixes
+
+* bundle the viewer from compose-preview-mcp v4.13.0 ([#169](https://github.com/yschimke/compose-agent-plugins/issues/169)) ([134de97](https://github.com/yschimke/compose-agent-plugins/commit/134de97e75ba9bf33b8d6b81be0a6ae8f9aa1de3))
+* **mods:** run the pane's simulator tab as compose-preview-mcp 4.13.0 answers it ([#168](https://github.com/yschimke/compose-agent-plugins/issues/168)) ([1665d2f](https://github.com/yschimke/compose-agent-plugins/commit/1665d2f93bb883d5a57e2422f4261b48f6202cff))
+
 ## [0.8.0](https://github.com/yschimke/compose-agent-plugins/compare/v0.7.0...v0.8.0) (2026-10-31)
 
 

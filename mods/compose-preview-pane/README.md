@@ -45,7 +45,9 @@ The plan is to fold it into the `compose-preview` plugin.
   shows a screenshot, with Back, Refresh, Reload edit, Restart and Stop buttons. A text field
   sends `tap {text}` (not on mobile, which has no input fields). After a Kotlin edit,
   a project-launched simulator runs `simulator_reload` and the screenshot refreshes, so the
-  running app follows the code. The simulator needs the MCP server; the CLI fallback covers
+  running app follows the code. It passes the Kotlin files edited since the last reload as
+  `files`: compose-preview-mcp 4.14.0 compiles them in the warm preview build and reloads
+  without Gradle (with CLI 2.79.0 or later), about 2 s from edit to pixels instead of 5 to 7. The simulator needs the MCP server; the CLI fallback covers
   renders only.
 
 ## Speed

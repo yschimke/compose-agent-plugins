@@ -248,6 +248,30 @@ test('the running-app tab launches the simulator from the edited file\'s project
   await ui.unmount()
 })
 
+test('a reload after edits passes the edited files, so the server compiles them without Gradle', async ($, on) => {
+  const clock = mock.clock(on)
+  const calls = engine(on, 'up')
+  await $.session.start({ cwd: '/home/user', surface: 'desktop', isInteractive: true })
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await ui.press({ key: 'tab-app' })
+  await ui.press({ key: 'app-launch' })
+  await clock.advance(10)
+  const reloads = () => calls.filter(c => c.includes(' simulator_reload '))
+
+  const other = `${ROOT}/app/src/main/java/com/example/android/wearable/composestarter/presentation/theme/Theme.kt`
+  await $.tool.call({ tool: 'Edit', file_path: FILE, old_string: 'a', new_string: 'b' })
+  await $.tool.call({ tool: 'Edit', file_path: other, old_string: 'a', new_string: 'b' })
+  await clock.advance(1000)
+  expect(reloads()).toHaveLength(1)
+  expect(reloads()[0]).toContain(`simulator_reload {"simulator":"sim-1","files":["${FILE}","${other}"]}`)
+
+  // Reloaded: the Reload button with no new edit sends no files.
+  await ui.press({ key: 'app-reload' })
+  await clock.advance(10)
+  expect(reloads()[1]).toContain('simulator_reload {"simulator":"sim-1"}')
+  await ui.unmount()
+})
+
 test('a pending render is asked again before the shot is stored', async ($, on) => {
   const clock = mock.clock(on)
   const calls = engine(on, 'up', 'advertised', { pendingOnce: true })

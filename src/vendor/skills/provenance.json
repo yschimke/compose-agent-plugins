@@ -1,6 +1,6 @@
 {
   "$comment": "Written by scripts/update-skills.py. Do not edit the vendored skills; scripts/check_generated.py checks them against this file.",
-  "commit": "156983dce2608d2d766628e838c6d6c0e8135ce9",
+  "commit": "e4b85d0ddbf56584befd7e26ee6f6764ca91b97a",
   "files": {
     "compose-preview-ci/SKILL.md": {
       "mode": "100644",
@@ -52,7 +52,7 @@
     },
     "compose-preview/SKILL.md": {
       "mode": "100644",
-      "sha256": "bbd11230d5e982c798caa877b288d9793467495a6e97fa8c3e3c10754f56197e"
+      "sha256": "391e29424b3b658038f17ed81c86c07fabc68b2d3c6a0f71713b07835d67a8b7"
     },
     "compose-preview/references/a11y.md": {
       "mode": "100644",
@@ -96,7 +96,7 @@
     },
     "compose-preview/references/mcp.md": {
       "mode": "100644",
-      "sha256": "96649139fb94b2fb226ae04aa9225fac3919ae277466c49cda6ee2b1d7409548"
+      "sha256": "99c82e56950db71c0b0dd58d6ef547e15cfd8e8f1fb3ffe3c95bba416514108c"
     },
     "compose-preview/references/override-knobs.md": {
       "mode": "100644",
@@ -207,7 +207,7 @@
       "sha256": "9f2a8f7cbeaeffd327fc2e29178b821fa5d5a7b82787824e59deb107df6750fb"
     }
   },
-  "ref": "156983dce2608d2d766628e838c6d6c0e8135ce9",
+  "ref": "e4b85d0ddbf56584befd7e26ee6f6764ca91b97a",
   "repository": "https://github.com/yschimke/skills",
   "skills": [
     "compose-preview",

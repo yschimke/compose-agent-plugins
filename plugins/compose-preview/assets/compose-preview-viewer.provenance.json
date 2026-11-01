@@ -1,7 +1,7 @@
 {
   "repository": "https://github.com/yschimke/compose-preview-mcp",
-  "release": "v4.14.0",
-  "releaseAsset": "https://github.com/yschimke/compose-preview-mcp/releases/download/v4.14.0/compose-preview-viewer.html",
+  "release": "v4.17.0",
+  "releaseAsset": "https://github.com/yschimke/compose-preview-mcp/releases/download/v4.17.0/compose-preview-viewer.html",
   "source": {
     "repository": "https://github.com/yschimke/compose-preview-server",
     "release": "v3.153.0",

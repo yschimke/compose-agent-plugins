@@ -5,70 +5,6 @@
   "description": "Compose @Preview rendering, accessibility checks and remote component catalogs.",
   "plugins": [
     {
-      "name": "compose-catalogs",
-      "version": "0.11.0",
-      "description": "Discover Compose components, inspect properties, and render catalog variants, with no local toolchain.",
-      "keywords": [
-        "compose",
-        "catalog",
-        "material3",
-        "wear",
-        "design-review",
-        "guidelines"
-      ],
-      "interface": {
-        "displayName": "Compose Catalogs",
-        "shortDescription": "Discover and render Compose component catalogs.",
-        "longDescription": "Discover Compose components, render catalog variants, and review UI Builder designs against catalog guidelines through Compose Preview.",
-        "developerName": "Yuri Schimke",
-        "category": "Developer Tools",
-        "capabilities": [
-          "Interactive"
-        ],
-        "defaultPrompt": [
-          "Show the available Compose component catalogs.",
-          "Review this UI Builder design against its catalog design guidelines."
-        ]
-      },
-      "mcp": [
-        {
-          "name": "compose-preview-catalog",
-          "kind": "http",
-          "url": "https://preview.coo.ee/mcp",
-          "headers": {
-            "X-Compose-Preview-Token": "${COMPOSE_PREVIEW_TOKEN:-}"
-          },
-          "envHeaders": {
-            "X-Compose-Preview-Token": "COMPOSE_PREVIEW_TOKEN"
-          },
-          "userConfigHeaders": {
-            "X-Compose-Preview-Token": "compose_preview_token"
-          }
-        }
-      ],
-      "userConfig": {
-        "compose_preview_token": {
-          "type": "string",
-          "title": "Compose Preview token",
-          "description": "Optional access token for the hosted preview.coo.ee service. Leave it blank to use the service's interactive access grant.",
-          "sensitive": true
-        }
-      },
-      "skills": [
-        "compose-ui-builder",
-        "harness-notes",
-        "compose-catalogs-setup"
-      ],
-      "onboardingSkill": "compose-catalogs-setup",
-      "apps": {
-        "compose-preview-catalog": {
-          "id": "plugin_asdk_app_6acb43a86b8881918f618daf506c97ef",
-          "category": "Developer Tools",
-          "required": true
-        }
-      }
-    },
-    {
       "name": "compose-preview",
       "version": "0.11.0",
       "description": "Render and review your Compose previews locally, and browse the hosted Material 3 and Wear catalogs and UI Builder.",
@@ -175,6 +111,70 @@
       ]
     },
     {
+      "name": "compose-catalogs",
+      "version": "0.11.0",
+      "description": "Discover Compose components, inspect properties, and render catalog variants, with no local toolchain.",
+      "keywords": [
+        "compose",
+        "catalog",
+        "material3",
+        "wear",
+        "design-review",
+        "guidelines"
+      ],
+      "interface": {
+        "displayName": "Compose Catalogs",
+        "shortDescription": "Discover and render Compose component catalogs.",
+        "longDescription": "Discover Compose components, render catalog variants, and review UI Builder designs against catalog guidelines through Compose Preview.",
+        "developerName": "Yuri Schimke",
+        "category": "Developer Tools",
+        "capabilities": [
+          "Interactive"
+        ],
+        "defaultPrompt": [
+          "Show the available Compose component catalogs.",
+          "Review this UI Builder design against its catalog design guidelines."
+        ]
+      },
+      "mcp": [
+        {
+          "name": "compose-preview-catalog",
+          "kind": "http",
+          "url": "https://preview.coo.ee/mcp",
+          "headers": {
+            "X-Compose-Preview-Token": "${COMPOSE_PREVIEW_TOKEN:-}"
+          },
+          "envHeaders": {
+            "X-Compose-Preview-Token": "COMPOSE_PREVIEW_TOKEN"
+          },
+          "userConfigHeaders": {
+            "X-Compose-Preview-Token": "compose_preview_token"
+          }
+        }
+      ],
+      "userConfig": {
+        "compose_preview_token": {
+          "type": "string",
+          "title": "Compose Preview token",
+          "description": "Optional access token for the hosted preview.coo.ee service. Leave it blank to use the service's interactive access grant.",
+          "sensitive": true
+        }
+      },
+      "skills": [
+        "compose-ui-builder",
+        "harness-notes",
+        "compose-catalogs-setup"
+      ],
+      "onboardingSkill": "compose-catalogs-setup",
+      "apps": {
+        "compose-preview-catalog": {
+          "id": "plugin_asdk_app_6acb43a86b8881918f618daf506c97ef",
+          "category": "Developer Tools",
+          "required": true
+        }
+      }
+    },
+    {
       "name": "compose-review",
       "version": "0.11.0",
       "description": "Review Compose UI pull requests by rendering base and head, and set up CI that posts before/after previews.",
@@ -204,26 +204,6 @@
         "compose-preview-review",
         "compose-preview-ci"
       ]
-    }
-  ],
-  "externalPlugins": [
-    {
-      "name": "compose-skills",
-      "description": "Render Compose @Preview functions and author designs over MCP (the default skills).",
-      "url": "https://github.com/yschimke/skills.git",
-      "path": "plugins/compose-skills"
-    },
-    {
-      "name": "compose-review-skills",
-      "description": "Review Compose UI pull requests, set up preview CI, and check design parity.",
-      "url": "https://github.com/yschimke/skills.git",
-      "path": "plugins/compose-review-skills"
-    },
-    {
-      "name": "compose-design-skills",
-      "description": "Export Compose renders to design tools: design boards, sticker-sheet catalogs, and Figma import.",
-      "url": "https://github.com/yschimke/skills.git",
-      "path": "plugins/compose-design-skills"
     }
   ],
   "opencode": {

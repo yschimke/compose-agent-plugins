@@ -8,14 +8,14 @@
   },
   "plugins": [
     {
-      "description": "Discover Compose components, inspect properties, and render catalog variants, with no local toolchain.",
-      "name": "compose-catalogs",
-      "source": "plugins/compose-catalogs"
-    },
-    {
       "description": "Render and review your Compose previews locally, and browse the hosted Material 3 and Wear catalogs and UI Builder.",
       "name": "compose-preview",
       "source": "plugins/compose-preview"
+    },
+    {
+      "description": "Discover Compose components, inspect properties, and render catalog variants, with no local toolchain.",
+      "name": "compose-catalogs",
+      "source": "plugins/compose-catalogs"
     },
     {
       "description": "Review Compose UI pull requests by rendering base and head, and set up CI that posts before/after previews.",

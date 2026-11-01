@@ -1096,44 +1096,6 @@ def render_registry_server(source: dict[str, object], plugins: list[dict[str, ob
     }
 
 
-def render_external_marketplace_entries(source: dict, local_names: set[str]) -> list[dict]:
-    """Marketplace entries for plugins that live in another repository.
-
-    Claude Code and Codex both install a `git-subdir` source, so one marketplace can list the
-    canonical skill bundles from yschimke/skills next to the wiring plugins built here. Cursor's
-    marketplace is left to local plugins until a smoke test covers that source type.
-    """
-    external = source.get("externalPlugins", [])
-    if not isinstance(external, list):
-        raise ValueError("externalPlugins must be a list")
-    entries = []
-    for plugin in external:
-        if not isinstance(plugin, dict):
-            raise ValueError("each external plugin must be an object")
-        name = require_string(plugin.get("name"), "externalPlugins.name")
-        if name in local_names:
-            raise ValueError(f"duplicate plugin name: {name}")
-        local_names.add(name)
-        url = require_string(plugin.get("url"), f"{name}.url")
-        if not url.startswith("https://github.com/") or not url.endswith(".git"):
-            raise ValueError(f"{name}.url must be an https://github.com/... .git URL")
-        path = require_string(plugin.get("path"), f"{name}.path")
-        if path.startswith("/") or ".." in path.split("/"):
-            raise ValueError(f"{name}.path must be a relative path inside the repository")
-        entry_source = {"source": "git-subdir", "url": url, "path": path}
-        ref = plugin.get("ref")
-        if ref is not None:
-            entry_source["ref"] = require_string(ref, f"{name}.ref")
-        entries.append(
-            {
-                "description": require_string(plugin.get("description"), f"{name}.description"),
-                "name": name,
-                "source": entry_source,
-            }
-        )
-    return entries
-
-
 def main() -> None:
     source = json.loads(SOURCE.read_text(encoding="utf-8"))
     repository = require_string(source.get("repository"), "repository")
@@ -1287,7 +1249,7 @@ def main() -> None:
             "metadata": {"description": marketplace_description},
             "name": MARKETPLACE_NAME,
             "owner": {"name": owner},
-            "plugins": marketplace_plugins + render_external_marketplace_entries(source, names),
+            "plugins": marketplace_plugins,
         },
     )
     write_json(

@@ -5,7 +5,7 @@ them and checking catalog design guidelines, and set up GitHub Actions CI that
 posts before/after previews on pull requests. It is optional: install it next
 to the `compose-preview` plugin when you review UI changes or want preview CI.
 
-Start at <https://preview.coo.ee/start/>. This folder is generated from
+Start at <https://yschimke.github.io/compose-ai-tools/>. This folder is generated from
 [`yschimke/compose-agent-plugins`](https://github.com/yschimke/compose-agent-plugins);
 install steps for each harness are in its
 [host setup](https://github.com/yschimke/compose-agent-plugins/blob/main/docs/host-setup.md#install-per-host).

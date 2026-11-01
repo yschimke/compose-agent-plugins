@@ -6,7 +6,7 @@ command-line tool, which renders previews from your own Gradle project on your
 machine, and to the hosted Material 3 and Wear catalogs and UI Builder. It is
 the one plugin a coding agent needs.
 
-Start at <https://preview.coo.ee/start/>. This folder is generated from
+Start at <https://yschimke.github.io/compose-ai-tools/>. This folder is generated from
 [`yschimke/compose-agent-plugins`](https://github.com/yschimke/compose-agent-plugins);
 install steps for each harness are in its
 [host setup](https://github.com/yschimke/compose-agent-plugins/blob/main/docs/host-setup.md#install-per-host).

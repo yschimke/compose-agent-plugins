@@ -1,6 +1,6 @@
 # Compose Agent Plugins
 
-Let your agent see your Compose UI: start at <https://preview.coo.ee/start/>.
+Let your agent see your Compose UI: start at <https://yschimke.github.io/compose-ai-tools/>.
 Designing a new screen with an agent? Start at <https://ui.coo.ee/start>.
 
 ## Quick start

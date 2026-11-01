@@ -9,7 +9,7 @@ It condenses the cross-repository adoption plan that `compose-ai-tools`, `yschim
 
 | Intent | Door |
 | --- | --- |
-| "Let my agent see my Compose UI" (the default) | <https://preview.coo.ee/start/> |
+| "Let my agent see my Compose UI" (the default) | <https://yschimke.github.io/compose-ai-tools/> |
 | "Design a new screen with an agent" | <https://ui.coo.ee/start> |
 
 Every README opens with one line pointing at the right door, then the one install below. Nothing

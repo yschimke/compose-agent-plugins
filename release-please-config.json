@@ -1,5 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "last-release-sha": "da9eb3f5f820539a99e630e306745264d288bcd3",
   "release-type": "simple",
   "include-v-in-tag": true,
   "versioning": "always-bump-minor",
@@ -22,5 +23,11 @@
     }
   },
   "initial-version": "0.4.0",
-  "bootstrap-sha": "3fba026254eade5fd850916efa08885ed501c4c9"
+  "bootstrap-sha": "3fba026254eade5fd850916efa08885ed501c4c9",
+  "$comment": [
+    "last-release-sha is a ROOT option (nested in packages it is silently ignored). It pins the baseline",
+    "to da9eb3f, the #175 merge that wrote 0.11.0 to the manifest without a v0.11.0 release being cut",
+    "(its title still said 0.10.0, which was already tagged). Without it release-please finds no release",
+    "for 0.11.0 and re-lists history back to bootstrap-sha. Remove it once the next release cuts cleanly."
+  ]
 }

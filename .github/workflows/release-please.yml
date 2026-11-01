@@ -13,12 +13,41 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Two release-please invocations, deliberately: this one cuts the release ONLY, and
+  # `update-release-pr` below runs the PR half afterwards. A single invocation computes the next
+  # candidate PR in the same run that cuts the release, before the release it just created is
+  # visible as a baseline, so it re-proposes the version being released. That is how #174 and #175
+  # both merged as "chore(main): release 0.10.0": the second cut nothing (v0.10.0 already existed),
+  # left the manifest at 0.11.0 with no v0.11.0 release, and #178 then re-listed the whole history.
+  # Same split as compose-preview-vscode (#5 there) and compose-preview-contracts.
   release-please:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-      pull-requests: write
+      contents: write # create tags + GitHub Releases
+      pull-requests: write # label the merged release PR as tagged
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        id: release
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || github.token }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          skip-github-pull-request: true
+
+  # The PR half, split out so it computes its baseline only after the release job above has
+  # finished, including the release it may just have cut. Not run if that job failed: a stale
+  # baseline is exactly what re-proposes the version being released.
+  update-release-pr:
+    needs: release-please
+    if: ${{ !cancelled() && needs.release-please.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # update the release branch
+      pull-requests: write # open/update the release PR
     outputs:
       pr: ${{ steps.release.outputs.pr }}
     steps:
@@ -28,10 +57,11 @@ jobs:
           token: ${{ secrets.RELEASE_PLEASE_TOKEN || github.token }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+          skip-github-release: true
 
   regenerate-manifests:
-    needs: release-please
-    if: needs.release-please.outputs.pr != ''
+    needs: update-release-pr
+    if: needs.update-release-pr.outputs.pr != ''
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -39,13 +69,13 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ fromJSON(needs.release-please.outputs.pr).headBranchName }}
+          ref: ${{ fromJSON(needs.update-release-pr.outputs.pr).headBranchName }}
           persist-credentials: false
       - name: Regenerate release manifests from the canonical source
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_PR: ${{ fromJSON(needs.release-please.outputs.pr).number }}
-          RELEASE_BRANCH: ${{ fromJSON(needs.release-please.outputs.pr).headBranchName }}
+          RELEASE_PR: ${{ fromJSON(needs.update-release-pr.outputs.pr).number }}
+          RELEASE_BRANCH: ${{ fromJSON(needs.update-release-pr.outputs.pr).headBranchName }}
         run: |
           set -euo pipefail
           python3 scripts/check-release.py
@@ -67,8 +97,8 @@ jobs:
             push origin "HEAD:$RELEASE_BRANCH"
 
   validate-release-pr:
-    needs: [release-please, regenerate-manifests]
-    if: needs.release-please.outputs.pr != ''
+    needs: [update-release-pr, regenerate-manifests]
+    if: needs.update-release-pr.outputs.pr != ''
     runs-on: ubuntu-latest
     permissions:
       actions: write
@@ -78,8 +108,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RELEASE_BRANCH: ${{ fromJSON(needs.release-please.outputs.pr).headBranchName }}
-          RELEASE_PR: ${{ fromJSON(needs.release-please.outputs.pr).number }}
+          RELEASE_BRANCH: ${{ fromJSON(needs.update-release-pr.outputs.pr).headBranchName }}
+          RELEASE_PR: ${{ fromJSON(needs.update-release-pr.outputs.pr).number }}
         run: |
           set -euo pipefail
           gh workflow run plugins.yml --ref "$RELEASE_BRANCH"

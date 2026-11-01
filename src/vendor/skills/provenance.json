@@ -1,0 +1,168 @@
+{
+  "$comment": "Written by scripts/update-skills.py. Do not edit the vendored skills; scripts/check_generated.py checks them against this file.",
+  "commit": "156983dce2608d2d766628e838c6d6c0e8135ce9",
+  "files": {
+    "compose-preview/SKILL.md": {
+      "mode": "100644",
+      "sha256": "bbd11230d5e982c798caa877b288d9793467495a6e97fa8c3e3c10754f56197e"
+    },
+    "compose-preview/references/a11y.md": {
+      "mode": "100644",
+      "sha256": "f03e2dc707dbbeb42d409fe3c6d051349085f00c67d49e5d64ef8ad52a211c3b"
+    },
+    "compose-preview/references/agent-cloud.md": {
+      "mode": "100644",
+      "sha256": "d95cae613d23022ee1080ec105680e3b19f42379d472c2bc18a5b389b0bd9d97"
+    },
+    "compose-preview/references/agent-loop.md": {
+      "mode": "100644",
+      "sha256": "b07942752b4d0bc7761c3943555cc3684f0271118b7042a993e883111b57a121"
+    },
+    "compose-preview/references/capture-modes.md": {
+      "mode": "100644",
+      "sha256": "2e53c29269ff4c96e834d83a7907129b4086a67c3be8d72ab022aa681f64756f"
+    },
+    "compose-preview/references/catalog-mcp.md": {
+      "mode": "100644",
+      "sha256": "3276367c39bb27b0cd1972edf9ae8a4bfcdc9eaad57477e6b97e2c3da6b7f72b"
+    },
+    "compose-preview/references/cli.md": {
+      "mode": "100644",
+      "sha256": "1b8b91e804450650109ce8fe3db9eeab9439531eccf0d968f2458aa037507091"
+    },
+    "compose-preview/references/cmp-shared.md": {
+      "mode": "100644",
+      "sha256": "055e99e9054ff7a89d5a0687776b0685e8f8b020119c9a1af8137d150717c625"
+    },
+    "compose-preview/references/data-products.md": {
+      "mode": "100644",
+      "sha256": "16ed4e2616c012a2cebd02f2dbf970c419135baa34e814094bb4c3ee7c3ed240"
+    },
+    "compose-preview/references/design-guidelines.md": {
+      "mode": "100644",
+      "sha256": "645e9d9240dfe720fd59eeb1350a6aba538be65de6620767a1407f0deede8dce"
+    },
+    "compose-preview/references/display-filters.md": {
+      "mode": "100644",
+      "sha256": "f39033f4bd549e59d3fc94cfae461729c05b71d11ec1edcaac46c8fad91f8fc0"
+    },
+    "compose-preview/references/mcp.md": {
+      "mode": "100644",
+      "sha256": "96649139fb94b2fb226ae04aa9225fac3919ae277466c49cda6ee2b1d7409548"
+    },
+    "compose-preview/references/override-knobs.md": {
+      "mode": "100644",
+      "sha256": "78c710099ac8c6c085449b23f6bf135fde0ca86475fe5a756ad8c23fe6d40d13"
+    },
+    "compose-preview/references/permissions.md": {
+      "mode": "100644",
+      "sha256": "e6be5c3dc41737683cf61b1ee9a0ea25907c0fcd5da6436cfe1b89adf6d41914"
+    },
+    "compose-preview/references/remote-compose.md": {
+      "mode": "100644",
+      "sha256": "c0475717f58756e881706098ba5c44462ff37b29e2b0fc0e20597c58ed233cf7"
+    },
+    "compose-preview/references/resource-previews.md": {
+      "mode": "100644",
+      "sha256": "7e0805edf7855e0764b48ec5f9eeda3e825fd9dfba351b0ba7c37bd3e19ffdfb"
+    },
+    "compose-preview/references/runtime-permissions.md": {
+      "mode": "100644",
+      "sha256": "c4b4c0cb5693a5b739c5c8cca506144d2e8b7f70cf1b6cad04a6b9fdc0b8cad6"
+    },
+    "compose-preview/references/server-access.md": {
+      "mode": "100644",
+      "sha256": "001c4fde043d1e61c8e4a2efc0630298331948822a767967cff6b21cfa7e1f04"
+    },
+    "compose-preview/references/setup.md": {
+      "mode": "100644",
+      "sha256": "acfcc72cb19b26fb648ed0f02ccdd4a54d6a868629065221125978a52c95a530"
+    },
+    "compose-preview/references/simulator-iterate.md": {
+      "mode": "100644",
+      "sha256": "88700791a6f463f169ac320e66a08188e45598acfeceb8dff8c50e353135c04b"
+    },
+    "compose-preview/references/simulator-network.md": {
+      "mode": "100644",
+      "sha256": "7ae1928676560149b56e2aa8276fc17f6a01bebaf1db52804c2c23a14bd043e3"
+    },
+    "compose-preview/references/simulator-wear.md": {
+      "mode": "100644",
+      "sha256": "c2c0e58eda399de73c3bc15e9e3f9eea5b53a35f6fb4a1aeeb6eb12be6fe3d39"
+    },
+    "compose-preview/references/simulator.md": {
+      "mode": "100644",
+      "sha256": "7630f5ea687209919acf1db56162e4a426a891ea905dab6e5be1a7e91a67f551"
+    },
+    "compose-preview/references/state-hoisting.md": {
+      "mode": "100644",
+      "sha256": "9d029c13520cc647b8aaa1b653e4ce336efe285961420d9212fa6bd1858ec548"
+    },
+    "compose-preview/references/vscode.md": {
+      "mode": "100644",
+      "sha256": "0cfcc983d81696da89cf29bf254b618c253f053c3f03840232f15fe5a4e8dbb6"
+    },
+    "compose-preview/references/wear-tiles.md": {
+      "mode": "100644",
+      "sha256": "e7243b0d8d824582b7611ac997a9d58f1ea48a39cc9d7a38d93d3acb7844245d"
+    },
+    "compose-preview/references/wear-ui.md": {
+      "mode": "100644",
+      "sha256": "2d0901382fde0b0dc3a7e90f8155b4e5dfbcee889bdfdc6b40c1de1a7c5caf69"
+    },
+    "compose-preview/scripts/compose-preview": {
+      "mode": "100755",
+      "sha256": "9e6c52fb88ce008f8877efb5da425aafc03c47bfc5d4d2bb270db1e3ff38aced"
+    },
+    "compose-ui-builder/SKILL.md": {
+      "mode": "100644",
+      "sha256": "937ba07c123e082cd05e26c353555ca89132ef3d630d04197bdf3f2c827ca3d6"
+    },
+    "compose-ui-builder/references/access-and-editing.md": {
+      "mode": "100644",
+      "sha256": "0fc4e23ea463c4043404438c28f26792c878a3256342d6d135b2de5dac73d321"
+    },
+    "compose-ui-builder/references/collaboration.md": {
+      "mode": "100644",
+      "sha256": "df84b1ef8a257e3525186597a884c6fe1c2c7397801436e96d3a0dbddf64226e"
+    },
+    "compose-ui-builder/references/documents-and-vocabulary.md": {
+      "mode": "100644",
+      "sha256": "eb236e61dd821fb333bdb2f61f51deaa243f2bbdadc6dc423fa6eafc908df0d1"
+    },
+    "compose-ui-builder/references/gotchas.md": {
+      "mode": "100644",
+      "sha256": "c7c2aced4d7a669ff3f2b851324e8595f4cde1536071af65b3f1cd33fde8ac24"
+    },
+    "compose-ui-builder/references/local-design-to-code.md": {
+      "mode": "100644",
+      "sha256": "9037164b03dcd0df7f773c06796ec4c1f2ca6e8661aae3a6340b660ae4675856"
+    },
+    "compose-ui-builder/references/local-host.md": {
+      "mode": "100644",
+      "sha256": "9968e2d96c0fe02b164daa8785c9bdbfe992d87ef31408098744048a9ed1e797"
+    },
+    "compose-ui-builder/references/m3-catalog.md": {
+      "mode": "100644",
+      "sha256": "48b1492280e12c4ea15d7d481ff41c7a2aaae2bd3f6b33c7fd991ea4cb4e068a"
+    },
+    "compose-ui-builder/references/remote-m3-catalog.md": {
+      "mode": "100644",
+      "sha256": "196ae565a27662fe43c7482bcb2a73b7ac8736d9df83d9799b04bae0ea86ad04"
+    },
+    "compose-ui-builder/references/review-and-compare.md": {
+      "mode": "100644",
+      "sha256": "ddd444e7a836c89631eb279da02b55cd2fcb8a9c5bd9350fea1d7b95c3f85aed"
+    },
+    "compose-ui-builder/references/wear-m3-catalog.md": {
+      "mode": "100644",
+      "sha256": "9f2a8f7cbeaeffd327fc2e29178b821fa5d5a7b82787824e59deb107df6750fb"
+    }
+  },
+  "ref": "156983dce2608d2d766628e838c6d6c0e8135ce9",
+  "repository": "https://github.com/yschimke/skills",
+  "skills": [
+    "compose-preview",
+    "compose-ui-builder"
+  ]
+}

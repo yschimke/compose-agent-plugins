@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 import sys
@@ -22,7 +23,11 @@ from generate import (
     SIDECAR_LAUNCHER_NAME,
     SIDECAR_LEDGER_NAME,
     SOURCE,
+    VENDOR_PROVENANCE,
+    VENDOR_SKILL_ROOT,
+    SKILL_IGNORED_PARTS,
     hook_script,
+    skill_files,
     codex_skill_config,
     render_antigravity_hooks,
     render_opencode_bundle,
@@ -69,9 +74,15 @@ def generated_paths(source: object) -> tuple[list[Path], set[str]]:
         skills = plugin.get("skills", [])
         if not isinstance(skills, list) or not all(isinstance(skill, str) for skill in skills):
             raise ValueError(f"{name}.skills must be a list of strings")
-        paths.extend(plugin_root / "skills" / skill / "SKILL.md" for skill in skills)
+        paths.extend(
+            plugin_root / "skills" / skill / relative for skill in skills for relative in skill_files(skill)
+        )
         codex_skills, codex_path = codex_skill_config(plugin)
-        paths.extend(plugin_root / codex_path / skill / "SKILL.md" for skill in codex_skills)
+        paths.extend(
+            plugin_root / codex_path / skill / relative
+            for skill in codex_skills
+            for relative in skill_files(skill)
+        )
         agents = plugin.get("agents", [])
         if not isinstance(agents, list) or not all(isinstance(agent, str) for agent in agents):
             raise ValueError(f"{name}.agents must be a list of strings")
@@ -172,25 +183,77 @@ def previous_app_paths(source: object) -> list[Path]:
     return paths
 
 
-def previous_codex_skill_paths() -> list[Path]:
-    """Include generated deletions even when a skill is no longer selected."""
+def previous_skill_paths() -> list[Path]:
+    """Include generated deletions even when a skill, or one of its files, is no longer shipped."""
     tracked = git("ls-tree", "-r", "--name-only", "HEAD", "--", "plugins")
     if tracked.returncode:
-        raise ValueError(f"could not inspect tracked Codex skills: {tracked.stderr.strip()}")
+        raise ValueError(f"could not inspect tracked skills: {tracked.stderr.strip()}")
     return [ROOT / path for path in tracked.stdout.splitlines()
-            if len(Path(path).parts) >= 5
-            and Path(path).parts[2:4] == (".codex-plugin", "skills")]
+            if (len(Path(path).parts) >= 5 and Path(path).parts[2:4] == (".codex-plugin", "skills"))
+            or (len(Path(path).parts) >= 4 and Path(path).parts[2] == "skills")]
+
+
+def stale_skill_files(plugin_root: Path, expected: set[Path]) -> list[str]:
+    roots = (plugin_root / "skills", plugin_root / ".codex-plugin" / "skills")
+    return sorted(
+        str(path.relative_to(ROOT))
+        for root in roots
+        if root.is_dir()
+        for path in root.rglob("*")
+        if path.is_file()
+        and path not in expected
+        and not SKILL_IGNORED_PARTS.intersection(path.relative_to(root).parts)
+    )
+
+
+def vendored_skill_errors() -> list[str]:
+    """Vendored skills must be exactly what scripts/update-skills.py recorded: no hand edits."""
+    if not VENDOR_SKILL_ROOT.exists():
+        return []
+    if not VENDOR_PROVENANCE.is_file():
+        return [f"{VENDOR_PROVENANCE.relative_to(ROOT)} is missing; run scripts/update-skills.py"]
+    record = json.loads(VENDOR_PROVENANCE.read_text(encoding="utf-8"))
+    recorded = record.get("files")
+    skills = record.get("skills")
+    if not isinstance(recorded, dict) or not isinstance(skills, list):
+        return [f"{VENDOR_PROVENANCE.relative_to(ROOT)} must list skills and files"]
+    errors = []
+    directories = sorted(path.name for path in VENDOR_SKILL_ROOT.iterdir() if path.is_dir())
+    if directories != sorted(skills):
+        errors.append(f"vendored skill directories {directories} differ from provenance skills {sorted(skills)}")
+    actual = {
+        path.relative_to(VENDOR_SKILL_ROOT).as_posix(): path
+        for path in VENDOR_SKILL_ROOT.rglob("*")
+        if path.is_file()
+        and path != VENDOR_PROVENANCE
+        and not SKILL_IGNORED_PARTS.intersection(path.relative_to(VENDOR_SKILL_ROOT).parts)
+    }
+    for relative in sorted(set(actual) - set(recorded)):
+        errors.append(f"vendored file not in provenance: src/vendor/skills/{relative}")
+    for relative in sorted(set(recorded) - set(actual)):
+        errors.append(f"vendored file missing: src/vendor/skills/{relative}")
+    for relative in sorted(set(actual) & set(recorded)):
+        path, entry = actual[relative], recorded[relative]
+        if hashlib.sha256(path.read_bytes()).hexdigest() != entry.get("sha256"):
+            errors.append(f"vendored file differs from provenance (edited by hand?): src/vendor/skills/{relative}")
+        mode = "100755" if path.stat().st_mode & 0o111 else "100644"
+        if mode != entry.get("mode"):
+            errors.append(f"vendored file mode {mode} differs from provenance: src/vendor/skills/{relative}")
+    if errors:
+        errors.append("vendored skills are copied by scripts/update-skills.py <ref>; change them in yschimke/skills")
+    return errors
 
 
 def main() -> None:
     source = json.loads(SOURCE.read_text(encoding="utf-8"))
     paths, plugin_names = generated_paths(source)
+    expected_paths = set(paths)
     paths.extend(previous_hook_paths(source))
     paths.extend(previous_asset_paths(source))
     paths.extend(previous_app_paths(source))
-    paths.extend(previous_codex_skill_paths())
+    paths.extend(previous_skill_paths())
     paths = list(dict.fromkeys(paths))
-    errors = []
+    errors = vendored_skill_errors()
 
     missing = [str(path.relative_to(ROOT)) for path in paths if not path.is_file()]
     if missing:
@@ -204,6 +267,9 @@ def main() -> None:
 
     for plugin in source["plugins"]:
         name = plugin["name"]
+        stale_skills = stale_skill_files(plugins_root / name, expected_paths)
+        if stale_skills:
+            errors.append(f"{name} has stale generated skill files: {', '.join(stale_skills)}")
         expected_hooks = {
             Path(hook["command"]).name for hook in plugin.get("hooks", []) if "command" in hook
         }

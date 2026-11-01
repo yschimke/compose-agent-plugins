@@ -55,6 +55,7 @@
         }
       },
       "skills": [
+        "compose-ui-builder",
         "harness-notes",
         "compose-catalogs-setup"
       ],
@@ -105,6 +106,8 @@
         }
       ],
       "skills": [
+        "compose-preview",
+        "compose-ui-builder",
         "harness-notes",
         "antigravity-viewer-card",
         "compose-preview-setup"
@@ -143,6 +146,8 @@
         }
       ],
       "codexSkills": [
+        "compose-preview",
+        "compose-ui-builder",
         "harness-notes",
         "compose-preview-setup"
       ]

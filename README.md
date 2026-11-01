@@ -1,59 +1,34 @@
 # Compose Agent Plugins
 
-Compose `@Preview` rendering, accessibility checks and hosted component
-catalogs for Antigravity, Claude Code, Codex and OpenCode. This repository
-holds only the MCP and harness wiring; the Compose skills stay canonical in
-[`yschimke/skills`](https://github.com/yschimke/skills).
-
-**Start here:** <https://yschimke.github.io/compose-ai-tools/> for the CLI and your project's previews
-(the `compose-preview` plugin); <https://ui.coo.ee/start> for the UI Builder agent flow
-(the `compose-catalogs` plugin).
-
-- [Host setup](docs/host-setup.md): per-host install details, the local and
-  hosted MCP servers, cloud sandboxes and CI sessions.
-- [Troubleshooting](docs/troubleshooting.md) and
-  [what works where](docs/harness-matrix.md#status-for-launch).
+Let your agent see your Compose UI: start at <https://yschimke.github.io/compose-ai-tools/>.
+Designing a new screen with an agent? Start at <https://ui.coo.ee/start>.
 
 ## Quick start
 
-- `compose-preview` renders your own project's previews locally. It needs Java
-  17, a Gradle project and the `compose-preview` CLI: install the CLI with the
-  [setup guide](https://github.com/yschimke/skills/blob/main/skills/compose-preview/references/setup.md),
-  then the plugin's `compose-preview-setup` skill prepares each project once.
-- `compose-catalogs` connects to the hosted Material 3 and Wear catalogs and
-  the UI Builder at `https://preview.coo.ee/mcp`. It needs no local toolchain.
+Install one plugin, `compose-preview`, for your host.
 
-Install for your harness below, open your Compose project and try: **"render
-the `ListScreenPreview`"** (use one of your own preview function names).
-
-## Install
-
-Details and caveats for each harness are in
-[host setup](docs/host-setup.md#install-per-host).
-
-### Antigravity
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/yschimke/compose-agent-plugins/main/scripts/antigravity-install.py | python3 - --catalogs
-```
-
-### Claude Code
+Claude Code:
 
 ```text
 /plugin marketplace add yschimke/compose-agent-plugins
-/plugin install compose-skills@compose-agent-plugins
 /plugin install compose-preview@compose-agent-plugins
-/plugin install compose-catalogs@compose-agent-plugins
 ```
 
-### Codex
+Codex:
 
 ```sh
 codex plugin marketplace add yschimke/compose-agent-plugins
-# Then enable compose-skills, compose-preview and compose-catalogs from /plugins.
 ```
 
-### OpenCode
+then enable `compose-preview` from `/plugins`.
+
+Antigravity:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/yschimke/compose-agent-plugins/main/scripts/antigravity-install.py | python3 -
+```
+
+OpenCode:
 
 ```sh
 npx skills add yschimke/skills --global --yes --skill compose-preview --skill compose-ui-builder
@@ -61,7 +36,40 @@ curl -fsSL https://raw.githubusercontent.com/yschimke/compose-agent-plugins/main
 compose-preview mcp install --opencode
 ```
 
-### Moving from `compose-ag-plugin`
+Any other agent (Gemini CLI, Cursor, Copilot, …), or no plugin system:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/yschimke/skills/main/scripts/install.sh | bash
+```
+
+Then ask your agent to render one of your previews. Details and caveats for
+each host are in [other hosts](docs/host-setup.md#install-per-host); when
+something goes wrong, see [troubleshooting](docs/troubleshooting.md).
+
+**No shell or Java?** In Claude chat, Cowork or ChatGPT, or to use only the UI
+Builder and the hosted catalogs without a JDK, install `compose-catalogs`
+instead (in Antigravity, `antigravity-install.py --catalogs`), or add the hosted
+MCP server `https://preview.coo.ee/mcp` directly. Don't install both:
+`compose-preview` already carries that server.
+
+## Plugins
+
+- **`compose-preview`**: the one plugin for coding agents. Renders your
+  project's previews through the local `compose-preview mcp serve` server and
+  reaches the hosted catalogs and UI Builder through `compose-preview-catalog`;
+  ships the `compose-preview` and `compose-ui-builder` skills.
+- **`compose-catalogs`**: the hosted server, the `compose-ui-builder` skill and,
+  in Codex and ChatGPT, the registered Compose Preview app, for hosts with no
+  shell or Java.
+- **`compose-review`** (optional): the `compose-preview-review` and
+  `compose-preview-ci` skills, to review Compose UI pull requests and set up CI
+  that posts before/after previews. Your agent offers it when it is relevant.
+
+What each plugin contains, its hooks and the data it sends are in its README
+under [`plugins/`](plugins/), the [hooks](docs/hooks.md) doc and
+[distribution](docs/distribution.md).
+
+## Moving from compose-ag-plugin
 
 This repository and its marketplace were called `compose-ag-plugin`. GitHub
 redirects the old URLs, but the marketplace name changed, so add it again:
@@ -70,47 +78,36 @@ in Claude Code `/plugin marketplace remove compose-ag-plugin`, in Codex
 `yschimke/compose-agent-plugins` and reinstall the plugins under
 `@compose-agent-plugins`. In Antigravity, reinstall from the new URLs.
 
+**Moving from the split install.** `compose-preview` now carries the skills and
+the hosted server itself. Uninstall `compose-skills`, `compose-review-skills`
+and `compose-design-skills`, remove the `yschimke-skills` marketplace, and on a
+coding agent uninstall `compose-catalogs`; install `compose-review` if you used
+the review skills. In Antigravity, rerun the installer, which does this for
+you. The design-export and design-parity skills were removed; they remain in
+the [`yschimke/skills` history](https://github.com/yschimke/skills/commits/main).
+
 ## Updating
 
 See [host setup → Updating](docs/host-setup.md#updating).
 
-## Plugins
+## Development
 
-- **`compose-preview`**: the local `compose-preview mcp serve` server, a
-  post-edit render reminder and an opt-in Stop gate ([hooks](docs/hooks.md)),
-  the `design-reviewer` agent, the `compose-preview-setup` onboarding skill,
-  the Antigravity-only viewer-card skill, the Antigravity `Compose Preview`
-  Auxiliary Pane sidecar (`sidecars/compose-preview/sidecar.json` +
-  `sidecars/launch.mjs` for `browse`, `ui-builder`, and `launch --adb`), and the
-  portable viewer bundle in `assets/`
-  ([viewer handoff](src/assets/compose-preview-viewer-fallback.md)).
-  The viewer is an unmodified compose-preview-mcp release asset; its
-  provenance file pins the release tags, source commit, SHA-256 and MCP Apps
-  UI protocol revision, and the `Sync viewer` workflow runs
-  `scripts/update-viewer.py <tag>` and opens the pull request on each release.
-- **`compose-catalogs`**: the hosted `compose-preview-catalog` server, the
-  `compose-catalogs-setup` onboarding skill and, in Codex and ChatGPT, the
-  registered Compose Preview app. Access uses an optional token or the
-  service's interactive grant.
-- Both carry the generated `harness-notes` skill, which summarizes the
-  [agent rules](docs/agent-rules.md) (R1–R4) for the active harness.
-- The OpenCode bundle under `opencode/` carries the same agent, rules skill
-  and edit reminder; see [OpenCode](docs/opencode.md).
-
-`design-reviewer` runs semantic, accessibility, font-scale, device and
-catalog-guidelines checks in its own context and returns a short verdict, so
-rendered images stay out of the main conversation. Guidelines reviews work in
-all four harnesses through the canonical checklist in `compose-skills`; see
-[guidelines review setup and fallbacks](docs/design-guidelines-review.md) and
-the [cross-harness evals](evals/README.md).
+Read [adoption](docs/adoption.md) before adding a default skill, a plugin or a
+front-door install step: it is the rule for what loads by default and what is
+reached through next-step hints.
 
 Everything under `plugins/`, every manifest, `gemini-extension.json`,
 `server.json` and `opencode/` is generated: edit
 [`src/plugins.json`](src/plugins.json) or the files under `src/`, then run
-`python3 scripts/generate.py`. [Distribution](docs/distribution.md) lists what
-each listing receives.
-
-## Development
+`python3 scripts/generate.py`. The `compose-preview`, `compose-ui-builder`,
+`compose-preview-review` and `compose-preview-ci` skills are vendored from
+[`yschimke/skills`](https://github.com/yschimke/skills) into `src/vendor/skills/`
+by `python3 scripts/update-skills.py <ref>` (or `--from-local <clone> <ref>`),
+which records the commit in `src/vendor/skills/provenance.json`; never edit
+them here. The `Sync skills` workflow does that daily and opens a pull request.
+The viewer in `src/assets/` is an unmodified compose-preview-mcp release asset,
+pinned the same way by `scripts/update-viewer.py <tag>` and the `Sync viewer`
+workflow.
 
 Run the repository gate before sending a change; CI also runs the drift
 regression tests and markdownlint:
@@ -124,7 +121,8 @@ npx markdownlint-cli2 "**/*.md"
 Other scripts:
 
 - `python3 scripts/antigravity-install.py [--catalogs] [--dry-run]`: install or
-  update the Antigravity plugins from GitHub, clearing stale entries first.
+  update `compose-preview` (or `compose-catalogs` instead) in Antigravity from
+  GitHub, clearing stale and retired entries first.
 - `python3 scripts/antigravity-check.py`: plugin copies, MCP-only `gemini-cli` imports, card helper, CLI
   `preview=`/`project=` support, duplicate global MCP entries, stale servers.
 - `python3 scripts/opencode-install.py [--dry-run] [--config-dir DIR]`: install
@@ -148,7 +146,7 @@ be dispatched on `main` to retry an interrupted pass. No PR is automatically mer
 
 Tags version this repository's plugin packaging. The MCP Registry version still belongs to
 `compose-preview-server` and is published by `mcp-registry.yml`; release-please does not bump it.
-The externally referenced skill bundles keep their own release process in `yschimke/skills`.
+The vendored skills follow `yschimke/skills`; a `Sync skills` pull request moves them.
 
 Repository setup: enable **Allow GitHub Actions to create and approve pull requests**, keeping
 default workflow permissions read-only. The workflows request write access only in release jobs.

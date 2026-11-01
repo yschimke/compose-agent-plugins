@@ -1,7 +1,7 @@
 # Hooks
 
-What the `compose-preview` plugin's hooks do in each harness. The `compose-catalogs` plugin has
-no hooks.
+What the `compose-preview` plugin's hooks do in each harness. The `compose-catalogs` and
+`compose-review` plugins have no hooks.
 
 ## Compose edit reminder
 

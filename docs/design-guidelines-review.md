@@ -1,7 +1,8 @@
 # Catalog guidelines review across harnesses
 
-Install the default canonical `compose-skills` bundle along with the relevant
-wiring plugin. Requested guidelines reviews use one
+Install the `compose-preview` plugin, which carries the canonical skills (or
+`compose-catalogs` on a host with no shell or Java). Requested guidelines
+reviews use one
 [checklist in yschimke/skills](https://github.com/yschimke/skills/blob/main/skills/compose-preview/references/design-guidelines.md),
 packaged with `compose-preview` and linked from `compose-ui-builder` and the
 optional `compose-preview-review` skill. The rule files stay in the catalogs;
@@ -10,20 +11,21 @@ this repository carries only harness routing and the reviewer allowlist.
 Try: **"Review this Wear screen against its catalog design guidelines. Use
 your own model, inspect the required views, and report unchecked rules."**
 For mobile, substitute an adaptive phone/tablet screen. A hosted review needs
-only `compose-catalogs` and the default skills, not Java or a local CLI.
+only the hosted server and the `compose-ui-builder` skill (either plugin), not
+Java or a local CLI.
 
 ## Execution by harness
 
 | Harness | Install the checklist | Run the review |
 | --- | --- | --- |
-| Claude Code | `compose-skills@compose-agent-plugins` through the marketplace | Use `design-reviewer` from `compose-preview` when discoverable and delegation is allowed; otherwise follow the checklist in the current context. The packaged agent's allowlist contains local preview guidelines and hosted UI Builder guidelines tools. |
-| Antigravity | Install `yschimke/skills/tree/main/plugins/compose-skills` by URL alongside the wiring plugins | Delegate with `invoke_subagent(TypeName="self")`, handing it the packaged `agents/design-reviewer.md` instructions and their review-only boundary (`harness-notes` has the handoff line), or review in the current context. `define_subagent` subagents are not granted plugin MCP servers (#147); whether the packaged reviewer type is is unverified, so `self` is the default until a release run shows it. Call advertised tools through Antigravity's server/tool interface, not Claude-prefixed names. Reinstall copied plugins and skill bundles to update them. |
-| Codex | Enable `compose-skills` from this marketplace | Follow the checklist in the current context unless packaged reviewer discovery is confirmed. Skills and typed tools are sufficient; agent discovery is not a prerequisite. |
+| Claude Code | `compose-preview@compose-agent-plugins` through the marketplace | Use `design-reviewer` from `compose-preview` when discoverable and delegation is allowed; otherwise follow the checklist in the current context. The packaged agent's allowlist contains local preview guidelines and hosted UI Builder guidelines tools. |
+| Antigravity | `antigravity-install.py` installs `compose-preview`, skills included | Delegate with `invoke_subagent(TypeName="self")`, handing it the packaged `agents/design-reviewer.md` instructions and their review-only boundary (`harness-notes` has the handoff line), or review in the current context. `define_subagent` subagents are not granted plugin MCP servers (#147); whether the packaged reviewer type is is unverified, so `self` is the default until a release run shows it. Call advertised tools through Antigravity's server/tool interface, not Claude-prefixed names. Reinstall copied plugins to update them. |
+| Codex | Enable `compose-preview` from this marketplace | Follow the checklist in the current context unless packaged reviewer discovery is confirmed. Skills and typed tools are sufficient; agent discovery is not a prerequisite. |
 | OpenCode | Install `compose-preview` and `compose-ui-builder` with the Skills CLI; run `opencode-install.py` and register MCP as in [OpenCode setup](opencode.md) | Use the installed `design-reviewer` subagent when it is listed, otherwise follow the checklist in the current context. Use discovered server-prefixed tools, or the configured Code Mode interface. No hook or MCP App is required. |
 
 A catalog-only install follows the current-context path in every harness.
 Never install a second copy of `design-reviewer` in `compose-catalogs`; duplicate
-agents conflict in Claude Code. The default skills make that agent optional.
+agents conflict in Claude Code. The checklist makes that agent optional.
 
 ## Capabilities and fallback
 

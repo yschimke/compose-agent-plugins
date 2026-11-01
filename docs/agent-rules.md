@@ -105,7 +105,7 @@ Adoption is tracked in [#12](https://github.com/yschimke/compose-agent-plugins/i
 
 | Where | What it enforces |
 | --- | --- |
-| Skills (`yschimke/skills`: `compose-ui-builder`, `compose-preview`) | The behaviour in R1–R4, written as steps the agent follows |
+| Skills (`compose-ui-builder`, `compose-preview`: canonical in `yschimke/skills`, vendored into the plugins) | The behaviour in R1–R4, written as steps the agent follows |
 | Server `initialize` instructions | A short statement of R3 and R4 for any client, including clients without the skills |
 | End-of-session check (the opt-in `compose-preview` Stop gate, issue #4) | Unsaved temporary copies (R3) and unacknowledged comments (R4) |
 | `evals/` | At least one eval per rule, run in two or more harnesses |

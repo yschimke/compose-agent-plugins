@@ -1,8 +1,8 @@
 # Compose catalog evals
 
-Run these prompts in at least two harnesses with the canonical
-`compose-preview` skill installed from `yschimke/skills` and this repository's
-`compose-catalogs` wiring enabled.
+Run these prompts in at least two harnesses with this repository's
+`compose-preview` plugin (which carries the canonical `compose-preview` skill and
+the hosted catalog server), or `compose-catalogs` on a host with no shell.
 
 ## Prompts
 

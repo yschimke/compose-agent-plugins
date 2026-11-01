@@ -162,12 +162,23 @@ Codex registers the plugin's SessionStart, PostToolUse and Stop hooks as
 ## Codex lists no `compose-preview-catalog`
 
 `codex mcp list` shows `compose-preview-mcp` but not `compose-preview-catalog`
-when only the `compose-preview` plugin is enabled, or when the
-`compose-preview-mcp` entry is one you registered by hand rather than the
-plugin's. Run `codex plugin list` and check that
-`compose-catalogs@compose-agent-plugins` is `installed, enabled`; if not, enable it
-from `/plugins` and start a new session. Seen in the
+when the `compose-preview` plugin is older than the release that added the
+hosted server to it, or when the `compose-preview-mcp` entry is one you
+registered by hand rather than the plugin's. Update the marketplace and the
+plugin from `/plugins`, check that `compose-preview@compose-agent-plugins` is
+`installed, enabled` in `codex plugin list`, and start a new session. Seen
+before that change in the
 [2026-10-02 Codex smoke run](https://github.com/yschimke/compose-agent-plugins/issues/76#issuecomment-5950380878).
+
+## Every skill appears twice
+
+The skills are installed twice: `compose-preview` carries `compose-preview` and
+`compose-ui-builder`, and an earlier install added them again from the retired
+`compose-skills` bundle, the `yschimke-skills` marketplace or `npx skills add`.
+Uninstall the extra copy; see
+[moving from the split install](../README.md#moving-from-compose-ag-plugin). In
+Antigravity, rerun the [install script](host-setup.md#antigravity), which also
+removes a `compose-catalogs` install that duplicates the hosted server.
 
 ## "no project registered" in Codex Desktop
 

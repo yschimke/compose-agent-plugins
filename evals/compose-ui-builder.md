@@ -1,8 +1,8 @@
 # Compose UI Builder evals
 
-Run these prompts in at least two harnesses with the canonical
-`compose-ui-builder` skill installed from `yschimke/skills` and this
-repository's `compose-catalogs` wiring enabled.
+Run these prompts in at least two harnesses with this repository's
+`compose-preview` plugin (which carries the canonical `compose-ui-builder` skill
+and the hosted server), or `compose-catalogs` on a host with no shell.
 
 ## Prompts
 

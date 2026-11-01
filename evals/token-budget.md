@@ -13,8 +13,8 @@ turn:
   render;
 - shows **images only when the agent needs to see them**.
 
-Run them with the canonical `compose-preview` skill from `yschimke/skills` and
-this repository's `compose-preview` wiring. Record the results as described in
+Run them with this repository's `compose-preview` plugin, which carries the
+canonical `compose-preview` skill. Record the results as described in
 [`README.md`](README.md), and add the wall time and, where the harness reports
 it, the turn's input and output tokens.
 

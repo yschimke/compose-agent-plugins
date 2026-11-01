@@ -1,6 +1,6 @@
 {
   "$comment": "Written by scripts/update-skills.py. Do not edit the vendored skills; scripts/check_generated.py checks them against this file.",
-  "commit": "e4b85d0ddbf56584befd7e26ee6f6764ca91b97a",
+  "commit": "07cca4715ad560c5a020c0257df47ea391989793",
   "files": {
     "compose-preview-ci/SKILL.md": {
       "mode": "100644",
@@ -16,7 +16,7 @@
     },
     "compose-preview-review/SKILL.md": {
       "mode": "100644",
-      "sha256": "d69130a0fa29cdcd462f03182ad6ff602fa9216ece7492a3be0dc26b51fccb5a"
+      "sha256": "7eb91e01b0e282501b5594915d30577f91ffe11b79870d29a0c2b215442d7e37"
     },
     "compose-preview-review/references/agent-audits.md": {
       "mode": "100644",
@@ -24,7 +24,7 @@
     },
     "compose-preview-review/references/agent-pr.md": {
       "mode": "100644",
-      "sha256": "70b2d72ed773928a040d750b82fa352265386fab46fa08e2e5a193316d9901a8"
+      "sha256": "cd66a4f462276296520da8417186be31e23c32ee81fcc90ec35e7d5cee7b1a07"
     },
     "compose-preview-review/references/ci-agent-sessions.md": {
       "mode": "100644",
@@ -207,7 +207,7 @@
       "sha256": "9f2a8f7cbeaeffd327fc2e29178b821fa5d5a7b82787824e59deb107df6750fb"
     }
   },
-  "ref": "e4b85d0ddbf56584befd7e26ee6f6764ca91b97a",
+  "ref": "07cca4715ad560c5a020c0257df47ea391989793",
   "repository": "https://github.com/yschimke/skills",
   "skills": [
     "compose-preview",

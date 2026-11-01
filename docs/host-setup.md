@@ -12,14 +12,15 @@ and MCP tool usage by its
 
 ## Local and hosted MCP servers
 
-There are two different MCP servers, and most setups use both:
+There are two different MCP servers. The `compose-preview` plugin carries both; the
+`compose-catalogs` plugin carries only the hosted one, for hosts with no shell or Java:
 
 | | Local `compose-preview-mcp` | Hosted `compose-preview-catalog` |
 | --- | --- | --- |
 | Renders | Your own project's `@Preview`s, on your machine | The Material 3 and Wear catalogs, and UI Builder designs |
 | Runs as | `compose-preview mcp serve` from the CLI, over stdio | Streamable HTTP at `https://preview.coo.ee/mcp` |
 | Needs | Java 17, a Gradle project, the CLI on `PATH`, and the project prepared once | Nothing local; an access grant or the optional [token](distribution.md#the-compose-preview-token) |
-| Plugin | `compose-preview` | `compose-catalogs` |
+| Plugin | `compose-preview` | `compose-preview`, or `compose-catalogs` alone |
 
 **Configure the hosted server as `https://preview.coo.ee/mcp`, and only that.**
 `https://ui.coo.ee/mcp` is an alias of the same server process: same tools, same catalogs.
@@ -29,18 +30,21 @@ second one. `https://ui.coo.ee/start` is the UI Builder start page for people, n
 
 ## Canonical workflow skills
 
-Enable the default `compose-skills` bundle (`compose-preview`, `compose-ui-builder`) alongside
-this marketplace's host plugins, using the per-host commands below. Confirm both skills are
-discoverable before calling design-to-code setup complete. Keep one copy: a second copy from
-another marketplace, or a `~/.claude/skills/compose-preview` link next to the plugin, loads each
-skill twice (see [skill install locations](#skill-install-locations)). The wiring plugins do not
-install the canonical skills.
+The `compose-preview` and `compose-ui-builder` skills are canonical in
+[yschimke/skills](https://github.com/yschimke/skills) and vendored, unchanged, into the
+`compose-preview` plugin (`compose-catalogs` carries `compose-ui-builder`). Installing the plugin
+installs them; there is no separate skills bundle. Keep one copy: a second copy from
+`npx skills add` or a `~/.claude/skills/compose-preview` link next to the plugin loads each skill
+twice (see [skill install locations](#skill-install-locations)). The review skills
+(`compose-preview-review`, `compose-preview-ci`) are in the optional `compose-review` plugin.
 
 ## Install per host
 
-Every host needs the CLI first for local rendering (see the
+Install one plugin per host: `compose-preview` on a coding agent, or `compose-catalogs` instead on
+a host with no shell or Java (Claude chat and Cowork, ChatGPT, a UI Builder user without a JDK);
+never both. Local rendering needs the CLI (see the
 [setup guide](https://github.com/yschimke/skills/blob/main/skills/compose-preview/references/setup.md));
-`compose-catalogs` alone needs nothing local. Each Compose project is then prepared once: the
+the hosted server needs nothing local. Each Compose project is then prepared once: the
 plugin's `compose-preview-setup` skill does it, or see
 [registering the local MCP server](#registering-the-local-mcp-server). Then open the project and
 ask: **"render the `ListScreenPreview`"** (one of your own preview names).
@@ -48,19 +52,19 @@ ask: **"render the `ListScreenPreview`"** (one of your own preview names).
 ### Antigravity
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/yschimke/compose-agent-plugins/main/scripts/antigravity-install.py | python3 - --catalogs
+curl -fsSL https://raw.githubusercontent.com/yschimke/compose-agent-plugins/main/scripts/antigravity-install.py | python3 -
 ```
 
-The script installs `compose-skills` from yschimke/skills and `compose-preview` (plus
-`compose-catalogs` with `--catalogs`) as plugins. It also updates an existing install,
-uninstalling first (including a stale MCP-only `compose-preview`), and stops old
-`compose-preview mcp serve` processes. `--dry-run` prints the commands only. By hand:
+The script installs `compose-preview`; with `--catalogs` it installs `compose-catalogs` instead,
+for a machine without Java. Either way it uninstalls the other one and the retired
+`compose-skills` and `yschimke-skills` bundles, so the two never coexist. It also updates an
+existing install, uninstalling first (including a stale MCP-only `compose-preview`), and stops
+old `compose-preview mcp serve` processes. `--dry-run` prints the commands only. By hand:
 
 ```sh
-agy plugin install https://github.com/yschimke/skills/tree/main/plugins/compose-skills
 agy plugin install https://github.com/yschimke/compose-agent-plugins/tree/main/plugins/compose-preview
 agy plugin enable compose-preview
-agy plugin install https://github.com/yschimke/compose-agent-plugins/tree/main/plugins/compose-catalogs   # optional
+agy plugin install https://github.com/yschimke/compose-agent-plugins/tree/main/plugins/compose-review   # optional
 ```
 
 - Use the `/tree/main/plugins/<name>` URL: `agy` clones the repository and installs that folder.
@@ -68,41 +72,36 @@ agy plugin install https://github.com/yschimke/compose-agent-plugins/tree/main/p
   `gemini-extension.json` (no skills, agents or hooks) under the same `compose-preview` name.
 - A local checkout works too (`agy plugin install ./compose-agent-plugins/plugins/compose-preview`),
   and `python3 scripts/antigravity-check.py` from a clone verifies the install.
-- Install the skills as plugins, not with `npx skills add … --agent antigravity`: Antigravity
-  1.2.12 does not load `~/.agents/skills` (issue #6 Q14). Add `compose-review-skills` or
-  `compose-design-skills` from the same `/tree/main/plugins/<name>` path when you need them. The
-  bare `yschimke/skills` URL installs all eight skills as `yschimke-skills`; don't keep it next to
-  a bundle.
+- The skills come with the plugins; don't add them with `npx skills add … --agent antigravity`
+  (Antigravity 1.2.12 does not load `~/.agents/skills`, issue #6 Q14) or from the bare
+  `yschimke/skills` URL, which would install a second copy.
 
 ### Claude Code
 
 ```text
 /plugin marketplace add yschimke/compose-agent-plugins
-/plugin install compose-skills@compose-agent-plugins
 /plugin install compose-preview@compose-agent-plugins
-/plugin install compose-catalogs@compose-agent-plugins
 ```
 
-The marketplace lists the canonical skill bundles and installs them straight from
-yschimke/skills (`compose-skills`, and optionally `compose-review-skills` and
-`compose-design-skills`). If you installed them earlier from the `yschimke-skills` marketplace,
-uninstall that copy. Verify: restart, then `/mcp` lists
-`plugin:compose-preview:compose-preview-mcp` as connected. Enabling `compose-catalogs` asks for
-an optional Compose Preview token; Claude Code does not read `COMPOSE_PREVIEW_TOKEN` from the
-environment.
+Verify: restart, then `/mcp` lists `plugin:compose-preview:compose-preview-mcp` and
+`plugin:compose-preview:compose-preview-catalog`. Enabling `compose-preview` asks for an optional
+Compose Preview token for the hosted server; Claude Code does not read `COMPOSE_PREVIEW_TOKEN`
+from the environment. `/plugin install compose-review@compose-agent-plugins` adds the optional
+review skills. If you installed the earlier split set, see
+[moving from the split install](../README.md#moving-from-compose-ag-plugin).
 
 ### Codex
 
 ```sh
 codex plugin marketplace add yschimke/compose-agent-plugins
-# Then enable compose-skills, compose-preview and compose-catalogs from /plugins.
 ```
 
-`compose-skills` comes from yschimke/skills through this marketplace; drop a separate
-`yschimke/skills` marketplace if you added one before. In Codex and ChatGPT, `compose-catalogs`
-also declares the registered Compose Preview app, which hosts the preview and review surface; the
-full UI Builder stays in its own editor. Verify: `codex mcp list` shows `compose-preview-mcp` and
-`compose-preview-catalog`. Approve the plugin hooks when Codex marks them untrusted.
+then enable `compose-preview` from `/plugins` (and optionally `compose-review`). Drop a separate
+`yschimke/skills` marketplace and the old `compose-skills` plugin if you added them before. In
+ChatGPT, use `compose-catalogs`, which also declares the registered Compose Preview app that
+hosts the preview and review surface; the full UI Builder stays in its own editor. Verify:
+`codex mcp list` shows `compose-preview-mcp` and `compose-preview-catalog`. Approve the plugin
+hooks when Codex marks them untrusted.
 
 ### OpenCode
 
@@ -116,6 +115,27 @@ compose-preview mcp install --opencode
 
 What the installer copies, the hand-written config, authentication and the check script are in
 [OpenCode](opencode.md).
+
+### Any other agent
+
+Gemini CLI, Cursor, Copilot and hosts without a plugin system take the CLI and the two default
+skills from yschimke/skills:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/yschimke/skills/main/scripts/install.sh | bash
+```
+
+Then `compose-preview mcp install` registers the local server (see
+[below](#registering-the-local-mcp-server)). This repository's `.cursor-plugin/` marketplace
+also lists the plugins for Cursor, and its root `gemini-extension.json` gives Gemini CLI both MCP
+servers (servers only, no skills).
+
+### No shell or Java
+
+Claude chat and Cowork, ChatGPT, or a UI Builder user without a JDK: install the
+`compose-catalogs` plugin where the host takes plugins (its `compose-catalogs-setup` skill
+completes the access grant), or add the hosted MCP server `https://preview.coo.ee/mcp` as a
+custom connector. It needs nothing local.
 
 ## Updating
 
@@ -161,15 +181,13 @@ How each host is detected, and where its entry goes:
 
 The skills' `compose-preview` stub runs from wherever the host installed the skill bundle:
 
-- skills CLI (`npx skills add`): `~/.agents/skills/compose-preview/`
-- Claude Code plugin from the `yschimke-skills` marketplace:
-  `~/.claude/plugins/yschimke-skills/skills/compose-preview/`
+- skills CLI (`npx skills add`, `install.sh`): `~/.agents/skills/compose-preview/`
 - Claude Code and Codex plugins from this marketplace: under each host's plugin cache, for
-  example `~/.claude/plugins/cache/compose-agent-plugins/compose-skills/<version>/skills/`.
+  example `~/.claude/plugins/cache/compose-agent-plugins/compose-preview/<version>/skills/`.
 - [coo.ee/env](https://github.com/yschimke/coo-ee-env)'s `compose` and `skills` modules: a symlink
   in `~/.claude/skills/`, plus `~/.agents/skills/` when Codex or Gemini is on the box.
 
-Keep one route per host. A host that has both the `compose-skills` plugin and a
+Keep one route per host. A host that has both the `compose-preview` plugin and a
 `~/.claude/skills/compose-preview` link loads the skill twice.
 
 ## Cloud sandboxes
@@ -251,7 +269,7 @@ hosted catalog to recover either connection.
 
 ### Repairing a marketplace app registration
 
-The `compose-catalogs` plugin references a hosted app through
+The `compose-catalogs` plugin (the ChatGPT listing) references a hosted app through
 `src/plugins.json` (`apps.compose-preview-catalog.id`). The generated
 `plugins/compose-catalogs/.app.json` contains that app ID, not an OAuth client
 ID. The MCP endpoint is `https://preview.coo.ee/mcp`. The current replacement
@@ -292,10 +310,10 @@ is not proof that OAuth completed or a gated MCP call succeeded.
 
 ## Codex local design-to-code acceptance
 
-Install the default `compose-skills` bundle as well as this marketplace's
-`compose-preview` plugin. Codex loads its generated skill subset: harness
-notes and onboarding. The Antigravity viewer-card skill remains packaged for
-that host and is excluded from the Codex manifest's skill directory.
+Install this marketplace's `compose-preview` plugin. Codex loads its generated
+skill subset: `compose-preview`, `compose-ui-builder`, harness notes and
+onboarding. The Antigravity viewer-card skill remains packaged for that host
+and is excluded from the Codex manifest's skill directory.
 
 A real Codex acceptance run should open a checked-in `.uid` through the host's
 file entrypoint, select a node, send a comment, edit the canonical document,

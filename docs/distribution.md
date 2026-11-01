@@ -5,14 +5,23 @@ generates for each listing, and what still needs an account or a person. Every
 file named here is generated from [`src/plugins.json`](../src/plugins.json) by
 `python3 scripts/generate.py`; edit the source, never the output.
 
+The marketplace lists three plugins built here: `compose-preview` (the one
+plugin for coding agents: both MCP servers and the `compose-preview` and
+`compose-ui-builder` skills), `compose-catalogs` (the hosted server and
+`compose-ui-builder`, for hosts with no shell or Java, and the source of the
+registry entry and the ChatGPT app) and the optional, skills-only
+`compose-review`. The generic skills are vendored from yschimke/skills at the
+commit in `src/vendor/skills/provenance.json` (`scripts/update-skills.py`); the
+marketplace no longer lists any plugin from another repository.
+
 | Listing | Issue | Generated here | CI check | Still needs |
 | --- | --- | --- | --- | --- |
-| Claude plugin directory | [#53](https://github.com/yschimke/compose-agent-plugins/issues/53) | `plugins/*/.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `plugins/*/README.md`, `plugins/*/LICENSE` | `claude plugin validate --strict` on both plugins and the marketplace | Portal **Validate**, submission, tracked branch or tag ([#80](https://github.com/yschimke/compose-agent-plugins/issues/80)) |
+| Claude plugin directory | [#53](https://github.com/yschimke/compose-agent-plugins/issues/53) | `plugins/*/.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `plugins/*/README.md`, `plugins/*/LICENSE` | `claude plugin validate --strict` on every plugin and the marketplace | Portal **Validate**, submission, tracked branch or tag ([#80](https://github.com/yschimke/compose-agent-plugins/issues/80)) |
 | Official MCP Registry | [#55](https://github.com/yschimke/compose-agent-plugins/issues/55) | `server.json` | Upstream `server.schema.json` | Nothing: published, and republished for each server release (below) |
 | Cursor Marketplace | [#59](https://github.com/yschimke/compose-agent-plugins/issues/59) | `plugins/*/.cursor-plugin/plugin.json`, `.cursor-plugin/marketplace.json` | Cursor's `plugin.schema.json` and `marketplace.schema.json` | Smoke test ([#79](https://github.com/yschimke/compose-agent-plugins/issues/79)), submission ([#81](https://github.com/yschimke/compose-agent-plugins/issues/81)) |
 | Gemini CLI extensions gallery | [#58](https://github.com/yschimke/compose-agent-plugins/issues/58) | `gemini-extension.json` | `gemini extensions validate` | Smoke test with the local CLI ([#78](https://github.com/yschimke/compose-agent-plugins/issues/78)); the gallery crawls the `gemini-cli-extension` topic, which is set |
 | Claude Connectors Directory | [#54](https://github.com/yschimke/compose-agent-plugins/issues/54) | — | — | Tool titles and annotations and OAuth in compose-preview-server, then submission ([#83](https://github.com/yschimke/compose-agent-plugins/issues/83)) |
-| skills.sh | [#57](https://github.com/yschimke/compose-agent-plugins/issues/57) | — | — | The canonical skills live in yschimke/skills; indexing check ([#84](https://github.com/yschimke/compose-agent-plugins/issues/84)) |
+| skills.sh | [#57](https://github.com/yschimke/compose-agent-plugins/issues/57) | — | — | The canonical skills live in yschimke/skills, which `npx skills add` reads; indexing check ([#84](https://github.com/yschimke/compose-agent-plugins/issues/84)) |
 
 ## The Compose Preview token
 
@@ -42,7 +51,7 @@ a LICENSE in each plugin folder, `displayName`, a marketplace description, and
 the token (above). `scripts/validate_manifests.py` enforces the README length
 and the no-environment-credential rule.
 
-Expected reviewer holds that are not bugs. Both plugins live in subfolders of a
+Expected reviewer holds that are not bugs. The plugins live in subfolders of a
 marketplace repository, so the validator follows only plain shell scripts:
 
 - `compose-preview` starts `compose-preview mcp serve` from `PATH`, not a file
@@ -50,8 +59,9 @@ marketplace repository, so the validator follows only plain shell scripts:
   Gradle, so it can't be bundled.
 - The hook scripts source `scripts/lib/harness.sh` and use shell variables
   (**Scripts the validator couldn't follow**).
-- `compose-preview` only works where a local shell and JDK exist, so it is a
-  Claude Code plugin; chat and Cowork can't run it.
+- `compose-preview` only works fully where a local shell and JDK exist, so it is
+  a Claude Code plugin; chat and Cowork use `compose-catalogs`, which carries the
+  same hosted server without the local one.
 
 Each plugin README lists what the plugin runs and what it sends, for the
 security scan's undisclosed-destination check.
@@ -92,9 +102,10 @@ variable in headers, is unverified until a smoke test.
 
 Gemini CLI reads `gemini-extension.json` only from the root of a repository or
 release archive, so this repository ships one extension, `compose-preview`,
-that wraps the servers of both plugins: the local `compose-preview-mcp` and the
-hosted `compose-preview-catalog`. It carries no skills, hooks or agents; the
-repository root has none, and the canonical skills come from yschimke/skills.
+that wraps the servers of the `compose-preview` plugin: the local
+`compose-preview-mcp` and the hosted `compose-preview-catalog`, each listed
+once. It carries no skills, hooks or agents; the repository root has none, and
+Gemini CLI users take the skills from yschimke/skills' `install.sh`.
 Install with `gemini extensions install https://github.com/yschimke/compose-agent-plugins`.
 
 Checked on 2026-09-30 with Gemini CLI 0.62.0 on Linux, using the script in

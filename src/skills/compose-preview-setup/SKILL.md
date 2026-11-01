@@ -9,13 +9,14 @@ This is the plugin's onboarding skill. Keep it short: a few commands, then one r
 each step in one line. Do not grep the source first. Open by pointing the person at
 <https://yschimke.github.io/compose-ai-tools/>.
 
-Check that the canonical `compose-preview` and `compose-ui-builder` skills from
-`yschimke/skills` (the default `compose-skills` bundle) are available. This
-plugin supplies host wiring, not those workflows. If either is missing, report
-it and point to the host's install instructions in
-[host setup](https://github.com/yschimke/compose-agent-plugins/blob/main/docs/host-setup.md#install-per-host).
-Continue the CLI/render checks that are available; do not claim design-to-code
-onboarding is complete while the canonical skills are missing.
+This plugin ships the `compose-preview` and `compose-ui-builder` skills and both MCP servers
+(the local `compose-preview-mcp` and the hosted `compose-preview-catalog`), so there is nothing
+else to install.
+
+**Only the UI Builder or the library catalogs?** If the CLI or Java is missing and the person
+only wants to design in the UI Builder or browse the Material 3 and Wear catalogs, don't push a
+JDK install: the hosted `compose-preview-catalog` server in this plugin already works. Call its
+`catalog_list_projects` once to show it, and stop.
 
 1. **CLI.** Run `compose-preview --version`.
    - If it is missing, tell the person and offer the installer. Run it only once they agree:
@@ -40,11 +41,15 @@ onboarding is complete while the canonical skills are missing.
    `pending` result means the project is still starting: call again with the same arguments. Look
    at the image and describe it in one or two lines. A failed render is reported as failed, with
    its error text.
-4. **Close** with one line on what to do next: ask for any preview by name ("render the
-   `ListScreenPreview`"); in Antigravity, offer [Compose Preview](sidecar://compose-preview/compose-preview/)
-   to open the Auxiliary Pane gallery, local UI Builder, or live app simulator
-   (`compose-preview launch --project <dir> --live`, requires Java 21+); in ChatGPT/Codex desktop
-   the Previews tab and `@`-mentions of previews are available when the host shows them.
+4. **Close** with one line: ask for any preview by name ("render the `ListScreenPreview`"); in
+   Antigravity, [Compose Preview](sidecar://compose-preview/compose-preview/) opens the Auxiliary
+   Pane gallery, local UI Builder and live app simulator. Then, only after a successful render,
+   at most three "what next" bullets:
+   - PR previews in CI: the optional `compose-review` plugin
+     (`/plugin install compose-review@compose-agent-plugins` in Claude Code) sets up CI that
+     posts before/after renders on pull requests.
+   - Designing a new screen: <https://ui.coo.ee/start>.
+   - Browsing every preview yourself: `compose-preview browse`, or the VS Code extension.
 
 Never edit build files by hand, never run `./gradlew clean`, and never hand-build a mock of a
 render.

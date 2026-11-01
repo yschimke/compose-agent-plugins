@@ -1,5 +1,12 @@
 {
   "mcpServers": {
+    "compose-preview-catalog": {
+      "headers": {
+        "X-Compose-Preview-Token": "${user_config.compose_preview_token}"
+      },
+      "type": "http",
+      "url": "https://preview.coo.ee/mcp"
+    },
     "compose-preview-mcp": {
       "args": [
         "-c",

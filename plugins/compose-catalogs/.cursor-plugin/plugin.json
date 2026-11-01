@@ -3,7 +3,7 @@
     "name": "Yuri Schimke"
   },
   "category": "developer-tools",
-  "description": "Discover Compose components, inspect properties, and render catalog variants.",
+  "description": "Discover Compose components, inspect properties, and render catalog variants, with no local toolchain.",
   "displayName": "Compose Catalogs",
   "homepage": "https://github.com/yschimke/compose-agent-plugins/tree/main/plugins/compose-catalogs",
   "keywords": [

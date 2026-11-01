@@ -78,13 +78,18 @@ class OnboardingSkillTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "onboardingSkill must be a non-empty string"):
             manifest(onboarding_skill=" ")
 
-    def test_every_shipped_plugin_onboards_with_a_packaged_skill(self) -> None:
+    def test_every_plugin_with_a_server_onboards_with_a_packaged_skill(self) -> None:
         source = json.loads((ROOT / "src" / "plugins.json").read_text(encoding="utf-8"))
         for plugin in source["plugins"]:
             name = plugin["name"]
             codex = json.loads(
                 (ROOT / "plugins" / name / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
             )
+            if not plugin.get("mcp"):
+                # A skills-only plugin (compose-review) has nothing to set up after install.
+                self.assertNotIn("onboardingSkill", plugin, name)
+                self.assertNotIn("extensions", codex, name)
+                continue
             path = codex["extensions"]["com.openai"]["onboardingSkill"]
             self.assertTrue((ROOT / "plugins" / name / path).is_file(), f"{name}: {path}")
             for other in ("plugin.json", ".claude-plugin/plugin.json", ".cursor-plugin/plugin.json"):

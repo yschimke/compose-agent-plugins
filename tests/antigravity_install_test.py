@@ -67,33 +67,46 @@ def main() -> None:
         (tmp / "pkill").write_text("#!/bin/sh\nexit 1\n")
         (tmp / "pkill").chmod(0o755)
 
+        prefix = "install https://github.com/yschimke/compose-agent-plugins/tree/main/plugins/"
+
+        # Default: compose-preview alone; compose-catalogs and the old skill bundles go.
         result, after, calls = run(tmp)
         assert result.returncode == 0, result.stdout + result.stderr
-        assert sorted((e["name"], e["source"]) for e in after) == [
-            ("compose-catalogs", "antigravity"),
-            ("compose-preview", "antigravity"),
-            ("compose-skills", "antigravity"),
-        ], after
+        assert [(e["name"], e["source"]) for e in after] == [("compose-preview", "antigravity")], after
         assert all(e["importedAt"] == "now" for e in after), after
         assert calls.count("uninstall compose-preview") == 2, calls
         assert "uninstall yschimke-skills" in calls, calls
+        assert "uninstall compose-catalogs" in calls, calls
         assert calls[-1] == "enable compose-preview", calls
         installs = [c for c in calls if c.startswith("install ")]
-        assert installs == [
-            "install https://github.com/yschimke/skills/tree/main/plugins/compose-skills",
-            "install https://github.com/yschimke/compose-agent-plugins/tree/main/plugins/compose-preview",
-            "install https://github.com/yschimke/compose-agent-plugins/tree/main/plugins/compose-catalogs",
-        ], installs
+        assert installs == [prefix + "compose-preview"], installs
 
         result, after, calls = run(tmp, "--dry-run")
         assert result.returncode == 0, result.stdout + result.stderr
         assert after == BEFORE and calls == [], calls
         assert "$ agy plugin install https://github.com/yschimke/compose-agent-plugins/tree/main/plugins/compose-preview" in result.stdout
 
+        # --catalogs installs compose-catalogs instead of compose-preview, never both.
+        result, after, calls = run(tmp, "--catalogs")
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert [(e["name"], e["source"]) for e in after] == [("compose-catalogs", "antigravity")], after
+        assert calls.count("uninstall compose-preview") == 2, calls
+        assert [c for c in calls if c.startswith("install ")] == [prefix + "compose-catalogs"], calls
+        assert calls[-1] == "enable compose-catalogs", calls
+
+        # The retired compose-skills bundle goes; the optional compose-review plugin stays.
+        result, after, calls = run(tmp, before=[
+            {"name": "compose-skills", "source": "antigravity", "importedAt": "then"},
+            {"name": "compose-review", "source": "antigravity", "importedAt": "then"},
+        ])
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert sorted(e["name"] for e in after) == ["compose-preview", "compose-review"], after
+        assert "uninstall compose-skills" in calls and "uninstall compose-review" not in calls, calls
+
         # A clean machine: `agy plugin list` says "No imported plugins." instead of JSON.
         result, after, calls = run(tmp, "--catalogs", before=[])
         assert result.returncode == 0, result.stdout + result.stderr
-        assert sorted(e["name"] for e in after) == ["compose-catalogs", "compose-preview", "compose-skills"], after
+        assert [e["name"] for e in after] == ["compose-catalogs"], after
         assert not [c for c in calls if c.startswith("uninstall ")], calls
     print("antigravity install tests passed")
 

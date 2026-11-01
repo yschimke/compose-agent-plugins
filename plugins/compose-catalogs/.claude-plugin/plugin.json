@@ -2,7 +2,7 @@
   "author": {
     "name": "Yuri Schimke"
   },
-  "description": "Discover Compose components, inspect properties, and render catalog variants.",
+  "description": "Discover Compose components, inspect properties, and render catalog variants, with no local toolchain.",
   "displayName": "Compose Catalogs",
   "keywords": [
     "compose",

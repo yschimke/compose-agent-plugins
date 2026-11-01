@@ -1,0 +1,33 @@
+{
+  "author": {
+    "name": "Yuri Schimke"
+  },
+  "description": "Review Compose UI pull requests by rendering base and head, and set up CI that posts before/after previews.",
+  "interface": {
+    "capabilities": [
+      "Interactive"
+    ],
+    "category": "Developer Tools",
+    "defaultPrompt": [
+      "Review the Compose UI changes in this pull request.",
+      "Set up CI that posts before/after Compose previews on pull requests."
+    ],
+    "developerName": "Yuri Schimke",
+    "displayName": "Compose Review",
+    "longDescription": "Review Compose UI pull requests by rendering base and head and checking catalog design guidelines, and set up GitHub Actions CI that posts before/after previews on pull requests. Pairs with the compose-preview plugin.",
+    "shortDescription": "Review Compose UI pull requests and set up preview CI."
+  },
+  "keywords": [
+    "compose",
+    "preview",
+    "review",
+    "pull-request",
+    "ci",
+    "github-actions"
+  ],
+  "license": "Apache-2.0",
+  "name": "compose-review",
+  "repository": "https://github.com/yschimke/compose-agent-plugins",
+  "skills": "./skills/",
+  "version": "0.11.0"
+}

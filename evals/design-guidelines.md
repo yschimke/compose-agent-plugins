@@ -1,7 +1,7 @@
 # Catalog guidelines review evals
 
-Run with the updated canonical default `compose-skills` bundle and relevant
-wiring plugins. Use the
+Run with the `compose-preview` plugin, which carries the canonical skills (or
+`compose-catalogs` for the catalog-only case). Use the
 [canonical checklist](https://github.com/yschimke/skills/blob/main/skills/compose-preview/references/design-guidelines.md).
 Run each case in Claude Code, Antigravity, Codex and OpenCode. Also run with
 no packaged reviewer, no MCP Apps/elicitation and only the catalog connection.
@@ -26,7 +26,7 @@ passes. Record the tool sequence and evidence, not just the final verdict.
 | G9 | Hosted catalog with `guidelines/result`, pending subjects, then an override render | Discovers/reads published data without requiring Gradle. Preserves original model/version/render identity and pending/unchecked status. Does not attach snapshot verdicts to overridden pixels or claim an unverified fresh result. |
 | G10 | No OpenRouter key; then no dedicated guidelines tools | Uses keyless agent judgment first; when absent, inspects available rules/source/measurements/real renders manually. No credential request or provider spend. Missing rules are unavailable, not passed. |
 | G11 | Requested CLI provider run with configured key, small cost cap | Bounded `compose-preview guidelines` run with explicit surface/rules. Reads its report, overlays and pending/unchecked coverage. Does not send a key as an argument or manually rewrite cached results. |
-| G12 | Ask for G1/G2 with reviewer discovery disabled; repeat with only `compose-catalogs` installed plus default skills | Same checklist runs in the current context. No failed-agent dead end, duplicate reviewer installation, mandatory optional review bundle, or false viewer/delegation claim. Uses the harness's advertised tool names. |
+| G12 | Ask for G1/G2 with reviewer discovery disabled; repeat with only `compose-catalogs` installed | Same checklist runs in the current context. No failed-agent dead end, duplicate reviewer installation, mandatory optional `compose-review` plugin, or false viewer/delegation claim. Uses the harness's advertised tool names. |
 | G13 | Glance Wear widget in an app module with no `ui-builder.guidelines.json` (wear-os-samples `WearWidget`, `WeatherWidgetRoundPreview`), current server | Asked as surface `widget`, profile `wear-widgets`, from the manifest, against the default remote-compose + wear-widgets packs, and says so from the result's note; not the Wear Compose screen rules. The excerpt shows the mock widget's `WearWidgetDocument(background = …)` and its `@RemoteComposable` content. On an older server that asks for `guidelines`, passes remote-m3-catalog's `remote-catalog` file. A batch mixing the widget with a screen is split, not asked one rule set. |
 
 For H8 in [rich harness integration](rich-harness-integration.md), add G1–G8

@@ -1,0 +1,81 @@
+name: Sync skills
+
+# src/vendor/skills/ holds the generic skills the plugins ship (compose-preview, compose-ui-builder,
+# compose-preview-review, compose-preview-ci), copied from yschimke/skills at one commit with their
+# provenance. Once a day, or on demand for any ref, run `scripts/update-skills.py` and open (or
+# refresh) one pull request when the copy changed. A copy is the files plus their provenance and
+# the regenerated plugins, which is why this is a workflow rather than a Renovate rule.
+
+on:
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "yschimke/skills branch, tag or commit to vendor"
+        required: false
+        default: main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-skills
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BRANCH: agent/sync-skills
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Copy the skills from yschimke/skills
+        id: sync
+        env:
+          REQUESTED: ${{ inputs.ref }}
+        run: |
+          set -euo pipefail
+          ref="${REQUESTED:-main}"
+          python3 scripts/update-skills.py "$ref"
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "already at $ref"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          commit="$(python3 -c 'import json; print(json.load(open("src/vendor/skills/provenance.json"))["commit"])')"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+      - name: Open or refresh the pull request
+        if: ${{ steps.sync.outputs.changed == 'true' }}
+        env:
+          REF: ${{ steps.sync.outputs.ref }}
+          COMMIT: ${{ steps.sync.outputs.commit }}
+        run: |
+          set -euo pipefail
+          title="fix: vendor yschimke/skills at ${COMMIT:0:12}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$BRANCH"
+          git add -A
+          git commit -m "$title"
+          git push --force origin "$BRANCH"
+          body="Copied by \`scripts/update-skills.py ${REF}\` from [yschimke/skills@${COMMIT:0:12}](https://github.com/yschimke/skills/commit/${COMMIT}), with its provenance and the regenerated plugins. Review the change in yschimke/skills, not here: vendored skills are never edited in this repository."
+          if [ -z "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[].number')" ]; then
+            gh pr create --head "$BRANCH" --title "$title" --body "$body"
+          else
+            gh pr edit "$BRANCH" --title "$title" --body "$body"
+          fi
+          # A push made with GITHUB_TOKEN raises no `pull_request` event, so ask for validation by
+          # name; its checks land on the pushed commit.
+          gh workflow run plugins.yml --ref "$BRANCH"
+          number="$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number')"
+          # Nor does it start the checks the ruleset requires, so dispatch those with the PR's number.
+          gh workflow run pr-title.yml --ref "$BRANCH" -f pr="$number"
+          gh workflow run no-agent-attribution.yml --ref "$BRANCH" -f pr="$number"

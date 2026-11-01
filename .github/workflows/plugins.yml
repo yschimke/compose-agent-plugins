@@ -63,8 +63,7 @@ jobs:
           CODEX_HOME="$plugin_home" codex plugin marketplace add ./
           CODEX_HOME="$plugin_home" codex plugin add compose-catalogs@compose-agent-plugins
           CODEX_HOME="$plugin_home" codex plugin add compose-preview@compose-agent-plugins
-          # Cross-repository entry: the canonical skills bundle from yschimke/skills.
-          CODEX_HOME="$plugin_home" codex plugin add compose-skills@compose-agent-plugins
+          CODEX_HOME="$plugin_home" codex plugin add compose-review@compose-agent-plugins
           CODEX_HOME="$plugin_home" codex plugin list
       - name: Validate with Antigravity when available
         run: |

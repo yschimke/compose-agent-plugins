@@ -27,20 +27,20 @@ from generate import (
     RULES_TARGET,
     SIDECAR_LAUNCHER_NAME,
     SIDECAR_SOURCE_ROOT,
-    SKILL_SOURCE_ROOT,
+    SKILL_IGNORED_PARTS,
     render_antigravity_hooks,
     render_antigravity_manifest,
     render_claude_manifest,
     render_codex_manifest,
     codex_skill_config,
     render_cursor_manifest,
-    render_external_marketplace_entries,
     render_gemini_extension,
     render_hooks,
     render_mcp_servers,
     render_opencode_bundle,
     render_portable_agent,
     render_registry_server,
+    skill_files,
     validate_apps,
 )
 
@@ -439,6 +439,27 @@ def validate_agent_tools(path: Path, plugins: list[dict[str, object]]) -> None:
             raise ValueError(f"{path}: {tool} is not a tool of the local compose-preview server")
 
 
+def validate_skill_copy(target: Path, skill: str) -> None:
+    """A generated skill directory must be its source directory, file for file and mode for mode."""
+    expected = skill_files(skill)
+    actual = {
+        path.relative_to(target).as_posix(): path
+        for path in target.rglob("*")
+        if path.is_file() and not SKILL_IGNORED_PARTS.intersection(path.relative_to(target).parts)
+    }
+    if set(actual) != set(expected):
+        raise ValueError(
+            f"{target}: files differ from the {skill} source: "
+            f"unexpected {sorted(set(actual) - set(expected))}, missing {sorted(set(expected) - set(actual))}"
+        )
+    for relative, source in expected.items():
+        copy = actual[relative]
+        if copy.read_bytes() != source.read_bytes():
+            raise ValueError(f"{copy}: generated copy differs from {source.relative_to(ROOT)}")
+        if bool(copy.stat().st_mode & 0o111) != bool(source.stat().st_mode & 0o111):
+            raise ValueError(f"{copy}: executable bit differs from {source.relative_to(ROOT)}")
+
+
 def readme_words(path: Path) -> int:
     """Count README words outside fenced code blocks, as the plugin directory does."""
     words = 0
@@ -552,8 +573,7 @@ def main() -> None:
         if expected_codex_files != actual_codex_files:
             raise ValueError(f"{name}: Codex skills do not match the selected set")
         for path in expected_codex_files:
-            if path.read_text() != (SKILL_SOURCE_ROOT / path.parent.name / "SKILL.md").read_text():
-                raise ValueError(f"{path}: stale Codex skill copy")
+            validate_skill_copy(path.parent, path.parent.name)
         if codex != expected_codex:
             raise ValueError(f"{root}/.codex-plugin/plugin.json does not match the Codex contract")
         apps = validate_apps(name, plugin.get("apps", {}), plugin.get("mcp", []))
@@ -589,13 +609,7 @@ def main() -> None:
             validate_agent_tools(claude_copy, plugins)
         for skill_path in expected_skills:
             validate_skill(skill_path)
-            shared_source = SKILL_SOURCE_ROOT / skill_path.parent.name / "SKILL.md"
-            if not shared_source.is_file():
-                raise ValueError(
-                    f"{skill_path}: missing shared source {shared_source.relative_to(ROOT)}"
-                )
-            if skill_path.read_bytes() != shared_source.read_bytes():
-                raise ValueError(f"{skill_path}: generated copy differs from shared source")
+            validate_skill_copy(skill_path.parent, skill_path.parent.name)
         assets = plugin.get("assets", [])
         if not isinstance(assets, list) or not all(isinstance(asset, str) for asset in assets):
             raise ValueError(f"{name}.assets must be a list of strings")
@@ -678,8 +692,7 @@ def main() -> None:
         "metadata": {"description": source["description"]},
         "name": MARKETPLACE_NAME,
         "owner": {"name": source["owner"]},
-        "plugins": expected_marketplace
-        + render_external_marketplace_entries(source, {plugin["name"] for plugin in plugins}),
+        "plugins": expected_marketplace,
     }:
         raise ValueError(".claude-plugin/marketplace.json does not match the marketplace contract")
     cursor_marketplace = read_json(ROOT / ".cursor-plugin" / "marketplace.json")

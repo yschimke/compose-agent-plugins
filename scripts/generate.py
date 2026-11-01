@@ -11,6 +11,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "src" / "plugins.json"
 SKILL_SOURCE_ROOT = ROOT / "src" / "skills"
+# Skills copied from yschimke/skills by scripts/update-skills.py; never edited here.
+VENDOR_SKILL_ROOT = ROOT / "src" / "vendor" / "skills"
+VENDOR_PROVENANCE = VENDOR_SKILL_ROOT / "provenance.json"
+SKILL_ROOTS = (SKILL_SOURCE_ROOT, VENDOR_SKILL_ROOT)
+SKILL_IGNORED_PARTS = {"__pycache__", ".DS_Store"}
 AGENT_SOURCE_ROOT = ROOT / "src" / "agents"
 AGENT_LEDGER_NAME = ".generated-agents.json"
 # agents/ is what Antigravity (and Cursor) scan, and Antigravity fails to start an agent whose
@@ -232,23 +237,58 @@ def write_codex_skills(plugin_root: Path, plugin: dict[str, object]) -> None:
         return
     selected, _ = codex_skill_config(plugin)
     for skill in selected:
-        source = SKILL_SOURCE_ROOT / skill / "SKILL.md"
-        if not source.is_file():
-            raise ValueError(f"missing shared skill source: {source}")
-        output = target / skill / "SKILL.md"
-        output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+        write_skill_directory(target / skill, skill)
 
 
-def write_skill(plugin_root: Path, skill: str) -> None:
+def skill_source(skill: str) -> Path:
+    """A skill's source directory: src/skills/<name>, else the vendored src/vendor/skills/<name>."""
     if not SKILL_NAME.fullmatch(skill):
         raise ValueError(f"invalid skill name: {skill}")
-    source = SKILL_SOURCE_ROOT / skill / "SKILL.md"
-    if not source.is_file():
-        raise ValueError(f"missing shared skill source: {source.relative_to(ROOT)}")
-    target = plugin_root / "skills" / skill / "SKILL.md"
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+    found = [root / skill for root in SKILL_ROOTS if (root / skill).is_dir()]
+    if len(found) > 1:
+        raise ValueError(
+            f"skill {skill} is in both src/skills/ and src/vendor/skills/; a vendored skill is "
+            "never forked here"
+        )
+    if not found or not (found[0] / "SKILL.md").is_file():
+        raise ValueError(
+            f"missing shared skill source: src/skills/{skill}/SKILL.md or "
+            f"src/vendor/skills/{skill}/SKILL.md"
+        )
+    return found[0]
+
+
+def skill_files(skill: str) -> dict[str, Path]:
+    """Every file of a skill (SKILL.md, references/, scripts/, ...), keyed by relative path."""
+    root = skill_source(skill)
+    return {
+        path.relative_to(root).as_posix(): path
+        for path in sorted(root.rglob("*"))
+        if path.is_file() and not SKILL_IGNORED_PARTS.intersection(path.relative_to(root).parts)
+    }
+
+
+def is_executable(path: Path) -> bool:
+    return bool(path.stat().st_mode & 0o111)
+
+
+def write_skill_directory(target: Path, skill: str) -> None:
+    """Copy a whole skill directory, keeping the executable bit of its scripts."""
+    for relative, source in skill_files(skill).items():
+        output = target / relative
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_bytes(source.read_bytes())
+        output.chmod(0o755 if is_executable(source) else 0o644)
+
+
+def write_skills(plugin_root: Path, skills: list[str]) -> None:
+    # skills/ is wholly generated, so a removed skill or file must not linger.
+    import shutil
+    target = plugin_root / "skills"
+    if target.exists():
+        shutil.rmtree(target)
+    for skill in skills:
+        write_skill_directory(target / skill, skill)
 
 
 def write_agent(plugin_root: Path, agent: str) -> None:
@@ -384,7 +424,8 @@ def render_opencode_bundle(
     for skill in bundle.get("skills", []):
         if not SKILL_NAME.fullmatch(skill):
             raise ValueError(f"invalid skill name: {skill}")
-        files[f"skills/{skill}/SKILL.md"] = (SKILL_SOURCE_ROOT / skill / "SKILL.md").read_bytes()
+        for relative, path in skill_files(skill).items():
+            files[f"skills/{skill}/{relative}"] = path.read_bytes()
     for plugin in bundle.get("plugins", []):
         if not SKILL_NAME.fullmatch(plugin):
             raise ValueError(f"invalid OpenCode plugin name: {plugin}")
@@ -492,6 +533,7 @@ def write_readme(plugin_root: Path, name: str) -> None:
     source = README_SOURCE_ROOT / f"{name}.md"
     if not source.is_file():
         raise ValueError(f"missing plugin README source: {source.relative_to(ROOT)}")
+    plugin_root.mkdir(parents=True, exist_ok=True)
     (plugin_root / "README.md").write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
     (plugin_root / "LICENSE").write_text(LICENSE_SOURCE.read_text(encoding="utf-8"), encoding="utf-8")
 
@@ -1054,44 +1096,6 @@ def render_registry_server(source: dict[str, object], plugins: list[dict[str, ob
     }
 
 
-def render_external_marketplace_entries(source: dict, local_names: set[str]) -> list[dict]:
-    """Marketplace entries for plugins that live in another repository.
-
-    Claude Code and Codex both install a `git-subdir` source, so one marketplace can list the
-    canonical skill bundles from yschimke/skills next to the wiring plugins built here. Cursor's
-    marketplace is left to local plugins until a smoke test covers that source type.
-    """
-    external = source.get("externalPlugins", [])
-    if not isinstance(external, list):
-        raise ValueError("externalPlugins must be a list")
-    entries = []
-    for plugin in external:
-        if not isinstance(plugin, dict):
-            raise ValueError("each external plugin must be an object")
-        name = require_string(plugin.get("name"), "externalPlugins.name")
-        if name in local_names:
-            raise ValueError(f"duplicate plugin name: {name}")
-        local_names.add(name)
-        url = require_string(plugin.get("url"), f"{name}.url")
-        if not url.startswith("https://github.com/") or not url.endswith(".git"):
-            raise ValueError(f"{name}.url must be an https://github.com/... .git URL")
-        path = require_string(plugin.get("path"), f"{name}.path")
-        if path.startswith("/") or ".." in path.split("/"):
-            raise ValueError(f"{name}.path must be a relative path inside the repository")
-        entry_source = {"source": "git-subdir", "url": url, "path": path}
-        ref = plugin.get("ref")
-        if ref is not None:
-            entry_source["ref"] = require_string(ref, f"{name}.ref")
-        entries.append(
-            {
-                "description": require_string(plugin.get("description"), f"{name}.description"),
-                "name": name,
-                "source": entry_source,
-            }
-        )
-    return entries
-
-
 def main() -> None:
     source = json.loads(SOURCE.read_text(encoding="utf-8"))
     repository = require_string(source.get("repository"), "repository")
@@ -1141,8 +1145,7 @@ def main() -> None:
 
         root = ROOT / "plugins" / name
         write_readme(root, name)
-        for skill in skills:
-            write_skill(root, skill)
+        write_skills(root, skills)
         codex_skills, codex_skills_path = codex_skill_config(plugin)
         write_codex_skills(root, plugin)
         write_rules(root, name, plugin.get("rules"))
@@ -1246,7 +1249,7 @@ def main() -> None:
             "metadata": {"description": marketplace_description},
             "name": MARKETPLACE_NAME,
             "owner": {"name": owner},
-            "plugins": marketplace_plugins + render_external_marketplace_entries(source, names),
+            "plugins": marketplace_plugins,
         },
     )
     write_json(

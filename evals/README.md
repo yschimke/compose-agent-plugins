@@ -1,12 +1,12 @@
 # Skill and wiring evals
 
 These prompts test the canonical skills from
-[`yschimke/skills`](https://github.com/yschimke/skills) together with this
-repository's MCP wiring. They do not describe skills shipped by this
-repository.
+[`yschimke/skills`](https://github.com/yschimke/skills), as vendored into this
+repository's plugins, together with its MCP wiring. They do not describe skills
+written in this repository.
 
-For each run, record the harness and version, canonical-skills commit, plugin
-commit, result, tool sequence, image count, and any follow-up issue. Do not mark
+For each run, record the harness and version, canonical-skills commit (the
+`commit` in `src/vendor/skills/provenance.json`), plugin commit, result, tool sequence, image count, and any follow-up issue. Do not mark
 an eval as passed from static inspection alone.
 
 - [`agent-rules.md`](agent-rules.md) covers R1–R4, with at least one eval per

@@ -57,9 +57,11 @@ The genuinely shared surface is small: the wire shapes, the MCP tools, and the s
 
 ## Order
 
-1. **One marketplace.** This repository's marketplace lists the skill bundles from yschimke/skills
-   as `git-subdir` entries ([harness matrix Q22](harness-matrix.md)). Done here; the content is
-   not moved yet.
+1. **One marketplace.** Done: yschimke/skills is no longer a plugin marketplace, and this
+   repository vendors its skills into its own plugins at a pinned commit
+   (`scripts/update-skills.py`), one install per host ([adoption](adoption.md)). The earlier
+   step, `git-subdir` entries for yschimke/skills' bundles
+   ([harness matrix Q22](harness-matrix.md)), is retired.
 2. **Draw the line between the two agent repositories.** yschimke/skills stays separate as the
    generic skills, with no host names, install paths, hooks or MCP client config. Harness-specific
    reference material has moved here, and this repository is now named `compose-agent-plugins`. See
@@ -90,7 +92,8 @@ These moved here on 2026-10-05 into [`host-setup.md`](host-setup.md), each leavi
 behind in yschimke/skills: the per-host parts of `agent-cloud.md`, `mcp.md` and `setup.md`, and the
 `claude.yml` specifics of `ci-agent-sessions.md`. `claude-cloud.md`, a stub, was deleted.
 
-The skill bundles under yschimke/skills' `plugins/` stay where they are. This repository's
-marketplace and Antigravity's install-by-URL both point at them, so they are distribution output,
-not harness wiring. yschimke/skills' own marketplace remains for existing installs; new installs
-use this repository's.
+yschimke/skills keeps the canonical `skills/` directory, which `npx skills add` and its
+`install.sh` read; it no longer ships plugin bundles or a marketplace. This repository copies the
+skills its plugins carry into `src/vendor/skills/` at the commit recorded in
+`src/vendor/skills/provenance.json`, never edits them, and the `Sync skills` workflow moves the
+pin. The design-export and design-parity skills were removed from yschimke/skills.

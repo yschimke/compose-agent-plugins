@@ -50,6 +50,10 @@ for relative, key, expected in (
     ("plugins/compose-catalogs/mcp_config.json", "mcpServers", "${COMPOSE_PREVIEW_TOKEN:-}"),
     ("plugins/compose-catalogs/.cursor-plugin/plugin.json", "mcpServers", "${COMPOSE_PREVIEW_TOKEN}"),
     ("gemini-extension.json", "mcpServers", "${COMPOSE_PREVIEW_TOKEN}"),
+    # compose-preview carries the same hosted server, so a coding agent needs no second plugin.
+    ("plugins/compose-preview/.mcp.json", "mcpServers", "${user_config.compose_preview_token}"),
+    ("plugins/compose-preview/mcp_config.json", "mcpServers", "${COMPOSE_PREVIEW_TOKEN:-}"),
+    ("plugins/compose-preview/.cursor-plugin/plugin.json", "mcpServers", "${COMPOSE_PREVIEW_TOKEN}"),
 ):
     data = json.loads((root / relative).read_text(encoding="utf-8"))
     actual = data[key]["compose-preview-catalog"]["headers"]["X-Compose-Preview-Token"]
@@ -61,6 +65,20 @@ if claude["userConfig"]["compose_preview_token"].get("sensitive") is not True:
 gemini = json.loads((root / "gemini-extension.json").read_text(encoding="utf-8"))
 if [setting["envVar"] for setting in gemini["settings"]] != ["COMPOSE_PREVIEW_TOKEN"]:
     raise SystemExit(f"Gemini must declare the token variable: {gemini!r}")
+if sorted(gemini["mcpServers"]) != ["compose-preview-catalog", "compose-preview-mcp"]:
+    raise SystemExit(f"Gemini must list each server once: {gemini!r}")
+# compose-review is skills only: no MCP, hooks or agents in any harness.
+review = root / "plugins/compose-review"
+for relative in (".mcp.json", "mcp_config.json", "hooks", "hooks.json", "agents", "scripts", ".app.json"):
+    if (review / relative).exists():
+        raise SystemExit(f"compose-review must be skills only, found {relative}")
+for relative in (".claude-plugin/plugin.json", ".codex-plugin/plugin.json", ".cursor-plugin/plugin.json", "plugin.json"):
+    manifest = json.loads((review / relative).read_text(encoding="utf-8"))
+    if "mcpServers" in manifest or "hooks" in manifest:
+        raise SystemExit(f"compose-review/{relative} must declare no servers or hooks: {manifest!r}")
+for skill in ("compose-preview-review", "compose-preview-ci"):
+    if not (review / "skills" / skill / "SKILL.md").is_file():
+        raise SystemExit(f"compose-review is missing {skill}")
 ' "$fixture"
 
 cp "$fixture/src/plugins.json" "$fixture/src/plugins.json.valid-claude-headers"

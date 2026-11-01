@@ -1,6 +1,13 @@
 {
   // Release-please controls the changelog's formatting, including double blank lines.
-  "ignores": ["CHANGELOG.md"],
+  // Vendored skills are linted in yschimke/skills, and plugins/*/skills are generated copies of
+  // src/skills (linted here) and src/vendor/skills.
+  "ignores": [
+    "CHANGELOG.md",
+    "src/vendor/**",
+    "plugins/*/skills/**",
+    "plugins/*/.codex-plugin/skills/**"
+  ],
   "config": {
     // Skills use long frontmatter descriptions and tool-reference tables.
     "MD013": false,

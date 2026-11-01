@@ -5,7 +5,7 @@
   "author": {
     "name": "Yuri Schimke"
   },
-  "description": "Iterate on local Compose previews with live rendering and accessibility checks.",
+  "description": "Render and review your Compose previews locally, and browse the hosted Material 3 and Wear catalogs and UI Builder.",
   "displayName": "Compose Preview",
   "keywords": [
     "compose",
@@ -18,5 +18,13 @@
   "license": "Apache-2.0",
   "name": "compose-preview",
   "repository": "https://github.com/yschimke/compose-agent-plugins",
+  "userConfig": {
+    "compose_preview_token": {
+      "description": "Optional access token for the hosted preview.coo.ee service. Leave it blank to use the service's interactive access grant.",
+      "sensitive": true,
+      "title": "Compose Preview token",
+      "type": "string"
+    }
+  },
   "version": "0.11.0"
 }

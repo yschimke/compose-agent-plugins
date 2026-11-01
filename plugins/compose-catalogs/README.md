@@ -3,7 +3,10 @@
 Discover Jetpack Compose components, inspect their properties, and render
 catalog variants. The plugin connects your agent to the hosted Compose Preview
 MCP service, which serves the Material 3 and Wear OS component catalogs and the
-UI Builder design tools. It needs no local toolchain.
+UI Builder design tools. It needs no local toolchain: use it on hosts with no
+shell or Java (Claude chat and Cowork, ChatGPT, a UI Builder user without a
+JDK). On a coding agent, install `compose-preview` instead; it carries the same
+hosted server, so don't install both.
 
 Start at <https://ui.coo.ee/start>. This folder is generated from
 [`yschimke/compose-agent-plugins`](https://github.com/yschimke/compose-agent-plugins);
@@ -19,17 +22,19 @@ install steps for each harness are in its
 - The registered Compose Preview app for Codex and ChatGPT. Its in-chat viewer
   shows preview-server renders and review controls; the full UI Builder remains
   the separate editor linked from that viewer.
+- The `compose-ui-builder` skill, copied unchanged from
+  [`yschimke/skills`](https://github.com/yschimke/skills), and the
+  `compose-catalogs-setup` onboarding skill.
 - The `harness-notes` skill, which summarizes the
   [agent rules](https://github.com/yschimke/compose-agent-plugins/blob/main/docs/agent-rules.md)
   for the active harness.
-- No agents. The `design-reviewer` agent ships in `compose-preview`
-  and uses this plugin's tools when both are installed.
+- No agents. The `design-reviewer` agent ships in `compose-preview`.
 
 It has no hooks and runs no local programs.
 
-For requested guidelines reviews, install the default canonical `compose-skills`
-bundle from `yschimke/skills`. Its checklist works with this plugin alone, in
-the current context when no reviewer agent is available. Read published
+For requested guidelines reviews, the `compose-ui-builder` skill's checklist
+works with this plugin alone, in the current context when no reviewer agent is
+available. Read published
 `guidelines/result` products or judge an advertised keyless UI Builder prompt;
 record requested review metadata at the design's home where permitted.
 See [review setup and fallbacks](https://github.com/yschimke/compose-agent-plugins/blob/main/docs/design-guidelines-review.md).

@@ -2,7 +2,7 @@
   "author": {
     "name": "Yuri Schimke"
   },
-  "description": "Iterate on local Compose previews with live rendering and accessibility checks.",
+  "description": "Render and review your Compose previews locally, and browse the hosted Material 3 and Wear catalogs and UI Builder.",
   "extensions": {
     "com.openai": {
       "onboardingSkill": "./.codex-plugin/skills/compose-preview-setup/SKILL.md"
@@ -19,7 +19,7 @@
     ],
     "developerName": "Yuri Schimke",
     "displayName": "Compose Preview",
-    "longDescription": "Iterate on local Compose previews with live rendering, accessibility checks, catalog design guidelines, and shared review evidence.",
+    "longDescription": "Iterate on local Compose previews with live rendering, accessibility checks, catalog design guidelines and shared review evidence, with the hosted component catalogs and UI Builder alongside.",
     "shortDescription": "Render and review Compose previews."
   },
   "keywords": [
@@ -32,6 +32,13 @@
   ],
   "license": "Apache-2.0",
   "mcpServers": {
+    "compose-preview-catalog": {
+      "env_http_headers": {
+        "X-Compose-Preview-Token": "COMPOSE_PREVIEW_TOKEN"
+      },
+      "type": "http",
+      "url": "https://preview.coo.ee/mcp"
+    },
     "compose-preview-mcp": {
       "args": [
         "mcp",

@@ -4,7 +4,7 @@
     "name": "Yuri Schimke"
   },
   "category": "developer-tools",
-  "description": "Iterate on local Compose previews with live rendering and accessibility checks.",
+  "description": "Render and review your Compose previews locally, and browse the hosted Material 3 and Wear catalogs and UI Builder.",
   "displayName": "Compose Preview",
   "homepage": "https://github.com/yschimke/compose-agent-plugins/tree/main/plugins/compose-preview",
   "hooks": {
@@ -21,6 +21,13 @@
   ],
   "license": "Apache-2.0",
   "mcpServers": {
+    "compose-preview-catalog": {
+      "headers": {
+        "X-Compose-Preview-Token": "${COMPOSE_PREVIEW_TOKEN}"
+      },
+      "type": "http",
+      "url": "https://preview.coo.ee/mcp"
+    },
     "compose-preview-mcp": {
       "args": [
         "mcp",
@@ -32,5 +39,16 @@
   "name": "compose-preview",
   "repository": "https://github.com/yschimke/compose-agent-plugins",
   "skills": "./skills/",
+  "variables": {
+    "properties": {
+      "COMPOSE_PREVIEW_TOKEN": {
+        "description": "Optional access token for the hosted preview.coo.ee service. Leave it blank to use the service's interactive access grant.",
+        "title": "Compose Preview token",
+        "type": "string"
+      }
+    },
+    "required": [],
+    "type": "object"
+  },
   "version": "0.11.0"
 }

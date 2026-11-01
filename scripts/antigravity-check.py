@@ -22,7 +22,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 HOME = Path.home()
 INSTALLED = HOME / ".gemini" / "config" / "plugins"
-PLUGINS = ("compose-catalogs", "compose-preview")
+# compose-preview is the default; compose-catalogs replaces it on a machine without Java.
+ALTERNATIVES = ("compose-preview", "compose-catalogs")
+OPTIONAL = ("compose-review",)
+PLUGINS = (*ALTERNATIVES, *OPTIONAL)
+# Old skill bundles whose skills the plugins now carry: a second copy of every skill.
+RETIRED = ("compose-skills", "yschimke-skills")
 REPO_URL = "https://github.com/yschimke/compose-agent-plugins/tree/main/plugins"
 results = []
 
@@ -60,16 +65,29 @@ def differing_files(left: Path, right: Path) -> list[str]:
 
 
 def check_plugins() -> None:
+    present = [name for name in ALTERNATIVES if (INSTALLED / name).is_dir()]
+    if not present:
+        report("FIX", f"compose-preview: not installed (agy plugin install {REPO_URL}/compose-preview)")
+    elif len(present) > 1:
+        report("FIX", "compose-preview and compose-catalogs are both installed; compose-preview already "
+                      "carries the hosted server: agy plugin uninstall compose-catalogs")
+    for name in RETIRED:
+        if (INSTALLED / name).is_dir():
+            report("FIX", f"{name}: a retired skill bundle that duplicates the plugin's skills; "
+                          f"agy plugin uninstall {name}")
     for name in PLUGINS:
         installed = INSTALLED / name
         if not installed.is_dir():
-            report("FIX", f"{name}: not installed (agy plugin install {REPO_URL}/{name})")
+            if name in OPTIONAL:
+                report("info", f"{name}: not installed (optional: agy plugin install {REPO_URL}/{name})")
             continue
         stale = differing_files(ROOT / "plugins" / name, installed)
         if stale:
             report("FIX", f"{name}: differs from this checkout ({', '.join(stale[:3])}…); reinstall with agy plugin install {REPO_URL}/{name}")
         else:
             report("ok", f"{name}: installed copy matches this checkout")
+    if "compose-preview" not in present:
+        return
     helper = INSTALLED / "compose-preview" / "assets" / "compose-preview-card.py"
     report("ok" if helper.is_file() else "FIX", f"card helper: {helper}")
     sidecar = INSTALLED / "compose-preview" / "sidecars" / "compose-preview" / "sidecar.json"
@@ -83,6 +101,9 @@ def check_plugins() -> None:
         report("ok", f"hooks.json (SessionStart + Stop gate): {hooks} (Stop gate runs with COMPOSE_PREVIEW_GATE=1)")
     else:
         report("FIX", f"hooks.json missing: reinstall with agy plugin install {REPO_URL}/compose-preview")
+
+
+def check_validate() -> None:
     if shutil.which("agy"):
         for name in PLUGINS:
             raw = run(["agy", "plugin", "validate", "--json", str(ROOT / "plugins" / name)])
@@ -240,6 +261,7 @@ def main() -> None:
     print(f"Antigravity check (#39), checkout {ROOT}")
     check_agy()
     check_plugins()
+    check_validate()
     check_imports()
     check_helper()
     check_cli()

@@ -1,17 +1,23 @@
 #!/usr/bin/env python3
-"""Install or update the Compose plugins in Antigravity from GitHub (#39).
+"""Install or update the Compose plugin in Antigravity from GitHub (#39).
 
 Run from anywhere; no checkout needed:
-  python3 scripts/antigravity-install.py              # compose-skills + compose-preview
-  python3 scripts/antigravity-install.py --catalogs   # also compose-catalogs
+  python3 scripts/antigravity-install.py              # compose-preview
+  python3 scripts/antigravity-install.py --catalogs   # compose-catalogs instead (no Java)
   python3 scripts/antigravity-install.py --dry-run    # print the agy commands only
+
+compose-preview carries the local and hosted MCP servers and the compose-preview
+and compose-ui-builder skills. compose-catalogs carries only the hosted server and
+compose-ui-builder, for a machine without Java; it replaces compose-preview, and the
+default replaces it, so the two never coexist. The old skill bundles
+(yschimke-skills, compose-skills) are removed too. The optional compose-review
+plugin is left as it is.
 
 Antigravity copies a plugin at install time, an install over an existing one
 kept its old record, and the bare repository URL adds a second, MCP-only
 compose-preview. So each plugin is uninstalled until `agy plugin list` no
-longer shows it, then installed from its /tree/main/plugins/<name> URL.
-compose-catalogs is kept when it was already installed. Then stale
-`compose-preview mcp serve` processes are stopped; restart Antigravity after.
+longer shows it, then installed from its /tree/main/plugins/<name> URL. Then
+stale `compose-preview mcp serve` processes are stopped; restart Antigravity after.
 """
 
 import json
@@ -19,16 +25,11 @@ import shutil
 import subprocess
 import sys
 
-SKILLS = "https://github.com/yschimke/skills/tree/main/plugins"
 PLUGINS = "https://github.com/yschimke/compose-agent-plugins/tree/main/plugins"
-# name -> install URL, in install order.
-TARGETS = {
-    "compose-skills": f"{SKILLS}/compose-skills",
-    "compose-preview": f"{PLUGINS}/compose-preview",
-    "compose-catalogs": f"{PLUGINS}/compose-catalogs",
-}
-# Old installs that duplicate a target: every skill, under the root plugin.
-REPLACED = ("yschimke-skills",)
+# The two alternatives; each replaces the other.
+TARGETS = ("compose-preview", "compose-catalogs")
+# Old installs whose skills the plugins now carry.
+REPLACED = ("yschimke-skills", "compose-skills")
 MAX_UNINSTALLS = 5
 OPTIONS = {"--catalogs", "--dry-run"}
 DRY_RUN = "--dry-run" in sys.argv
@@ -86,29 +87,25 @@ def main() -> None:
         sys.exit(f"unknown option {unknown[0]}; usage: antigravity-install.py [--catalogs] [--dry-run]")
     if not shutil.which("agy"):
         sys.exit("agy is not on PATH")
-    installed = names()
-    wanted = ["compose-skills", "compose-preview"]
-    if "--catalogs" in sys.argv or "compose-catalogs" in installed:
-        wanted.append("compose-catalogs")
-    for name in (*REPLACED, *wanted):
+    wanted = "compose-catalogs" if "--catalogs" in sys.argv else "compose-preview"
+    for name in (*REPLACED, *TARGETS):
         remove(name)
-    for name in wanted:
-        agy("install", TARGETS[name])
-    agy("enable", "compose-preview")
+    agy("install", f"{PLUGINS}/{wanted}")
+    agy("enable", wanted)
     if not DRY_RUN and shutil.which("pkill"):
         subprocess.run(["pkill", "-f", "compose-preview.*mcp serve"], check=False)
     if DRY_RUN:
         return
     final = imports()
-    problems = []
-    for name in wanted:
-        entries = [e for e in final if e.get("name") == name]
-        if len(entries) != 1 or entries[0].get("source") != "antigravity":
-            problems.append(f"{name}: {entries}")
+    entries = [e for e in final if e.get("name") == wanted]
+    problems = [] if len(entries) == 1 and entries[0].get("source") == "antigravity" else [f"{wanted}: {entries}"]
+    problems += [f"{name}: {e}" for e in final for name in (*REPLACED, *TARGETS)
+                 if e.get("name") == name and name != wanted]
     if problems:
         sys.exit("unexpected `agy plugin list` entries:\n  " + "\n  ".join(problems))
-    print(f"\nInstalled {', '.join(wanted)}. Restart Antigravity, then in a new session"
-          " ask: render <one of your previews>.")
+    ask = ("render <one of your previews>" if wanted == "compose-preview"
+           else "show the available Compose component catalogs")
+    print(f"\nInstalled {wanted}. Restart Antigravity, then in a new session ask: {ask}.")
 
 
 if __name__ == "__main__":

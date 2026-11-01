@@ -161,7 +161,13 @@ class ManifestSchemaValidationTest(unittest.TestCase):
 class AgentToolNamesTest(unittest.TestCase):
     plugins = [
         {"name": "compose-catalogs", "mcp": [{"name": "compose-preview-catalog", "kind": "http"}]},
-        {"name": "compose-preview", "mcp": [{"name": "compose-preview-mcp", "kind": "stdio"}]},
+        {
+            "name": "compose-preview",
+            "mcp": [
+                {"name": "compose-preview-mcp", "kind": "stdio"},
+                {"name": "compose-preview-catalog", "kind": "http"},
+            ],
+        },
     ]
 
     def check(self, *tools: str) -> None:
@@ -180,11 +186,14 @@ class AgentToolNamesTest(unittest.TestCase):
             "mcp__plugin_compose-catalogs_compose-preview-catalog__ui_builder_check_design",
             "mcp__plugin_compose-catalogs_compose-preview-catalog__status",
             "mcp__plugin_compose-preview_compose-preview-mcp__render_preview",
+            "mcp__plugin_compose-preview_compose-preview-catalog__catalog_render_preview",
         )
 
     def test_rejects_unprefixed_hosted_catalog_tool(self) -> None:
         with self.assertRaisesRegex(ValueError, "catalog_render_preview"):
             self.check("mcp__plugin_compose-catalogs_compose-preview-catalog__render_preview")
+        with self.assertRaisesRegex(ValueError, "catalog_render_preview"):
+            self.check("mcp__plugin_compose-preview_compose-preview-catalog__render_preview")
 
     def test_rejects_tool_the_local_server_lacks(self) -> None:
         with self.assertRaisesRegex(ValueError, "local compose-preview server"):

@@ -3,7 +3,7 @@
   "author": {
     "name": "Yuri Schimke"
   },
-  "description": "Iterate on local Compose previews with live rendering and accessibility checks.",
+  "description": "Render and review your Compose previews locally, and browse the hosted Material 3 and Wear catalogs and UI Builder.",
   "displayName": "Compose Preview",
   "homepage": "https://github.com/yschimke/compose-agent-plugins/tree/main/plugins/compose-preview",
   "keywords": [

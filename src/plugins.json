@@ -7,7 +7,7 @@
     {
       "name": "compose-catalogs",
       "version": "0.11.0",
-      "description": "Discover Compose components, inspect properties, and render catalog variants.",
+      "description": "Discover Compose components, inspect properties, and render catalog variants, with no local toolchain.",
       "keywords": [
         "compose",
         "catalog",
@@ -71,7 +71,7 @@
     {
       "name": "compose-preview",
       "version": "0.11.0",
-      "description": "Iterate on local Compose previews with live rendering and accessibility checks.",
+      "description": "Render and review your Compose previews locally, and browse the hosted Material 3 and Wear catalogs and UI Builder.",
       "keywords": [
         "compose",
         "preview",
@@ -83,7 +83,7 @@
       "interface": {
         "displayName": "Compose Preview",
         "shortDescription": "Render and review Compose previews.",
-        "longDescription": "Iterate on local Compose previews with live rendering, accessibility checks, catalog design guidelines, and shared review evidence.",
+        "longDescription": "Iterate on local Compose previews with live rendering, accessibility checks, catalog design guidelines and shared review evidence, with the hosted component catalogs and UI Builder alongside.",
         "developerName": "Yuri Schimke",
         "category": "Developer Tools",
         "capabilities": [
@@ -103,8 +103,30 @@
             "serve"
           ],
           "pathFallback": "$HOME/.local/bin"
+        },
+        {
+          "name": "compose-preview-catalog",
+          "kind": "http",
+          "url": "https://preview.coo.ee/mcp",
+          "headers": {
+            "X-Compose-Preview-Token": "${COMPOSE_PREVIEW_TOKEN:-}"
+          },
+          "envHeaders": {
+            "X-Compose-Preview-Token": "COMPOSE_PREVIEW_TOKEN"
+          },
+          "userConfigHeaders": {
+            "X-Compose-Preview-Token": "compose_preview_token"
+          }
         }
       ],
+      "userConfig": {
+        "compose_preview_token": {
+          "type": "string",
+          "title": "Compose Preview token",
+          "description": "Optional access token for the hosted preview.coo.ee service. Leave it blank to use the service's interactive access grant.",
+          "sensitive": true
+        }
+      },
       "skills": [
         "compose-preview",
         "compose-ui-builder",
@@ -151,6 +173,37 @@
         "harness-notes",
         "compose-preview-setup"
       ]
+    },
+    {
+      "name": "compose-review",
+      "version": "0.11.0",
+      "description": "Review Compose UI pull requests by rendering base and head, and set up CI that posts before/after previews.",
+      "keywords": [
+        "compose",
+        "preview",
+        "review",
+        "pull-request",
+        "ci",
+        "github-actions"
+      ],
+      "interface": {
+        "displayName": "Compose Review",
+        "shortDescription": "Review Compose UI pull requests and set up preview CI.",
+        "longDescription": "Review Compose UI pull requests by rendering base and head and checking catalog design guidelines, and set up GitHub Actions CI that posts before/after previews on pull requests. Pairs with the compose-preview plugin.",
+        "developerName": "Yuri Schimke",
+        "category": "Developer Tools",
+        "capabilities": [
+          "Interactive"
+        ],
+        "defaultPrompt": [
+          "Review the Compose UI changes in this pull request.",
+          "Set up CI that posts before/after Compose previews on pull requests."
+        ]
+      },
+      "skills": [
+        "compose-preview-review",
+        "compose-preview-ci"
+      ]
     }
   ],
   "externalPlugins": [
@@ -189,8 +242,7 @@
     "version": "0.11.0",
     "description": "Render Compose @Preview functions locally and browse hosted Material 3 and Wear component catalogs.",
     "plugins": [
-      "compose-preview",
-      "compose-catalogs"
+      "compose-preview"
     ]
   },
   "registry": {

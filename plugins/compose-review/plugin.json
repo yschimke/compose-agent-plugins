@@ -1,0 +1,25 @@
+{
+  "$schema": "https://antigravity.google/schemas/v1/plugin.json",
+  "author": {
+    "name": "Yuri Schimke"
+  },
+  "description": "Review Compose UI pull requests by rendering base and head, and set up CI that posts before/after previews.",
+  "displayName": "Compose Review",
+  "homepage": "https://github.com/yschimke/compose-agent-plugins/tree/main/plugins/compose-review",
+  "keywords": [
+    "compose",
+    "preview",
+    "review",
+    "pull-request",
+    "ci",
+    "github-actions"
+  ],
+  "license": "Apache-2.0",
+  "name": "compose-review",
+  "repository": "https://github.com/yschimke/compose-agent-plugins",
+  "suggestedPrompts": [
+    "Review the Compose UI changes in this pull request.",
+    "Set up CI that posts before/after Compose previews on pull requests."
+  ],
+  "version": "0.11.0"
+}

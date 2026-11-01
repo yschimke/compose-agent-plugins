@@ -533,6 +533,7 @@ def write_readme(plugin_root: Path, name: str) -> None:
     source = README_SOURCE_ROOT / f"{name}.md"
     if not source.is_file():
         raise ValueError(f"missing plugin README source: {source.relative_to(ROOT)}")
+    plugin_root.mkdir(parents=True, exist_ok=True)
     (plugin_root / "README.md").write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
     (plugin_root / "LICENSE").write_text(LICENSE_SOURCE.read_text(encoding="utf-8"), encoding="utf-8")
 

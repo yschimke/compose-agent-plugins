@@ -2,6 +2,54 @@
   "$comment": "Written by scripts/update-skills.py. Do not edit the vendored skills; scripts/check_generated.py checks them against this file.",
   "commit": "156983dce2608d2d766628e838c6d6c0e8135ce9",
   "files": {
+    "compose-preview-ci/SKILL.md": {
+      "mode": "100644",
+      "sha256": "14e1e99bc2ba6de9f159199737045aa658d7179f479d270a0c02c89a67adf698"
+    },
+    "compose-preview-ci/references/cost-and-scoping.md": {
+      "mode": "100644",
+      "sha256": "2b3521d21ab8c8225ef20be38a45c7a6efb2f1fc5e69c4b435c481e37c1c95e4"
+    },
+    "compose-preview-ci/references/fork-prs.md": {
+      "mode": "100644",
+      "sha256": "415b1b670677137fe10466f73674a567efb5ff4f1e8227273ff9f0b881da710a"
+    },
+    "compose-preview-review/SKILL.md": {
+      "mode": "100644",
+      "sha256": "d69130a0fa29cdcd462f03182ad6ff602fa9216ece7492a3be0dc26b51fccb5a"
+    },
+    "compose-preview-review/references/agent-audits.md": {
+      "mode": "100644",
+      "sha256": "dc975b9d615766dc88ac1fa9bdbafe7e73ba445cf7e82db86e583a53a1fe47ef"
+    },
+    "compose-preview-review/references/agent-pr.md": {
+      "mode": "100644",
+      "sha256": "70b2d72ed773928a040d750b82fa352265386fab46fa08e2e5a193316d9901a8"
+    },
+    "compose-preview-review/references/ci-agent-sessions.md": {
+      "mode": "100644",
+      "sha256": "f7cfa2d6604f37de5f5903afaae68551565a806984ae8474bcdbd07da763c751"
+    },
+    "compose-preview-review/references/design-parity-lifecycle.md": {
+      "mode": "100644",
+      "sha256": "50e691594e1e41078728d895ed14fb8a255ba932db489e8b687453c4cb8eb24c"
+    },
+    "compose-preview-review/references/mcp-review.md": {
+      "mode": "100644",
+      "sha256": "7e8dba81e53a513be7676c083299d86840c49dae7dc8d72865a41d433fa6ab8d"
+    },
+    "compose-preview-review/references/stability.md": {
+      "mode": "100644",
+      "sha256": "205382b3054a425665a88f374e8f1197c243dcbbea8d520f83c78d6765b58966"
+    },
+    "compose-preview-review/scripts/run-agent-audit-samples.py": {
+      "mode": "100755",
+      "sha256": "e0275ff83ed82635ce7e7279e73cc58ccff51b289fd44a0ba62f2d2e4597c955"
+    },
+    "compose-preview-review/scripts/test_run_agent_audit_samples.py": {
+      "mode": "100644",
+      "sha256": "c2cc948c7a77543d0af4d6f7dacd657a9b5d2f22cb390021db802ef38beb4a74"
+    },
     "compose-preview/SKILL.md": {
       "mode": "100644",
       "sha256": "bbd11230d5e982c798caa877b288d9793467495a6e97fa8c3e3c10754f56197e"
@@ -163,6 +211,8 @@
   "repository": "https://github.com/yschimke/skills",
   "skills": [
     "compose-preview",
+    "compose-preview-ci",
+    "compose-preview-review",
     "compose-ui-builder"
   ]
 }

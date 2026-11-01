@@ -1,6 +1,6 @@
 {
   "$comment": "Written by scripts/update-skills.py. Do not edit the vendored skills; scripts/check_generated.py checks them against this file.",
-  "commit": "07cca4715ad560c5a020c0257df47ea391989793",
+  "commit": "0bbb078df60b874a6df24fe98e6c12c478fc3799",
   "files": {
     "compose-preview-ci/SKILL.md": {
       "mode": "100644",
@@ -124,7 +124,7 @@
     },
     "compose-preview/references/setup.md": {
       "mode": "100644",
-      "sha256": "acfcc72cb19b26fb648ed0f02ccdd4a54d6a868629065221125978a52c95a530"
+      "sha256": "4f08e6069299c0f642d8d21712b1dde1d109a894d15e235c8fdc464ea5001444"
     },
     "compose-preview/references/simulator-iterate.md": {
       "mode": "100644",
@@ -207,7 +207,7 @@
       "sha256": "9f2a8f7cbeaeffd327fc2e29178b821fa5d5a7b82787824e59deb107df6750fb"
     }
   },
-  "ref": "07cca4715ad560c5a020c0257df47ea391989793",
+  "ref": "0bbb078df60b874a6df24fe98e6c12c478fc3799",
   "repository": "https://github.com/yschimke/skills",
   "skills": [
     "compose-preview",

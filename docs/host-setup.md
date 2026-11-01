@@ -1,7 +1,7 @@
 # Host setup
 
 The one page for wiring each agent host (Antigravity, Claude Code, Codex, OpenCode) to the
-Compose preview tools. People new to the tools should start at <https://yschimke.github.io/compose-ai-tools/> (CLI and project previews) or <https://ui.coo.ee/start> (UI
+Compose preview tools. People new to the tools should start at <https://preview.coo.ee/start/> (CLI and project previews) or <https://ui.coo.ee/start> (UI
 Builder agent flow). The
 generic skills in [yschimke/skills](https://github.com/yschimke/skills) say what to do and which
 tools to use; this page says how each host is wired up for them. Installing and updating the

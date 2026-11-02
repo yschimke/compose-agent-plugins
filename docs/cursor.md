@@ -90,6 +90,46 @@ to `mcp.json` after a prompt:
 
 Do not add both deeplinks **and** the plugin: every tool would appear twice.
 
+## Three surfaces (do not confuse them)
+
+| Surface | Install | What you see |
+| --- | --- | --- |
+| Cursor plugin (`cursor-install.py`) | Local plugin or marketplace | Skills, agents, MCP tools in chat |
+| MCP App viewer | Comes with the MCP servers above | Interactive card **inline in chat** after a render tool |
+| [VS Code extension](https://marketplace.visualstudio.com/items?itemName=yuri-schimke.compose-preview) | Extensions view | Human preview **panel** in the editor |
+
+The plugin does not open a right-hand IDE pane. Plugin canvases (Hex / Atlassian
+style templates in Customize) are a different Cursor feature and are not this
+viewer.
+
+## MCP Apps in Cursor
+
+Cursor supports MCP Apps and will open `ui://compose-preview/viewer` when a
+catalog or local render tool advertises it. Live check (2026-11-02): the iframe
+mounts, but Cursor does not always push `ui/notifications/tool-result` into it,
+so the card can sit on **Waiting for a preview result…** while the real PNG and
+text still appear in the normal tool result below. Until that host gap closes:
+
+- Treat the tool result's image and text as the source of truth (R1).
+- Do not wait on the empty viewer shell, and do not claim the render failed only
+  because the iframe is empty.
+- Re-check after Cursor updates; record the outcome against
+  [#79](https://github.com/yschimke/compose-agent-plugins/issues/79).
+
+## Cloud Agents
+
+Cloud Agents do **not** load `~/.cursor/plugins/local` or a project
+`.cursor/mcp.json` from the IDE install. Attach MCP for them separately:
+
+1. Personal: [cursor.com/agents](https://cursor.com/agents) → MCP dropdown → add
+   HTTP server `compose-preview-catalog` at `https://preview.coo.ee/mcp`, enable
+   it, then start a **new** agent.
+2. Team: Dashboard → Plugins & MCPs → Team MCP servers (same URL). Optional:
+   Add to Team Marketplace so the IDE gets the same server.
+
+Prefer HTTP for Cloud Agents. Local `compose-preview mcp serve` (stdio) needs
+the CLI and Java in the cloud environment image and is a separate setup.
+
 ## VS Code extension
 
 The [Compose Preview](https://marketplace.visualstudio.com/items?itemName=yuri-schimke.compose-preview)

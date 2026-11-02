@@ -55,4 +55,10 @@ agent; poll `ui_builder_await_comments` / `ui_builder_await_decision` with `wait
 **Claude Code.** URL elicitation needs a 2026-07-28-protocol connection (≥2.1.281); otherwise use
 the text fallback for the access grant. It does not load a plugin's `rules/AGENTS.md`.
 
+**Cursor.** The MCP App viewer may open as an empty "Waiting for a preview result…" shell when
+the host skips `ui/notifications/tool-result`. Still use the tool result's image and text (R1);
+do not treat the empty iframe as a failed render. Cloud Agents need the catalog MCP attached at
+[cursor.com/agents](https://cursor.com/agents) (or Team MCP); the IDE plugin install does not
+wire them.
+
 Full contract: [`docs/agent-rules.md`](https://github.com/yschimke/compose-agent-plugins/blob/main/docs/agent-rules.md).

@@ -20,6 +20,7 @@ team MCP path, not `~/.cursor/plugins/local`).
 | --- | --- |
 | `request_access` / `poll_access` (scope `live`) | Approved; token usable as tool `token` argument |
 | `catalog_render_preview` `observe=png` for `compose-preview://catalog/wear-m3-catalog/alertdialog__ideal__edge-button__192dp` | PNG + text + signed `https://preview.coo.ee/mcp/render.png?…` resource returned |
+| `catalog_render_preview` `observe=semantics` (same URI) | Semantics tree with typography/layout/theme annotations (audit lane) |
 
 Wear dialog with edge-button / check action rendered successfully in this Cloud
 Agent session. MCP App empty-shell behaviour is an IDE/Cursor Desktop concern;

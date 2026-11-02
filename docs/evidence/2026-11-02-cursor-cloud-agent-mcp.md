@@ -14,16 +14,21 @@ team MCP path, not `~/.cursor/plugins/local`).
 | `catalog_list_projects` | Dozens of remote catalogs including `wear-m3-catalog`, `m3-catalog` |
 | `catalog_list_previews` (`wear-m3-catalog`) | Preview URIs returned (truncated page) |
 
-## Needs live grant
+## Verified with live grant (approved by @yschimke)
 
-`catalog_render_preview` with `observe=png` for
-`compose-preview://catalog/wear-m3-catalog/alertdialog__ideal__edge-button__192dp`
-answered that the published snapshot is unavailable and live scope is required.
-`request_access` (scope `live`) was started; approve at the printed
-`approveUrl` / `userCode`, then `poll_access` → pass `token` on render.
+| Call | Result |
+| --- | --- |
+| `request_access` / `poll_access` (scope `live`) | Approved; token usable as tool `token` argument |
+| `catalog_render_preview` `observe=png` for `compose-preview://catalog/wear-m3-catalog/alertdialog__ideal__edge-button__192dp` | PNG + text + signed `https://preview.coo.ee/mcp/render.png?…` resource returned |
+
+Wear dialog with edge-button / check action rendered successfully in this Cloud
+Agent session. MCP App empty-shell behaviour is an IDE/Cursor Desktop concern;
+Cloud Agent chat receives the ordinary image/text tool result (R1).
 
 ## Reading
 
 Cloud Agents can use hosted catalog tools when the HTTP MCP server is attached
 in the agents dashboard. That is independent of the IDE plugin install. Live
-renders still need the same human access grant as other hosts.
+PNG renders need the human access grant (`request_access` → approve →
+`poll_access`), then pass the token on gated tools when the client cannot set
+`X-Compose-Preview-Token`.

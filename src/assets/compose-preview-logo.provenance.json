@@ -1,0 +1,10 @@
+{
+  "description": "Marketplace / Cursor plugin logo for Compose Preview.",
+  "source": {
+    "repository": "https://github.com/yschimke/compose-preview-vscode",
+    "path": "media/icon.png",
+    "license": "Apache-2.0",
+    "note": "Copied byte-for-byte from the VS Code extension icon (same author)."
+  },
+  "sha256": "9a6449c7bcf1f2f645e16f5cf687f24e83bcfc452a86b6ef4492abc42898855e"
+}

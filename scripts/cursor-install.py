@@ -5,6 +5,7 @@ Run from anywhere; no checkout needed:
   curl -fsSL https://raw.githubusercontent.com/yschimke/compose-agent-plugins/main/scripts/cursor-install.py | python3 -
   python3 scripts/cursor-install.py              # compose-preview
   python3 scripts/cursor-install.py --catalogs   # compose-catalogs instead (no Java)
+  python3 scripts/cursor-install.py --review     # also install optional compose-review
   python3 scripts/cursor-install.py --dry-run    # print what would change
   python3 scripts/cursor-install.py --plugins-dir DIR
 
@@ -13,6 +14,8 @@ Window (or a restart). Until the public Cursor Marketplace lists this repository
 (#59 / #81), that local folder is the one-install path: skills, agents and both
 MCP servers from the plugin's .cursor-plugin/plugin.json. compose-catalogs
 replaces compose-preview on a machine without Java; the two never coexist.
+--review adds compose-review (PR review / preview CI skills) next to the primary
+plugin; it is not a substitute for compose-preview.
 """
 
 from __future__ import annotations
@@ -30,6 +33,7 @@ from pathlib import Path
 REPO = "yschimke/compose-agent-plugins"
 ARCHIVE = "https://github.com/{repo}/archive/{ref}.zip"
 TARGETS = ("compose-preview", "compose-catalogs")
+OPTIONAL_REVIEW = "compose-review"
 # Host-foreign trees Cursor does not need; copying them only confuses a local install.
 SKIP_DIR_NAMES = {".codex-plugin", ".claude-plugin", "__pycache__"}
 
@@ -122,33 +126,63 @@ def verify(plugins_dir: Path, wanted: str) -> None:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if manifest.get("name") != wanted:
         sys.exit(f"{manifest_path} name is {manifest.get('name')!r}, expected {wanted!r}")
-    servers = manifest.get("mcpServers")
-    if not isinstance(servers, dict) or not servers:
-        sys.exit(f"{manifest_path} has no mcpServers")
+    if wanted in TARGETS:
+        servers = manifest.get("mcpServers")
+        if not isinstance(servers, dict) or not servers:
+            sys.exit(f"{manifest_path} has no mcpServers")
+        other = [name for name in TARGETS if name != wanted and (plugins_dir / name).exists()]
+        if other:
+            sys.exit(f"also installed: {', '.join(other)}; remove them and rerun")
     if not (installed / "skills").is_dir():
         sys.exit(f"missing skills directory at {installed / 'skills'}")
-    other = [name for name in TARGETS if name != wanted and (plugins_dir / name).exists()]
-    if other:
-        sys.exit(f"also installed: {', '.join(other)}; remove them and rerun")
 
 
-def next_steps(wanted: str, plugins_dir: Path, *, installed: bool) -> None:
+def next_steps(wanted: str, plugins_dir: Path, *, installed: bool, review: bool) -> None:
     ask = ("render <one of your previews>" if wanted == "compose-preview"
            else "show the available Compose component catalogs")
     verb = "Installed" if installed else "Would install"
     print(f"\n{verb} {wanted} into {plugins_dir / wanted}.")
+    if review:
+        print(f"{verb} {OPTIONAL_REVIEW} into {plugins_dir / OPTIONAL_REVIEW}.")
     print("Reload Cursor (Developer: Reload Window), open Customize and confirm the plugin,")
     print(f"then in a new chat ask: {ask}.")
+    print("For audit: ask to review a preview against catalog design guidelines,")
+    print("or use the design-reviewer agent. Prefer a local @Preview or catalog")
+    print("component before UI Builder.")
     if wanted == "compose-preview" and shutil.which("compose-preview") is None:
         print("Note: local renders need the compose-preview CLI on PATH; the plugin's")
         print("compose-preview-setup skill installs it on first use, or run:")
         print("  curl -fsSL https://raw.githubusercontent.com/yschimke/skills/main/scripts/install.sh | bash")
 
 
+def install_one(wanted: str, plugins_dir: Path, ref: str, dry_run: bool) -> Path | None:
+    """Install one plugin. Returns a staging root the caller must delete, if any."""
+    source = local_plugin_source(wanted)
+    staging: Path | None = None
+    if source is None:
+        if dry_run:
+            print(f"would download plugins/{wanted} from {REPO}@{ref}")
+            if wanted in TARGETS:
+                for name in TARGETS:
+                    if name != wanted:
+                        remove_sibling(plugins_dir, name, dry_run=True)
+            print(f"would install into {plugins_dir / wanted}")
+            return None
+        source, staging = download_plugin(wanted, ref)
+    if wanted in TARGETS:
+        for name in TARGETS:
+            if name != wanted:
+                remove_sibling(plugins_dir, name, dry_run)
+    copy_plugin(source, plugins_dir / wanted, dry_run)
+    return staging
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--catalogs", action="store_true",
                         help="install compose-catalogs instead of compose-preview")
+    parser.add_argument("--review", action="store_true",
+                        help="also install optional compose-review (PR review / preview CI)")
     parser.add_argument("--plugins-dir", type=Path, default=None,
                         help="Cursor local plugins directory (default ~/.cursor/plugins/local)")
     parser.add_argument("--ref", default="main",
@@ -158,32 +192,26 @@ def main() -> int:
 
     wanted = "compose-catalogs" if options.catalogs else "compose-preview"
     plugins_dir = options.plugins_dir or default_plugins_dir()
-    source = local_plugin_source(wanted)
-    staging: Path | None = None
+    staging_roots: list[Path] = []
     try:
-        if source is None:
-            if options.dry_run:
-                print(f"would download plugins/{wanted} from {REPO}@{options.ref}")
-                for name in TARGETS:
-                    if name != wanted:
-                        remove_sibling(plugins_dir, name, dry_run=True)
-                print(f"would install into {plugins_dir / wanted}")
-                next_steps(wanted, plugins_dir, installed=False)
-                return 0
-            source, staging = download_plugin(wanted, options.ref)
-        for name in TARGETS:
-            if name != wanted:
-                remove_sibling(plugins_dir, name, options.dry_run)
-        copy_plugin(source, plugins_dir / wanted, options.dry_run)
+        staging = install_one(wanted, plugins_dir, options.ref, options.dry_run)
+        if staging is not None:
+            staging_roots.append(staging)
+        if options.review:
+            review_staging = install_one(OPTIONAL_REVIEW, plugins_dir, options.ref, options.dry_run)
+            if review_staging is not None:
+                staging_roots.append(review_staging)
         if options.dry_run:
-            next_steps(wanted, plugins_dir, installed=False)
+            next_steps(wanted, plugins_dir, installed=False, review=options.review)
             return 0
         verify(plugins_dir, wanted)
+        if options.review:
+            verify(plugins_dir, OPTIONAL_REVIEW)
     finally:
-        if staging is not None:
+        for staging in staging_roots:
             shutil.rmtree(staging, ignore_errors=True)
 
-    next_steps(wanted, plugins_dir, installed=True)
+    next_steps(wanted, plugins_dir, installed=True, review=options.review)
     return 0
 
 

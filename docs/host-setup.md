@@ -111,14 +111,16 @@ curl -fsSL https://raw.githubusercontent.com/yschimke/compose-agent-plugins/main
 
 The script installs `compose-preview` into `~/.cursor/plugins/local/compose-preview`; with
 `--catalogs` it installs `compose-catalogs` instead, for a machine without Java. Either way it
-removes the other one, so the two never coexist. `--dry-run` prints the copies only. Then
-**Developer: Reload Window** (or restart Cursor), open Customize and confirm the plugin and its
-MCP servers, and ask to render one of your previews. Local renders still need the
-`compose-preview` CLI on `PATH`; the plugin's `compose-preview-setup` skill installs it on first
-use when it is missing.
+removes the other one, so the two never coexist. `--review` also installs optional
+`compose-review` (PR review / preview CI). `--dry-run` prints the copies only. Then
+**Developer: Reload Window** (or restart Cursor), open Customize and confirm the plugin, its
+MCP servers and `design-reviewer`, and ask to render one of your previews, then review that
+preview against catalog design guidelines. Local renders still need the `compose-preview` CLI
+on `PATH`; the plugin's `compose-preview-setup` skill installs it on first use when it is
+missing.
 
-What the installer copies, marketplace and team-marketplace options, MCP deeplinks and the check
-script are in [Cursor](cursor.md).
+What the installer copies, marketplace options, smoke (preview + audit), MCP deeplinks and the
+check script are in [Cursor](cursor.md).
 
 ### OpenCode
 

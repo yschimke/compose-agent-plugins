@@ -18,7 +18,7 @@ marketplace no longer lists any plugin from another repository.
 | --- | --- | --- | --- | --- |
 | Claude plugin directory | [#53](https://github.com/yschimke/compose-agent-plugins/issues/53) | `plugins/*/.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `plugins/*/README.md`, `plugins/*/LICENSE` | `claude plugin validate --strict` on every plugin and the marketplace | Portal **Validate**, submission, tracked branch or tag ([#80](https://github.com/yschimke/compose-agent-plugins/issues/80)) |
 | Official MCP Registry | [#55](https://github.com/yschimke/compose-agent-plugins/issues/55) | `server.json` | Upstream `server.schema.json` | Nothing: published, and republished for each server release (below) |
-| Cursor Marketplace | [#59](https://github.com/yschimke/compose-agent-plugins/issues/59) | `plugins/*/.cursor-plugin/plugin.json`, `.cursor-plugin/marketplace.json` | Cursor's `plugin.schema.json` and `marketplace.schema.json` | Smoke test ([#79](https://github.com/yschimke/compose-agent-plugins/issues/79)), submission ([#81](https://github.com/yschimke/compose-agent-plugins/issues/81)) |
+| Cursor Marketplace | [#59](https://github.com/yschimke/compose-agent-plugins/issues/59) | `plugins/*/.cursor-plugin/plugin.json` (incl. `logo` for preview/catalogs), `.cursor-plugin/marketplace.json` | Cursor's `plugin.schema.json` and `marketplace.schema.json` | Live smoke ([#79](https://github.com/yschimke/compose-agent-plugins/issues/79); `scripts/cursor-smoke.py`), then submission ([#81](https://github.com/yschimke/compose-agent-plugins/issues/81)) |
 | Gemini CLI extensions gallery | [#58](https://github.com/yschimke/compose-agent-plugins/issues/58) | `gemini-extension.json` | `gemini extensions validate` | Smoke test with the local CLI ([#78](https://github.com/yschimke/compose-agent-plugins/issues/78)); the gallery crawls the `gemini-cli-extension` topic, which is set |
 | Claude Connectors Directory | [#54](https://github.com/yschimke/compose-agent-plugins/issues/54) | — | — | Tool titles and annotations and OAuth in compose-preview-server, then submission ([#83](https://github.com/yschimke/compose-agent-plugins/issues/83)) |
 | skills.sh | [#57](https://github.com/yschimke/compose-agent-plugins/issues/57) | — | — | The canonical skills live in yschimke/skills, which `npx skills add` reads; indexing check ([#84](https://github.com/yschimke/compose-agent-plugins/issues/84)) |
@@ -92,17 +92,20 @@ still needs checking.
 
 Cursor reads `.cursor-plugin/marketplace.json` at the repository root and
 `.cursor-plugin/plugin.json` in each plugin folder. The MCP servers are inline
-in the manifest. `compose-preview` sets `hooks` to an empty inline config
-because Cursor would otherwise discover `hooks/hooks.json`, which holds Claude
-Code hooks whose event names and payloads Cursor does not share. Whether the
-inline config replaces that discovery, and whether Cursor expands the token
-variable in headers, is unverified until a smoke test.
+in the manifest. `compose-preview` and `compose-catalogs` set `logo` to the
+committed `assets/compose-preview-logo.png`. `compose-preview` sets `hooks` to
+an empty inline config because Cursor would otherwise discover
+`hooks/hooks.json`, which holds Claude Code hooks whose event names and
+payloads Cursor does not share. Whether the inline config replaces that
+discovery, and whether Cursor expands the token variable in headers, is covered
+by [`scripts/cursor-smoke.py`](../scripts/cursor-smoke.py) (preview + audit
+first).
 
 Until the public marketplace lists this repository (#81), the Level 1 install is
 [`scripts/cursor-install.py`](../scripts/cursor-install.py), which copies
-`compose-preview` (or `compose-catalogs`) into `~/.cursor/plugins/local/`. Teams
-can also import the repository as a team marketplace. Details:
-[Cursor](cursor.md).
+`compose-preview` (or `compose-catalogs`) into `~/.cursor/plugins/local/`.
+`--review` adds optional `compose-review`. Teams can also import the repository
+as a team marketplace. Details: [Cursor](cursor.md).
 
 ## Gemini CLI
 

@@ -82,7 +82,8 @@
         "compose-preview-viewer.html",
         "compose-preview-card.py",
         "compose-preview-viewer-fallback.md",
-        "compose-preview-viewer.provenance.json"
+        "compose-preview-viewer.provenance.json",
+        "compose-preview-logo.png"
       ],
       "hooks": [
         {
@@ -166,6 +167,9 @@
         "compose-catalogs-setup"
       ],
       "onboardingSkill": "compose-catalogs-setup",
+      "assets": [
+        "compose-preview-logo.png"
+      ],
       "apps": {
         "compose-preview-catalog": {
           "id": "plugin_asdk_app_6acb43a86b8881918f618daf506c97ef",

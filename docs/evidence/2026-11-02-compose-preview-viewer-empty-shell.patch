@@ -1,0 +1,56 @@
+From 56a3588a031adf4befd2f96c3627d3cd5cdfa68b Mon Sep 17 00:00:00 2001
+From: Yuri Schimke <yuri@schimke.ee>
+Date: Mon, 2 Nov 2026 21:17:59 +0000
+Subject: [PATCH] fix(mcp-app): explain empty viewer when host skips
+ tool-result
+
+Cursor mounts ui://compose-preview/viewer from tool _meta without always
+sending ui/notifications/tool-result, so the card sat on Waiting forever.
+After a successful bridge init, surface a clear chat-fallback notice.
+---
+ mcp-app/compose-preview-viewer.html | 22 ++++++++++++++++++++++
+ 1 file changed, 22 insertions(+)
+
+diff --git a/mcp-app/compose-preview-viewer.html b/mcp-app/compose-preview-viewer.html
+index bc63a78..ffd6e43 100644
+--- a/mcp-app/compose-preview-viewer.html
++++ b/mcp-app/compose-preview-viewer.html
+@@ -3821,6 +3821,10 @@
+       scheduleFit();
+       updateAccessibilityAction();
+       void discoverViewerActions();
++      // Cursor (and some other hosts) mount this resource from tool _meta.ui.resourceUri
++      // without ever sending ui/notifications/tool-result. Leave a clear fallback instead of
++      // "Waiting for a preview result…" forever once the bridge is up.
++      scheduleMissingToolResultNotice();
+     } catch (error) {
+       use.hidden = true;
+       refresh.hidden = true;
+@@ -3837,6 +3841,24 @@
+     }
+   }
+ 
++  const MISSING_TOOL_RESULT_MS = 2500;
++  let missingToolResultTimer;
++
++  function showMissingToolResultNotice() {
++    if (hasToolResult || staticMode) return;
++    meta.textContent = 'No preview result from this host; use the image or text in the chat.';
++    const message = document.createElement('div');
++    message.className = 'empty';
++    message.textContent =
++      'This host opened the viewer without a tool result. Use the complete image or text fallback in the surrounding response.';
++    canvas.replaceChildren(message);
++  }
++
++  function scheduleMissingToolResultNotice() {
++    window.clearTimeout(missingToolResultTimer);
++    missingToolResultTimer = window.setTimeout(showMissingToolResultNotice, MISSING_TOOL_RESULT_MS);
++  }
++
+   // An inline result block may follow this script, so decide static mode once the whole document
+   // has been parsed. Until then no host message is handled (see inputResolved).
+   function startViewer() {
+-- 
+2.43.0
+

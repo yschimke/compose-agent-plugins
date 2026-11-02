@@ -2,7 +2,8 @@
 
 Each entry is a problem we have hit, what causes it, and the fix. In
 Antigravity, run `python3 scripts/antigravity-check.py` first: it checks most of
-these. In OpenCode, run `python3 scripts/opencode-check.py`.
+these. In OpenCode, run `python3 scripts/opencode-check.py`. In Cursor, run
+`python3 scripts/cursor-check.py`.
 
 ## `compose-preview: command not found`
 
@@ -76,6 +77,23 @@ harness:
 ```sh
 ps -axo pid=,command= | grep 'compose-preview.*mcp serve'
 ```
+
+## Cursor MCP App says "Waiting for a preview result…"
+
+Cursor opened `ui://compose-preview/viewer` but did not push the tool result
+into the iframe (`ui/notifications/tool-result`). The PNG and text usually still
+appear in the normal tool result under the card. Use that fallback; do not treat
+the empty shell as a failed render. Details:
+[Cursor → MCP Apps](cursor.md#mcp-apps-in-cursor). Tracked with the Cursor smoke
+test in [#79](https://github.com/yschimke/compose-agent-plugins/issues/79).
+
+## Cloud Agent has no Compose MCP tools
+
+Cloud Agents ignore the IDE plugin under `~/.cursor/plugins/local`. Add
+`https://preview.coo.ee/mcp` as `compose-preview-catalog` under
+[cursor.com/agents](https://cursor.com/agents) (MCP dropdown) or Dashboard →
+Plugins & MCPs, enable it, and start a new agent. See
+[Cursor → Cloud Agents](cursor.md#cloud-agents).
 
 ## Antigravity card says "bridge unavailable"
 

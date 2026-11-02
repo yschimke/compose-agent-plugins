@@ -24,6 +24,8 @@ The same text everywhere; do not invent variants.
 - **Codex:** `codex plugin marketplace add yschimke/compose-agent-plugins`, then enable
   `compose-preview` from `/plugins`.
 - **Antigravity:** `curl -fsSL https://raw.githubusercontent.com/yschimke/compose-agent-plugins/main/scripts/antigravity-install.py | python3 -`.
+- **Cursor:** `curl -fsSL https://raw.githubusercontent.com/yschimke/compose-agent-plugins/main/scripts/cursor-install.py | python3 -`,
+  then Developer: Reload Window.
 - **Anything else, or no plugin system:**
   `curl -fsSL https://raw.githubusercontent.com/yschimke/skills/main/scripts/install.sh | bash`
   (the CLI and the two default skills).

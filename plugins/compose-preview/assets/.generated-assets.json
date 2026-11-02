@@ -3,6 +3,7 @@
     "compose-preview-viewer.html",
     "compose-preview-card.py",
     "compose-preview-viewer-fallback.md",
-    "compose-preview-viewer.provenance.json"
+    "compose-preview-viewer.provenance.json",
+    "compose-preview-logo.png"
   ]
 }

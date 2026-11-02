@@ -18,6 +18,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 ALTERNATIVES = ("compose-preview", "compose-catalogs")
 OPTIONAL = ("compose-review",)
+LOGO = "compose-preview-logo.png"
 results: list[str] = []
 
 
@@ -55,6 +56,19 @@ def check_plugin(plugins_dir: Path, name: str) -> None:
             report("ok", f"{name}: empty inline hooks (Claude hooks not loaded)")
         else:
             report("FIX", f"{name}: expected empty inline hooks, found {hooks!r}")
+        reviewer = installed / "agents" / "design-reviewer.md"
+        report("ok" if reviewer.is_file() else "FIX",
+               f"{name}: design-reviewer agent"
+               if reviewer.is_file() else
+               f"{name}: missing agents/design-reviewer.md")
+    if name in ("compose-preview", "compose-catalogs"):
+        logo = manifest.get("logo")
+        asset = installed / "assets" / LOGO
+        if logo == f"./assets/{LOGO}" and asset.is_file():
+            report("ok", f"{name}: marketplace logo present")
+        else:
+            report("info", f"{name}: no marketplace logo yet "
+                           "(rerun scripts/cursor-install.py after generate)")
     skills = installed / "skills"
     if not skills.is_dir():
         report("FIX", f"{name}: no skills/ directory")
@@ -112,6 +126,7 @@ def main() -> int:
         return 1
     print("Looks good. In Cursor: Customize should list the plugin and its MCP servers.")
     print("Then ask: render <one of your previews>.")
+    print("Audit: review that preview against catalog design guidelines / design-reviewer.")
     return 0
 
 

@@ -20,6 +20,7 @@
     "guidelines"
   ],
   "license": "Apache-2.0",
+  "logo": "./assets/compose-preview-logo.png",
   "mcpServers": {
     "compose-preview-catalog": {
       "headers": {

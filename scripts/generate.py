@@ -961,6 +961,11 @@ def render_cursor_manifest(
         # hooks/hooks.json holds Claude Code hooks, which Cursor would otherwise
         # discover by default; its events and payloads differ, so ship none (#59).
         manifest["hooks"] = {"hooks": {}, "version": 1}
+    # Marketplace submission (#81) prefers a committed logo; reuse the VS Code
+    # extension icon (Apache-2.0, same author) when the plugin ships that asset.
+    assets = plugin.get("assets", [])
+    if isinstance(assets, list) and "compose-preview-logo.png" in assets:
+        manifest["logo"] = "./assets/compose-preview-logo.png"
     mcp = plugin.get("mcp", [])
     if mcp:
         manifest["mcpServers"] = render_mcp_servers(name, mcp, "cursor")

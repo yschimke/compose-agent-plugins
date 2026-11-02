@@ -137,10 +137,14 @@ Other scripts:
   or update the OpenCode bundle and add the MCP servers to `opencode.json`.
 - `python3 scripts/opencode-check.py [--run --project …]`: skills, bundle, MCP config,
   `opencode mcp list`, and optionally one timed model turn.
-- `python3 scripts/cursor-install.py [--catalogs] [--dry-run]`: install or update
-  `compose-preview` (or `compose-catalogs`) into `~/.cursor/plugins/local/`.
+- `python3 scripts/cursor-install.py [--catalogs] [--review] [--dry-run]`: install
+  or update `compose-preview` (or `compose-catalogs`) into
+  `~/.cursor/plugins/local/`; `--review` also installs optional `compose-review`.
 - `python3 scripts/cursor-check.py [--plugins-dir DIR]`: local plugin copy, MCP
-  servers, empty inline hooks, and that preview and catalogs do not coexist.
+  servers, empty inline hooks, design-reviewer, logo, and that preview and
+  catalogs do not coexist.
+- `python3 scripts/cursor-smoke.py [--check-only]`: packaging checks plus the
+  live Cursor smoke checklist (preview render + guidelines audit).
 - `python3 scripts/edit-render-bench.py --help`: time the edit → notify →
   render loop against the local server without a model.
 

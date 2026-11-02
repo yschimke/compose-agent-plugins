@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for scripts/cursor-install.py: local copy, sibling removal, catalogs."""
+"""Tests for scripts/cursor-install.py: local copy, sibling removal, catalogs, review."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "cursor-install.py"
 CHECK = ROOT / "scripts" / "cursor-check.py"
+SMOKE = ROOT / "scripts" / "cursor-smoke.py"
 
 
 class CursorInstallTest(unittest.TestCase):
@@ -36,7 +37,12 @@ class CursorInstallTest(unittest.TestCase):
             self.assertEqual("compose-preview", manifest["name"])
             self.assertIn("compose-preview-mcp", manifest["mcpServers"])
             self.assertIn("compose-preview-catalog", manifest["mcpServers"])
+            self.assertEqual("./assets/compose-preview-logo.png", manifest.get("logo"))
+            self.assertTrue(
+                (installed / "assets" / "compose-preview-logo.png").is_file()
+            )
             self.assertTrue((installed / "skills" / "compose-preview" / "SKILL.md").is_file())
+            self.assertTrue((installed / "agents" / "design-reviewer.md").is_file())
             self.assertFalse((installed / ".claude-plugin").exists())
             self.assertFalse((installed / ".codex-plugin").exists())
             self.assertTrue((installed / "hooks" / "hooks.json").is_file())
@@ -57,6 +63,25 @@ class CursorInstallTest(unittest.TestCase):
             self.assertEqual("compose-catalogs", manifest["name"])
             self.assertEqual(["compose-preview-catalog"], sorted(manifest["mcpServers"]))
             self.assertNotIn("compose-preview-mcp", manifest["mcpServers"])
+            self.assertEqual("./assets/compose-preview-logo.png", manifest.get("logo"))
+
+    def test_review_installs_alongside_preview(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            plugins_dir = Path(directory)
+            result = self.run_install(plugins_dir, "--review")
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertTrue((plugins_dir / "compose-preview").is_dir())
+            review = plugins_dir / "compose-review"
+            manifest = json.loads(
+                (review / ".cursor-plugin" / "plugin.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual("compose-review", manifest["name"])
+            self.assertTrue(
+                (review / "skills" / "compose-preview-review" / "SKILL.md").is_file()
+            )
+            self.assertTrue(
+                (review / "skills" / "compose-preview-ci" / "SKILL.md").is_file()
+            )
 
     def test_dry_run_writes_nothing(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -79,6 +104,20 @@ class CursorInstallTest(unittest.TestCase):
             )
             self.assertEqual(check.returncode, 0, check.stdout + check.stderr)
             self.assertIn("empty inline hooks", check.stdout)
+            self.assertIn("design-reviewer", check.stdout)
+            self.assertIn("marketplace logo", check.stdout)
+
+    def test_smoke_check_only(self) -> None:
+        result = subprocess.run(
+            [sys.executable, str(SMOKE), "--check-only", "--skip-schema"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("design-reviewer", result.stdout)
+        self.assertIn("marketplace logo", result.stdout)
+        self.assertIn("Static checks passed", result.stdout)
 
 
 if __name__ == "__main__":

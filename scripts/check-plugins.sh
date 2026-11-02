@@ -27,5 +27,6 @@ python3 tests/antigravity_install_test.py
 python3 tests/echo_mcp_test.py
 python3 tests/spike_fixture_test.py
 python3 tests/opencode_install_test.py
+python3 tests/cursor_install_test.py
 python3 tests/update_skills_test.py
 node --test tests/opencode_plugin_test.mjs

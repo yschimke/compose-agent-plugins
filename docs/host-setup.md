@@ -1,6 +1,6 @@
 # Host setup
 
-The one page for wiring each agent host (Antigravity, Claude Code, Codex, OpenCode) to the
+The one page for wiring each agent host (Antigravity, Claude Code, Codex, Cursor, OpenCode) to the
 Compose preview tools. People new to the tools should start at <https://preview.coo.ee/start/> (CLI and project previews) or <https://ui.coo.ee/start> (UI
 Builder agent flow). The
 generic skills in [yschimke/skills](https://github.com/yschimke/skills) say what to do and which
@@ -103,6 +103,23 @@ hosts the preview and review surface; the full UI Builder stays in its own edito
 `codex mcp list` shows `compose-preview-mcp` and `compose-preview-catalog`. Approve the plugin
 hooks when Codex marks them untrusted.
 
+### Cursor
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/yschimke/compose-agent-plugins/main/scripts/cursor-install.py | python3 -
+```
+
+The script installs `compose-preview` into `~/.cursor/plugins/local/compose-preview`; with
+`--catalogs` it installs `compose-catalogs` instead, for a machine without Java. Either way it
+removes the other one, so the two never coexist. `--dry-run` prints the copies only. Then
+**Developer: Reload Window** (or restart Cursor), open Customize and confirm the plugin and its
+MCP servers, and ask to render one of your previews. Local renders still need the
+`compose-preview` CLI on `PATH`; the plugin's `compose-preview-setup` skill installs it on first
+use when it is missing.
+
+What the installer copies, marketplace and team-marketplace options, MCP deeplinks and the check
+script are in [Cursor](cursor.md).
+
 ### OpenCode
 
 OpenCode has no plugin marketplace. From the Compose project root:
@@ -118,17 +135,16 @@ What the installer copies, the hand-written config, authentication and the check
 
 ### Any other agent
 
-Gemini CLI, Cursor, Copilot and hosts without a plugin system take the CLI and the two default
-skills from yschimke/skills:
+Gemini CLI, Copilot and hosts without a plugin system take the CLI and the two default skills from
+yschimke/skills:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/yschimke/skills/main/scripts/install.sh | bash
 ```
 
 Then `compose-preview mcp install` registers the local server (see
-[below](#registering-the-local-mcp-server)). This repository's `.cursor-plugin/` marketplace
-also lists the plugins for Cursor, and its root `gemini-extension.json` gives Gemini CLI both MCP
-servers (servers only, no skills).
+[below](#registering-the-local-mcp-server)). This repository's root `gemini-extension.json` gives
+Gemini CLI both MCP servers (servers only, no skills).
 
 ### No shell or Java
 
@@ -146,6 +162,7 @@ custom connector. It needs nothing local.
   old record in `agy plugin list`. Rerun the [install script](#antigravity), or
   `agy plugin uninstall <name>` and then its `agy plugin install` line.
 - OpenCode: rerun `opencode-install.py`.
+- Cursor: rerun `cursor-install.py`, then Developer: Reload Window.
 - If renders look out of date after an update, clear the server cache
   (`rm -rf ~/.cache/composeai/preview-mcp`) and restart the harness. This is needed until
   yschimke/compose-ai-tools#5602 ships.
@@ -176,6 +193,8 @@ How each host is detected, and where its entry goes:
   `~/.gemini/antigravity/` exists. The entry is merged into
   `~/.gemini/antigravity/mcp_config.json`.
 - **OpenCode**: see [OpenCode](opencode.md).
+- **Cursor**: not written by `mcp install`. Install the plugin with
+  [cursor-install.py](cursor.md) instead; it already declares both MCP servers.
 
 ## Skill install locations
 

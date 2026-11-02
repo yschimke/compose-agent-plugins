@@ -28,6 +28,14 @@ Antigravity:
 curl -fsSL https://raw.githubusercontent.com/yschimke/compose-agent-plugins/main/scripts/antigravity-install.py | python3 -
 ```
 
+Cursor:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/yschimke/compose-agent-plugins/main/scripts/cursor-install.py | python3 -
+```
+
+then Developer: Reload Window.
+
 OpenCode:
 
 ```sh
@@ -36,7 +44,7 @@ curl -fsSL https://raw.githubusercontent.com/yschimke/compose-agent-plugins/main
 compose-preview mcp install --opencode
 ```
 
-Any other agent (Gemini CLI, Cursor, Copilot, …), or no plugin system:
+Any other agent (Gemini CLI, Copilot, …), or no plugin system:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/yschimke/skills/main/scripts/install.sh | bash
@@ -129,6 +137,10 @@ Other scripts:
   or update the OpenCode bundle and add the MCP servers to `opencode.json`.
 - `python3 scripts/opencode-check.py [--run --project …]`: skills, bundle, MCP config,
   `opencode mcp list`, and optionally one timed model turn.
+- `python3 scripts/cursor-install.py [--catalogs] [--dry-run]`: install or update
+  `compose-preview` (or `compose-catalogs`) into `~/.cursor/plugins/local/`.
+- `python3 scripts/cursor-check.py [--plugins-dir DIR]`: local plugin copy, MCP
+  servers, empty inline hooks, and that preview and catalogs do not coexist.
 - `python3 scripts/edit-render-bench.py --help`: time the edit → notify →
   render loop against the local server without a model.
 

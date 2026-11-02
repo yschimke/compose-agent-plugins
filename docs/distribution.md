@@ -98,6 +98,12 @@ Code hooks whose event names and payloads Cursor does not share. Whether the
 inline config replaces that discovery, and whether Cursor expands the token
 variable in headers, is unverified until a smoke test.
 
+Until the public marketplace lists this repository (#81), the Level 1 install is
+[`scripts/cursor-install.py`](../scripts/cursor-install.py), which copies
+`compose-preview` (or `compose-catalogs`) into `~/.cursor/plugins/local/`. Teams
+can also import the repository as a team marketplace. Details:
+[Cursor](cursor.md).
+
 ## Gemini CLI
 
 Gemini CLI reads `gemini-extension.json` only from the root of a repository or

@@ -144,7 +144,9 @@ Other scripts:
   servers, empty inline hooks, design-reviewer, logo, and that preview and
   catalogs do not coexist.
 - `python3 scripts/cursor-smoke.py [--check-only]`: packaging checks plus the
-  live Cursor smoke checklist (preview render + guidelines audit).
+  live Cursor smoke checklist (preview render + guidelines audit). Remaining
+  human gates (Desktop smoke, marketplace submit, empty-shell server release,
+  Cloud Agent dashboard MCP, VS Code extension): [Cursor](docs/cursor.md#remaining-gates-cursor-optimised).
 - `python3 scripts/edit-render-bench.py --help`: time the edit → notify →
   render loop against the local server without a model.
 

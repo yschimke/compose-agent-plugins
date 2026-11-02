@@ -90,6 +90,16 @@ def report(status: str, message: str, results: list[str]) -> None:
     print(f"{status:<4} {message}")
 
 
+REQUIRED_MARKETPLACE_FIELDS = (
+    "name",
+    "displayName",
+    "description",
+    "license",
+    "version",
+    "author",
+)
+
+
 def check_manifests(results: list[str]) -> None:
     marketplace = ROOT / ".cursor-plugin" / "marketplace.json"
     if not marketplace.is_file():
@@ -98,6 +108,10 @@ def check_manifests(results: list[str]) -> None:
         data = json.loads(marketplace.read_text(encoding="utf-8"))
         names = [entry.get("name") for entry in data.get("plugins", [])]
         report("ok", f"marketplace plugins: {', '.join(str(n) for n in names)}", results)
+        if not data.get("name") or not (data.get("owner") or {}).get("name"):
+            report("FIX", "marketplace.json needs name and owner.name", results)
+        else:
+            report("ok", f"marketplace name={data['name']!r} owner={data['owner']['name']!r}", results)
 
     for name in PLUGIN_NAMES:
         plugin_root = ROOT / "plugins" / name
@@ -109,13 +123,34 @@ def check_manifests(results: list[str]) -> None:
         if manifest.get("name") != name:
             report("FIX", f"{name}: manifest name is {manifest.get('name')!r}", results)
 
+        missing = [field for field in REQUIRED_MARKETPLACE_FIELDS if not manifest.get(field)]
+        if missing:
+            report("FIX", f"{name}: missing marketplace fields {', '.join(missing)}", results)
+        else:
+            author = manifest.get("author")
+            author_ok = isinstance(author, dict) and bool(author.get("name"))
+            if not author_ok:
+                report("FIX", f"{name}: author must be an object with name", results)
+            else:
+                report(
+                    "ok",
+                    f"{name}: submit fields ok "
+                    f"(displayName={manifest['displayName']!r}, version={manifest['version']})",
+                    results,
+                )
+        keywords = manifest.get("keywords")
+        if not isinstance(keywords, list) or not keywords:
+            report("info", f"{name}: no keywords (optional for submit)", results)
+        else:
+            report("ok", f"{name}: keywords {', '.join(str(k) for k in keywords)}", results)
+
         if name in ("compose-preview", "compose-catalogs"):
             logo = manifest.get("logo")
             asset = plugin_root / "assets" / LOGO
-            if logo == f"./assets/{LOGO}" and asset.is_file():
-                report("ok", f"{name}: marketplace logo {logo}", results)
+            if logo == f"./assets/{LOGO}" and asset.is_file() and asset.stat().st_size > 0:
+                report("ok", f"{name}: marketplace logo {logo} ({asset.stat().st_size} bytes)", results)
             else:
-                report("FIX", f"{name}: expected logo ./assets/{LOGO} and file on disk", results)
+                report("FIX", f"{name}: expected logo ./assets/{LOGO} and non-empty file on disk", results)
 
         if name == "compose-preview":
             hooks = manifest.get("hooks")
@@ -295,8 +330,18 @@ def print_live_steps(*, echo_plugin: Path | None, port: int) -> None:
         print("     (installs compose-preview and removes the echo compose-catalogs)")
         print("   - Developer: Reload Window before any further Cursor work.")
         print()
+    print("7. Cloud Agent (separate from Desktop IDE plugin)")
+    print("   - Dashboard MCP: compose-preview-catalog → https://preview.coo.ee/mcp")
+    print("   - New agent; confirm status / catalog_list_projects; request_access for PNG.")
+    print("   - IDE ~/.cursor/plugins/local does not apply to Cloud Agents.")
+    print()
+    print("8. Human preview pane (optional)")
+    print("   - Extensions: install Compose Preview (yuri-schimke.compose-preview).")
+    print("   - Open Compose Preview view; confirm EditorScope follows the active Kotlin file.")
+    print()
     print("Record outcomes under docs/evidence/ and update docs/harness-matrix.md.")
     print("Marketplace submit only after this live half passes (#81).")
+    print("Repo-side remaining gates: docs/cursor.md#remaining-gates-cursor-optimised")
     print()
 
 

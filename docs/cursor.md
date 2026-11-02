@@ -192,7 +192,7 @@ Repo packaging for Level 1 install, logo, smoke script, and docs is on `main`
 | Desktop live smoke (#79) | Person in Cursor Desktop | `python3 scripts/cursor-smoke.py` — preview render, guidelines audit, hooks, optional token echo + restore |
 | Marketplace submit (#81) | Person | After smoke: [cursor.com/marketplace/publish](https://cursor.com/marketplace/publish) with this repo URL |
 | MCP App empty-shell notice | Person with `compose-preview-server` write | Apply [empty-shell patch](evidence/2026-11-02-cursor-empty-shell-upstream.md), release, `python3 scripts/update-viewer.py <tag>` here |
-| Cloud Agent MCP (per user/team) | Person | Dashboard MCP → `https://preview.coo.ee/mcp`; new agent; approve live grant when prompted |
+| Cloud Agent MCP (per user/team) | Person | Dashboard MCP → `https://preview.coo.ee/mcp`; new agent; approve live grant when prompted. Listing + live PNG verified 2026-11-02 when attached ([evidence](evidence/2026-11-02-cursor-cloud-agent-mcp.md)) |
 | Human right-hand pane | Person | Install [Compose Preview](https://marketplace.visualstudio.com/items?itemName=yuri-schimke.compose-preview) in Cursor Extensions |
 
 ## VS Code extension (human preview pane)

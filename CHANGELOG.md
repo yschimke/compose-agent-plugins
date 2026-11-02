@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.12.0](https://github.com/yschimke/compose-agent-plugins/compare/v0.11.0...v0.12.0) (2026-11-02)
+
+
+### ⚠ BREAKING CHANGES
+
+* one compose-preview plugin for coding agents, with vendored skills ([#180](https://github.com/yschimke/compose-agent-plugins/issues/180))
+
+### Features
+
+* add a one-step Cursor plugin install ([#183](https://github.com/yschimke/compose-agent-plugins/issues/183)) ([22b20fb](https://github.com/yschimke/compose-agent-plugins/commit/22b20fb522146f4eff4736c6d3a32bec5edf88c3))
+* one compose-preview plugin for coding agents, with vendored skills ([#180](https://github.com/yschimke/compose-agent-plugins/issues/180)) ([e9f1aee](https://github.com/yschimke/compose-agent-plugins/commit/e9f1aee4a28092e8409b143471d5674c92c1aeba))
+
+
+### Bug Fixes
+
+* bundle the viewer from compose-preview-mcp v4.17.0 ([#177](https://github.com/yschimke/compose-agent-plugins/issues/177)) ([8e966d4](https://github.com/yschimke/compose-agent-plugins/commit/8e966d46b472ff7224753708b1c15088c7b9a2d4))
+
 ## [0.11.0](https://github.com/yschimke/compose-agent-plugins/compare/v0.10.0...v0.11.0) (2026-10-31)
 
 

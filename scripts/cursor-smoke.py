@@ -282,11 +282,18 @@ def print_live_steps(*, echo_plugin: Path | None, port: int) -> None:
     print()
     if echo_plugin is not None:
         print("5. Token expansion (optional echo pass)")
+        print("   This temporarily replaces the local install with a catalog whose URL is")
+        print("   the echo server. Restore the real plugin before you finish (step 6).")
         print(f"   - Copy {echo_plugin} into ~/.cursor/plugins/local/compose-catalogs")
-        print("     (or point a team marketplace at a temp tree that contains it), Reload.")
+        print("     (removes/replaces whatever is there), then Developer: Reload Window.")
         print("   - Leave COMPOSE_PREVIEW_TOKEN unset; open a chat that touches the catalog MCP.")
         print("   - Set the plugin variable (or env) to smoke-cursor-token, Reload, retry.")
-        print(f"   - Echo listens on http://127.0.0.1:{port}/mcp")
+        print(f"   - Echo listens on http://127.0.0.1:{port}/mcp until this script exits.")
+        print()
+        print("6. Restore the real plugin (required if you ran step 5)")
+        print("   - python3 scripts/cursor-install.py")
+        print("     (installs compose-preview and removes the echo compose-catalogs)")
+        print("   - Developer: Reload Window before any further Cursor work.")
         print()
     print("Record outcomes under docs/evidence/ and update docs/harness-matrix.md.")
     print("Marketplace submit only after this live half passes (#81).")
@@ -333,7 +340,8 @@ def main() -> int:
         echo_plugin = prepare_echo_plugin(work, options.echo_port)
         print_live_steps(echo_plugin=echo_plugin, port=options.echo_port)
         try:
-            input("Press Enter when the live Cursor steps are done... ")
+            input("Press Enter when the live Cursor steps are done "
+                  "(and the real plugin is restored if you used the echo pass)... ")
         except EOFError:
             print("(no TTY; printing echo log and exiting)")
 
@@ -341,6 +349,10 @@ def main() -> int:
         print("== Echo server headers ==")
         text = log_path.read_text(encoding="utf-8").strip()
         print(text if text else "(no requests — echo pass skipped or MCP did not connect)")
+        print()
+        print("If you installed the echo compose-catalogs copy, restore now:")
+        print("  python3 scripts/cursor-install.py && Developer: Reload Window")
+        print("Leaving the echo plugin installed points the catalog MCP at a dead localhost.")
         return 0
     finally:
         if server is not None:

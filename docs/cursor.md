@@ -118,7 +118,7 @@ Live half (record under `docs/evidence/` and update
 | Catalog or local render | Tool result shows PNG + text; ask for a11y/layout details |
 | Guidelines audit | Compact verdict via `preview_guidelines_prompt` / `design-reviewer` on that preview |
 | Hooks | No compose-preview hooks listed |
-| Token (optional echo) | Unset → empty header; set `smoke-cursor-token` → header matches |
+| Token (optional echo) | Unset → empty header; set `smoke-cursor-token` → header matches; then `cursor-install.py` + Reload to drop the echo `compose-catalogs` |
 | MCP App | Iframe may stay on "Waiting…"; chat image/text still counts (R1) |
 
 UI Builder designs are intentionally out of this smoke; use

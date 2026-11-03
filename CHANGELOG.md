@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.0](https://github.com/yschimke/compose-agent-plugins/compare/v0.12.0...v0.13.0) (2026-11-03)
+
+
+### Features
+
+* **cursor:** marketplace logo and preview/audit smoke ([#185](https://github.com/yschimke/compose-agent-plugins/issues/185)) ([9de9963](https://github.com/yschimke/compose-agent-plugins/commit/9de9963a3d05bbb098222f7c298cbf2cca8de642))
+
 ## [0.12.0](https://github.com/yschimke/compose-agent-plugins/compare/v0.11.0...v0.12.0) (2026-11-02)
 
 

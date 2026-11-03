@@ -84,8 +84,9 @@ Cursor opened `ui://compose-preview/viewer` but did not push the tool result
 into the iframe (`ui/notifications/tool-result`). The PNG and text usually still
 appear in the normal tool result under the card. Use that fallback; do not treat
 the empty shell as a failed render. Details:
-[Cursor → MCP Apps](cursor.md#mcp-apps-in-cursor). Tracked with the Cursor smoke
-test in [#79](https://github.com/yschimke/compose-agent-plugins/issues/79).
+[Cursor → MCP Apps](cursor.md#mcp-apps-in-cursor). Upstream viewer notice patch:
+[empty-shell evidence](evidence/2026-11-02-cursor-empty-shell-upstream.md). Remaining
+Cursor gates: [cursor.md](cursor.md#remaining-gates-cursor-optimised).
 
 ## Cloud Agent has no Compose MCP tools
 

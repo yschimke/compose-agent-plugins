@@ -25,6 +25,10 @@ The image/text fallback in the ordinary tool result remains the R1 surface.
 successful `ui/initialize`, if no tool result arrives within ~2.5s, replace the
 waiting copy with an explicit "host opened the viewer without a tool result;
 use the chat fallback" notice. A local commit was prepared on
-`cursor/mcp-app-empty-result-notice-f16d` but this agent cannot push that
-repository (403). Apply there, release, then sync the viewer asset here with
+`cursor/mcp-app-empty-result-notice-f16d` (`56a3588`) but this agent cannot
+push that repository (403). The ready-to-apply diff and steps are in
+[2026-11-02-cursor-empty-shell-upstream.md](2026-11-02-cursor-empty-shell-upstream.md)
+and
+[2026-11-02-compose-preview-viewer-empty-shell.patch](2026-11-02-compose-preview-viewer-empty-shell.patch).
+Apply there, release, then sync the viewer asset here with
 `scripts/update-viewer.py`.

@@ -178,6 +178,24 @@ Prefer HTTP for Cloud Agents. That path is enough for hosted catalog renders and
 catalog guidelines audit. Local `compose-preview mcp serve` (stdio) needs the
 CLI and Java in the cloud environment image and is a separate setup.
 
+When the catalog MCP is attached, the agent still needs a live access grant for
+PNG renders (`request_access` → approve → `poll_access`). Tool catalog listing
+can succeed before that grant.
+
+## Remaining gates (Cursor-optimised)
+
+Repo-side Level 1 install, logo, smoke packaging checks, Cloud Agent catalog
+evidence, empty-shell upstream patch, and VS Code extension notes are done
+(#183 / #185 and follow-ups). Only these human or other-repo steps remain:
+
+| Gate | Owner | Exact next step |
+| --- | --- | --- |
+| Desktop live smoke (#79) | Person in Cursor Desktop | `python3 scripts/cursor-smoke.py` — preview render, guidelines audit / `design-reviewer`, hooks, optional token echo + restore |
+| Marketplace submit (#81) | Person | After Desktop smoke: [cursor.com/marketplace/publish](https://cursor.com/marketplace/publish) with `https://github.com/yschimke/compose-agent-plugins` |
+| MCP App empty-shell notice | Person with `compose-preview-server` write | Apply [empty-shell patch](evidence/2026-11-02-cursor-empty-shell-upstream.md), release, then here `python3 scripts/update-viewer.py <tag>` |
+| Cloud Agent MCP (per user/team) | Person | Dashboard MCP → `https://preview.coo.ee/mcp`; new agent; approve live grant when prompted. Path proven 2026-11-02 ([evidence](evidence/2026-11-02-cursor-cloud-agent-mcp.md)) |
+| Human right-hand pane | Person | Install [Compose Preview](https://marketplace.visualstudio.com/items?itemName=yuri-schimke.compose-preview); open the view; confirm it follows the active Kotlin `@Preview` file ([source review](evidence/2026-11-02-cursor-vscode-extension.md)) |
+
 ## VS Code extension (human preview pane)
 
 The [Compose Preview](https://marketplace.visualstudio.com/items?itemName=yuri-schimke.compose-preview)

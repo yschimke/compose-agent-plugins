@@ -117,6 +117,7 @@ class CursorInstallTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("design-reviewer", result.stdout)
         self.assertIn("marketplace logo", result.stdout)
+        self.assertIn("submit fields ok", result.stdout)
         self.assertIn("Static checks passed", result.stdout)
 
 

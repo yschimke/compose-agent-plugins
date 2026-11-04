@@ -29,6 +29,13 @@ it, the turn's input and output tokens.
 Count every tool call the model makes in the turn, including file views, shell
 commands, skill or doc reads and subagent calls. Hook runs don't count.
 
+"The first call is `render_preview`" allows one exception: loading the
+`compose-preview` skill itself through the host's skill tool (OpenCode's
+`skill`, Claude Code's `Skill`), because some hosts tell the model to load a
+matching skill before acting. That load still counts toward the call total, and
+any other read before the render (a reference file, a doc, a grep) is still a
+fail ([#126](https://github.com/yschimke/skills/issues/126)).
+
 ## Cases
 
 | ID | Prompt | Pass |

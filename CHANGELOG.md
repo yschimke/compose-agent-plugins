@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.0](https://github.com/yschimke/compose-agent-plugins/compare/v0.13.0...v0.14.0) (2026-11-07)
+
+
+### Bug Fixes
+
+* vendor yschimke/skills at ecdcc9b225e4 ([#182](https://github.com/yschimke/compose-agent-plugins/issues/182)) ([82a7797](https://github.com/yschimke/compose-agent-plugins/commit/82a77971dde832b5a8a63b6aea502af71adc16be))
+
 ## [0.13.0](https://github.com/yschimke/compose-agent-plugins/compare/v0.12.0...v0.13.0) (2026-11-03)
 
 

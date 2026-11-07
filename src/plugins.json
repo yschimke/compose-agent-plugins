@@ -6,7 +6,7 @@
   "plugins": [
     {
       "name": "compose-preview",
-      "version": "0.13.0",
+      "version": "0.14.0",
       "description": "Render and review your Compose previews locally, and browse the hosted Material 3 and Wear catalogs and UI Builder.",
       "keywords": [
         "compose",
@@ -113,7 +113,7 @@
     },
     {
       "name": "compose-catalogs",
-      "version": "0.13.0",
+      "version": "0.14.0",
       "description": "Discover Compose components, inspect properties, and render catalog variants, with no local toolchain.",
       "keywords": [
         "compose",
@@ -180,7 +180,7 @@
     },
     {
       "name": "compose-review",
-      "version": "0.13.0",
+      "version": "0.14.0",
       "description": "Review Compose UI pull requests by rendering base and head, and set up CI that posts before/after previews.",
       "keywords": [
         "compose",
@@ -223,7 +223,7 @@
   },
   "gemini": {
     "name": "compose-preview",
-    "version": "0.13.0",
+    "version": "0.14.0",
     "description": "Render Compose @Preview functions locally and browse hosted Material 3 and Wear component catalogs.",
     "plugins": [
       "compose-preview"

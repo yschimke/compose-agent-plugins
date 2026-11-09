@@ -24,7 +24,7 @@ jobs:
       - name: Run plugin drift regression tests
         run: tests/check_plugins_test.sh
       - name: Lint Markdown
-        uses: DavidAnson/markdownlint-cli2-action@v24.2.0
+        uses: DavidAnson/markdownlint-cli2-action@v25.0.0
         with:
           globs: "**/*.md"
       - name: Validate with Claude Code

@@ -79,11 +79,13 @@ def assert_cached_plugin(plugin_name: str, server_name: str, cache_root: Path) -
         assert "/../" not in command
 
     request = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}) + "\n"
+    server_env = {**os.environ, "SPIKE_LOG_PATH": str(cache_root / f"{plugin_name}-mcp.json")}
     result = subprocess.run(
         [sys.executable, str(configured_server), server_name],
         input=request,
         text=True,
         capture_output=True,
+        env=server_env,
         check=True,
     )
     response = json.loads(result.stdout)

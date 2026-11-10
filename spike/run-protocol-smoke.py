@@ -83,6 +83,14 @@ def run(plugin: str, server_name: str, scratch: Path) -> None:
             {"type": "file", "extensions": ["uid", "rc"]}
         ]
         assert tools_by_name["viewer_report"]["_meta"]["ui"]["visibility"] == ["app"]
+        for structured_tool, required_keys in (
+            ("render_preview", {"server", "surface"}),
+            ("open_file", {"server", "surface", "file", "requestMeta"}),
+            ("viewer_report", {"server", "logPath", "requestMeta", "touched", "reportCount"}),
+        ):
+            output_schema = tools_by_name[structured_tool]["outputSchema"]
+            assert output_schema["type"] == "object"
+            assert set(output_schema["required"]) == required_keys
 
         status = request(process, 3, "tools/call", {"name": "status", "arguments": {}})
         assert status["content"][0]["text"] == f"status from {server_name}"

@@ -188,6 +188,23 @@ with tempfile.TemporaryDirectory(prefix="echo-mcp-unit-") as temporary_directory
         {"type": "file", "extensions": ["uid", "rc"]}
     ]
     assert tools_by_name["viewer_report"]["_meta"]["ui"] == {"visibility": ["app"]}
+    assert set(tools_by_name["render_preview"]["outputSchema"]["properties"]) == {
+        "server",
+        "surface",
+    }
+    assert set(tools_by_name["open_file"]["outputSchema"]["properties"]) == {
+        "server",
+        "surface",
+        "file",
+        "requestMeta",
+    }
+    assert set(tools_by_name["viewer_report"]["outputSchema"]["properties"]) == {
+        "server",
+        "logPath",
+        "requestMeta",
+        "touched",
+        "reportCount",
+    }
 
     viewer = call(
         {"jsonrpc": "2.0", "id": 2, "method": "resources/read", "params": {"uri": echo_mcp.VIEWER_URI}}

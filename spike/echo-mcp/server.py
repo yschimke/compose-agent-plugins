@@ -529,11 +529,32 @@ FILE_INPUT_SCHEMA: dict[str, object] = {
     "additionalProperties": False,
 }
 
+TOUCH_RESULT_SCHEMA: dict[str, object] = {
+    "type": "object",
+    "properties": {
+        "requested": {"type": "boolean"},
+        "touched": {"type": "boolean"},
+        "path": {"type": ["string", "null"]},
+        "reason": {"type": "string"},
+    },
+    "required": ["requested", "touched"],
+    "additionalProperties": False,
+}
+
 TOOLS = [
     {
         "name": "render_preview",
         "description": "Return the echo MCP server name and a 1×1 image, with a viewer resource and text fallback.",
         "inputSchema": {"type": "object", "additionalProperties": False},
+        "outputSchema": {
+            "type": "object",
+            "properties": {
+                "server": {"type": "string"},
+                "surface": {"type": "string", "enum": ["render_preview"]},
+            },
+            "required": ["server", "surface"],
+            "additionalProperties": False,
+        },
         "_meta": {
             "ui": {"resourceUri": VIEWER_URI, "visibility": ["model", "app"]},
             "ui/resourceUri": VIEWER_URI,
@@ -548,6 +569,17 @@ TOOLS = [
             "type": "object",
             "properties": {"file": FILE_INPUT_SCHEMA},
             "required": ["file"],
+            "additionalProperties": False,
+        },
+        "outputSchema": {
+            "type": "object",
+            "properties": {
+                "server": {"type": "string"},
+                "surface": {"type": "string", "enum": ["open_file"]},
+                "file": FILE_INPUT_SCHEMA,
+                "requestMeta": {"type": ["object", "null"]},
+            },
+            "required": ["server", "surface", "file", "requestMeta"],
             "additionalProperties": False,
         },
         "_meta": {
@@ -568,6 +600,18 @@ TOOLS = [
                 "file": FILE_INPUT_SCHEMA,
                 "touch": {"type": "boolean"},
             },
+            "additionalProperties": False,
+        },
+        "outputSchema": {
+            "type": "object",
+            "properties": {
+                "server": {"type": "string"},
+                "logPath": {"type": "string"},
+                "requestMeta": {"type": ["object", "null"]},
+                "touched": TOUCH_RESULT_SCHEMA,
+                "reportCount": {"type": "integer"},
+            },
+            "required": ["server", "logPath", "requestMeta", "touched", "reportCount"],
             "additionalProperties": False,
         },
         "_meta": {"ui": {"visibility": ["app"]}},

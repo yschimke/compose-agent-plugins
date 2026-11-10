@@ -71,7 +71,7 @@ agy plugin install https://github.com/yschimke/compose-agent-plugins/tree/main/p
   The bare repository URL installs only the two MCP servers from the root
   `gemini-extension.json` (no skills, agents or hooks) under the same `compose-preview` name.
 - A local checkout works too (`agy plugin install ./compose-agent-plugins/plugins/compose-preview`),
-  and `python3 scripts/antigravity-check.py` from a clone verifies the install.
+  and `python3 scripts/antigravity-check.py` from a clone verifies the install (`python3 scripts/antigravity-mcp-apps-smoke.py` drives the Antigravity v2.31+ MCP Apps and file-viewer probe in [spike/README.md](../spike/README.md)).
 - The skills come with the plugins; don't add them with `npx skills add … --agent antigravity`
   (Antigravity 1.2.12 does not load `~/.agents/skills`, issue #6 Q14) or from the bare
   `yschimke/skills` URL, which would install a second copy.

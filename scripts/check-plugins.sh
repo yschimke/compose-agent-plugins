@@ -24,6 +24,7 @@ tests/stop_gate_test.sh
 python3 tests/viewer_asset_test.py
 python3 tests/card_helper_test.py
 python3 tests/antigravity_install_test.py
+python3 tests/antigravity_mcp_apps_smoke_test.py
 python3 tests/echo_mcp_test.py
 python3 tests/spike_fixture_test.py
 python3 tests/opencode_install_test.py

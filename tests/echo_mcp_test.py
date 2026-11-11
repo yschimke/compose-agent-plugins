@@ -108,16 +108,20 @@ function runScenario({files, expectedTerminalReports = 1}) {
           respond({result: {}});
         } else if (msg.method === "resources/read") {
           const entry = fileMap.get(msg.params.uri);
-          respond({
-            result: {
-              contents: [{
-                uri: msg.params.uri,
-                mimeType: "application/json",
-                text: entry ? entry.fileContent : "",
-                _meta: {"openai/resource": {writable: true, etag: entry?.etag || "etag-1"}}
-              }]
-            }
-          });
+          if (entry?.readError) {
+            respond({error: {code: -32602, message: entry.readError}});
+          } else {
+            respond({
+              result: {
+                contents: [{
+                  uri: msg.params.uri,
+                  mimeType: "application/json",
+                  ...(entry?.blob ? {blob: entry.blob} : {text: entry ? entry.fileContent : ""}),
+                  _meta: {"openai/resource": {writable: true, etag: entry?.etag || "etag-1"}}
+                }]
+              }
+            });
+          }
         } else if (msg.method === "resources/subscribe") {
           respond({result: {}});
         } else if (msg.method === "openai/resources/write") {
@@ -206,6 +210,20 @@ const unsafeRun = await runScenario({
     etag: "etag-prod"
   }]
 });
+const readErrorRun = await runScenario({
+  files: [{
+    uri: "file:///tmp/unreadable.uid",
+    name: "unreadable.uid",
+    readError: "Read unavailable"
+  }]
+});
+const blobRun = await runScenario({
+  files: [{
+    uri: "file:///tmp/binary.rc",
+    name: "binary.rc",
+    blob: "UkNfUFJPQkVfVjE="
+  }]
+});
 const overlapRun = await runScenario({
   files: [
     {
@@ -223,7 +241,7 @@ const overlapRun = await runScenario({
   ],
   expectedTerminalReports: 2
 });
-process.stdout.write(JSON.stringify({safeRun, unsafeRun, overlapRun}));
+process.stdout.write(JSON.stringify({safeRun, unsafeRun, readErrorRun, blobRun, overlapRun}));
 """,
         encoding="utf-8",
     )
@@ -267,6 +285,12 @@ process.stdout.write(JSON.stringify({safeRun, unsafeRun, overlapRun}));
     assert unsafe_final["file"]["writeAttempts"] == []
     assert outcome["unsafeRun"]["writes"] == []
     assert "refused auto-write" in (unsafe_final["autoProbe"]["writeSkippedReason"] or "")
+
+    for non_text_key in ("readErrorRun", "blobRun"):
+        non_text_final = outcome[non_text_key]["savedReports"][-1]["report"]
+        assert non_text_final["lastTrigger"] == "auto-file-write-skipped"
+        assert outcome[non_text_key]["writes"] == []
+        assert "did not return text" in (non_text_final["autoProbe"]["writeSkippedReason"] or "")
 
     overlap_writes = outcome["overlapRun"]["writes"]
     assert all(w["uri"] == "file:///tmp/sample.uid" for w in overlap_writes)

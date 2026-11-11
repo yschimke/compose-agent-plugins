@@ -428,8 +428,12 @@ async function runAutoProbeForFile(file) {
   await performSubscribeAndTouch(file);
   await delay(120);
 
-  if (isSafeAutoWriteTarget(file, readOutcome.rawText)) {
-    const textToWrite = readOutcome.writeCandidate || defaultWriteTextForFile(file);
+  if (!readOutcome.ok || typeof readOutcome.rawText !== "string") {
+    report.autoProbe.writeSkippedReason =
+      "skipped auto-write because resources/read did not return text content";
+    await syncReport("auto-file-write-skipped");
+  } else if (isSafeAutoWriteTarget(file, readOutcome.rawText)) {
+    const textToWrite = readOutcome.writeCandidate;
     document.getElementById("write-text").value = textToWrite;
     await performWriteFile(file, textToWrite, {
       trigger: "auto-file-write",

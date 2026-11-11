@@ -44,6 +44,267 @@ def check_viewer_script_syntax(viewer_html: str, scratch: Path) -> None:
     assert completed.returncode == 0, completed.stderr or completed.stdout
 
 
+def check_auto_probe_simulation(viewer_html: str, scratch: Path) -> None:
+    if shutil.which("node") is None:
+        return
+    start = viewer_html.index("<script>") + len("<script>")
+    end = viewer_html.index("</script>", start)
+    script_path = scratch / "viewer-auto.js"
+    script_path.write_text(viewer_html[start:end], encoding="utf-8")
+    harness_path = scratch / "run-auto-probe-sim.mjs"
+    harness_path.write_text(
+        """import fs from "node:fs";
+import vm from "node:vm";
+
+const code = fs.readFileSync(process.argv[2], "utf8");
+
+function runScenario({files, expectedTerminalReports = 1}) {
+  const fileMap = new Map(files.map(item => [item.uri, item]));
+  const elements = new Map();
+  const getEl = id => {
+    if (!elements.has(id)) {
+      elements.set(id, {
+        id,
+        value: "",
+        textContent: "",
+        hidden: false,
+        listeners: {},
+        addEventListener(type, fn) { this.listeners[type] = fn; }
+      });
+    }
+    return elements.get(id);
+  };
+
+  let messageListener = null;
+  const hostCalls = [];
+  const savedReports = [];
+  const writes = [];
+
+  const parentWindow = {
+    postMessage(msg) {
+      hostCalls.push(msg);
+      if (msg.id === undefined) return;
+      setImmediate(() => {
+        const respond = payload => messageListener({source: parentWindow, data: {jsonrpc: "2.0", id: msg.id, ...payload}});
+        if (msg.method === "ui/initialize") {
+          respond({result: {hostInfo: {name: "sim-host", version: "2.31.0"}, hostCapabilities: {openLinks: {}}}});
+        } else if (msg.method === "tools/call" && msg.params?.name === "status") {
+          respond({result: {content: [{type: "text", text: "status from alpha"}]}});
+        } else if (msg.method === "tools/call" && msg.params?.name === "viewer_report") {
+          savedReports.push(msg.params.arguments);
+          respond({
+            result: {
+              content: [{type: "text", text: "{}"}],
+              structuredContent: {
+                server: "alpha",
+                logPath: "/tmp/spike-sim.json",
+                requestMeta: {"antigravity/resource": {path: "/tmp/sample.uid"}},
+                touched: {requested: Boolean(msg.params.arguments?.touch), touched: Boolean(msg.params.arguments?.touch)},
+                reportCount: savedReports.length
+              }
+            }
+          });
+        } else if (msg.method === "ui/update-model-context") {
+          respond({result: {}});
+        } else if (msg.method === "resources/read") {
+          const entry = fileMap.get(msg.params.uri);
+          if (entry?.readError) {
+            respond({error: {code: -32602, message: entry.readError}});
+          } else {
+            respond({
+              result: {
+                contents: [{
+                  uri: msg.params.uri,
+                  mimeType: "application/json",
+                  ...(entry?.blob ? {blob: entry.blob} : {text: entry ? entry.fileContent : ""}),
+                  _meta: {"openai/resource": {writable: true, etag: entry?.etag || "etag-1"}}
+                }]
+              }
+            });
+          }
+        } else if (msg.method === "resources/subscribe") {
+          respond({result: {}});
+        } else if (msg.method === "openai/resources/write") {
+          writes.push({method: msg.method, uri: msg.params.uri, text: msg.params.text, ifMatch: msg.params.ifMatch || null});
+          respond({error: {code: -32601, message: "Method not found"}});
+        } else if (msg.method === "resources/write") {
+          writes.push({method: msg.method, uri: msg.params.uri, text: msg.params.text, ifMatch: null});
+          respond({result: {etag: "etag-2"}});
+        } else {
+          respond({error: {code: -32601, message: `Unhandled ${msg.method}`}});
+        }
+      });
+    }
+  };
+
+  const windowObj = {
+    parent: parentWindow,
+    addEventListener(type, fn) {
+      if (type === "message") messageListener = fn;
+    }
+  };
+
+  const sandbox = {
+    window: windowObj,
+    document: {getElementById: getEl},
+    navigator: {userAgent: "node-sim", clipboard: {writeText: async () => {}}},
+    location: {href: "ui://spike/app"},
+    setTimeout: fn => setImmediate(fn),
+    console
+  };
+
+  vm.runInNewContext(code, sandbox);
+  setImmediate(() => {
+    const first = files[0];
+    messageListener({
+      source: parentWindow,
+      data: {
+        jsonrpc: "2.0",
+        method: "ui/notifications/tool-input",
+        params: {arguments: {file: {name: first.name, resourceUri: first.uri}}}
+      }
+    });
+    for (const extra of files.slice(1)) {
+      setImmediate(() => {
+        messageListener({
+          source: parentWindow,
+          data: {
+            jsonrpc: "2.0",
+            method: "ui/notifications/host-context-changed",
+            params: {file: {name: extra.name, resourceUri: extra.uri}}
+          }
+        });
+      });
+    }
+  });
+
+  return new Promise(resolve => {
+    const checkDone = (ticks = 0) => {
+      const terminalCount = savedReports.filter(item => {
+        const trigger = item?.report?.lastTrigger;
+        return trigger === "auto-file-probe-settled" || trigger === "auto-file-write-skipped";
+      }).length;
+      if (terminalCount >= expectedTerminalReports || ticks > 120) {
+        resolve({hostCalls, savedReports, writes, reportText: getEl("report").textContent});
+      } else {
+        setImmediate(() => checkDone(ticks + 1));
+      }
+    };
+    setImmediate(() => checkDone(0));
+  });
+}
+
+const safeRun = await runScenario({
+  files: [{
+    uri: "file:///tmp/sample.uid",
+    name: "sample.uid",
+    fileContent: '{"format": "spike-uid"}\\n',
+    etag: "etag-1"
+  }]
+});
+const unsafeRun = await runScenario({
+  files: [{
+    uri: "file:///Users/dev/project/production.uid",
+    name: "production.uid",
+    fileContent: '{"screen": "RealUserFile"}\\n',
+    etag: "etag-prod"
+  }]
+});
+const readErrorRun = await runScenario({
+  files: [{
+    uri: "file:///tmp/unreadable.uid",
+    name: "unreadable.uid",
+    readError: "Read unavailable"
+  }]
+});
+const blobRun = await runScenario({
+  files: [{
+    uri: "file:///tmp/binary.rc",
+    name: "binary.rc",
+    blob: "UkNfUFJPQkVfVjE="
+  }]
+});
+const overlapRun = await runScenario({
+  files: [
+    {
+      uri: "file:///Users/dev/project/production.uid",
+      name: "production.uid",
+      fileContent: '{"screen": "RealUserFile"}\\n',
+      etag: "etag-prod"
+    },
+    {
+      uri: "file:///tmp/sample.uid",
+      name: "sample.uid",
+      fileContent: '{"format": "spike-uid", "screen": "Scratch"}\\n',
+      etag: "etag-scratch"
+    }
+  ],
+  expectedTerminalReports: 2
+});
+process.stdout.write(JSON.stringify({safeRun, unsafeRun, readErrorRun, blobRun, overlapRun}));
+""",
+        encoding="utf-8",
+    )
+    completed = subprocess.run(
+        ["node", str(harness_path), str(script_path)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr or completed.stdout
+    outcome = json.loads(completed.stdout)
+
+    safe_final = outcome["safeRun"]["savedReports"][-1]["report"]
+    assert safe_final["lastTrigger"] == "auto-file-probe-settled"
+    assert safe_final["autoProbe"]["enabled"] is True
+    assert safe_final["autoProbe"]["bridgeRan"] is True
+    assert safe_final["autoProbe"]["modelContext"] == {"ok": True, "result": {}}
+    assert safe_final["autoProbe"]["uiMessage"] is None
+    assert safe_final["viewerAction"] == {
+        "ok": True,
+        "auto": True,
+        "statusText": "status from alpha",
+    }
+    assert safe_final["file"]["read"]["ok"] is True
+    assert safe_final["file"]["read"]["etag"] == "etag-1"
+    assert safe_final["file"]["subscribe"]["ok"] is True
+    assert [attempt["method"] for attempt in safe_final["file"]["writeAttempts"]] == [
+        "openai/resources/write",
+        "resources/write",
+    ]
+    assert safe_final["file"]["writeAttempts"][1]["ok"] is True
+    assert "_spikeSavedAt" in outcome["safeRun"]["writes"][-1]["text"]
+    assert not any(
+        call_msg.get("method") == "ui/message" for call_msg in outcome["safeRun"]["hostCalls"]
+    )
+
+    unsafe_final = outcome["unsafeRun"]["savedReports"][-1]["report"]
+    assert unsafe_final["lastTrigger"] == "auto-file-write-skipped"
+    assert unsafe_final["file"]["read"]["ok"] is True
+    assert unsafe_final["file"]["subscribe"]["ok"] is True
+    assert unsafe_final["file"]["writeAttempts"] == []
+    assert outcome["unsafeRun"]["writes"] == []
+    assert "refused auto-write" in (unsafe_final["autoProbe"]["writeSkippedReason"] or "")
+
+    for non_text_key in ("readErrorRun", "blobRun"):
+        non_text_final = outcome[non_text_key]["savedReports"][-1]["report"]
+        assert non_text_final["lastTrigger"] == "auto-file-write-skipped"
+        assert outcome[non_text_key]["writes"] == []
+        assert "did not return text" in (non_text_final["autoProbe"]["writeSkippedReason"] or "")
+
+    overlap_writes = outcome["overlapRun"]["writes"]
+    assert all(w["uri"] == "file:///tmp/sample.uid" for w in overlap_writes)
+    assert overlap_writes[0]["ifMatch"] == "etag-scratch"
+    assert '"screen": "Scratch"' in overlap_writes[-1]["text"]
+    assert "RealUserFile" not in overlap_writes[-1]["text"]
+
+
+assert echo_mcp.parse_cli_args([]) == ("unnamed", False, False)
+assert echo_mcp.parse_cli_args(["alpha"]) == ("alpha", False, False)
+assert echo_mcp.parse_cli_args(["alpha", "--auto-probe"]) == ("alpha", True, False)
+assert echo_mcp.parse_cli_args(["--auto-probe-message", "beta"]) == ("beta", True, True)
+
+
 EXPECTED_TOOLS = {
     "render_preview",
     "open_file",
@@ -233,7 +494,29 @@ with tempfile.TemporaryDirectory(prefix="echo-mcp-unit-") as temporary_directory
     assert "await bridgeReady;" in viewer["text"]
     assert 'await request("ui/message", {' in viewer["text"]
     assert 'content: {type: "text", text: "Spike viewer requested status."}' in viewer["text"]
+    assert "const AUTO_PROBE = false;" in viewer["text"]
+    assert "const AUTO_PROBE_MESSAGE = false;" in viewer["text"]
     check_viewer_script_syntax(viewer["text"], scratch)
+
+    echo_mcp.AUTO_PROBE = True
+    try:
+        auto_viewer = call(
+            {
+                "jsonrpc": "2.0",
+                "id": "viewer-auto",
+                "method": "resources/read",
+                "params": {"uri": echo_mcp.VIEWER_URI},
+            }
+        )["result"]["contents"][0]
+    finally:
+        echo_mcp.AUTO_PROBE = False
+    assert "const AUTO_PROBE = true;" in auto_viewer["text"]
+    assert "const AUTO_PROBE_MESSAGE = false;" in auto_viewer["text"]
+    check_viewer_script_syntax(auto_viewer["text"], scratch)
+    check_viewer_script_syntax(
+        echo_mcp.viewer_html(auto_probe=True, auto_probe_message=True), scratch
+    )
+    check_auto_probe_simulation(auto_viewer["text"], scratch)
 
     sample_uid = scratch / "sample.uid"
     sample_uid.write_text('{"format": "spike-uid"}\n', encoding="utf-8")

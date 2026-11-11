@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.15.0](https://github.com/yschimke/compose-agent-plugins/compare/v0.14.0...v0.15.0) (2026-11-11)
+
+
+### Features
+
+* **spike:** add --auto-probe mode for agent-driven MCP App checks ([#195](https://github.com/yschimke/compose-agent-plugins/issues/195)) ([1b90017](https://github.com/yschimke/compose-agent-plugins/commit/1b900170940ebf725461d1a9b9bb31e0b0b12239))
+* **spike:** probe Antigravity v2.31 MCP Apps and file-viewer writes ([#193](https://github.com/yschimke/compose-agent-plugins/issues/193)) ([7367aef](https://github.com/yschimke/compose-agent-plugins/commit/7367aefedd201042247f70342d21145bb1e7c590))
+
 ## [0.14.0](https://github.com/yschimke/compose-agent-plugins/compare/v0.13.0...v0.14.0) (2026-11-07)
 
 

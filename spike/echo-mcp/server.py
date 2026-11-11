@@ -31,7 +31,21 @@ VIEWER_RESOURCE_META = {
         "preferredDisplayMode": "inline",
     },
 }
-SERVER_NAME = sys.argv[1] if len(sys.argv) == 2 else "unnamed"
+
+
+def env_flag(name: str) -> bool:
+    return os.environ.get(name, "").lower() in {"1", "true", "yes"}
+
+
+def parse_cli_args(argv: list[str]) -> tuple[str, bool, bool]:
+    positional = [arg for arg in argv if not arg.startswith("--")]
+    server_name = positional[0] if positional else "unnamed"
+    auto_message = "--auto-probe-message" in argv or env_flag("SPIKE_AUTO_PROBE_MESSAGE")
+    auto_probe = auto_message or "--auto-probe" in argv or env_flag("SPIKE_AUTO_PROBE")
+    return server_name, auto_probe, auto_message
+
+
+SERVER_NAME, AUTO_PROBE, AUTO_PROBE_MESSAGE = parse_cli_args(sys.argv[1:])
 LOG_PATH = Path(os.environ.get("SPIKE_LOG_PATH", f"/tmp/spike-{os.getpid()}.json"))
 DETECTION_ENV_KEYS = (
     "ANTIGRAVITY_CLI_ALIAS",
@@ -50,6 +64,7 @@ MAX_LOGGED_EVENTS = 200
 SESSION_INITIALIZED = False
 SESSION_LOG: dict[str, object] = {
     "serverName": SERVER_NAME,
+    "autoProbe": AUTO_PROBE,
     "protocolVersion": None,
     "clientInfo": None,
     "capabilities": None,
@@ -71,7 +86,7 @@ URL_FALLBACK = (
     "enter verification code SPIKE-CODE, then call access_status until it reports authorized."
 )
 
-VIEWER_HTML = """<!doctype html>
+VIEWER_HTML_TEMPLATE = r"""<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -142,15 +157,29 @@ VIEWER_HTML = """<!doctype html>
 
 <script>
 // Host-neutral JSON-RPC postMessage bridge. Server actions always return text too.
+const AUTO_PROBE = __SPIKE_AUTO_PROBE__;
+const AUTO_PROBE_MESSAGE = __SPIKE_AUTO_PROBE_MESSAGE__;
 const pending = new Map();
 let nextId = 1;
 let initialized = false;
 let resolvedTools = null;
 let lastReadEtag = null;
+let lastReadRawText = null;
+let autoBridgeProbed = false;
+const autoFileProbedUris = new Set();
 
 const report = {
   userAgent: navigator.userAgent,
   locationHref: String(location.href),
+  autoProbe: {
+    enabled: AUTO_PROBE,
+    messageEnabled: AUTO_PROBE_MESSAGE,
+    bridgeRan: false,
+    modelContext: null,
+    uiMessage: null,
+    fileUrisProbed: [],
+    writeSkippedReason: null
+  },
   initialize: null,
   toolInput: null,
   toolInputPartialCount: 0,
@@ -169,26 +198,12 @@ const report = {
   }
 };
 
-function renderReport() {
-  document.getElementById("report").textContent = JSON.stringify(report, null, 2);
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-function setFileCandidate(file) {
-  if (!file || typeof file !== "object") return;
-  const uri = typeof file.resourceUri === "string" ? file.resourceUri : (typeof file.uri === "string" ? file.uri : "");
-  const name = typeof file.name === "string" ? file.name : "";
-  if (uri) {
-    document.getElementById("file-uri").value = uri;
-    report.file.uri = uri;
-  }
-  if (name) {
-    document.getElementById("file-name").value = name;
-    report.file.name = name;
-  }
-  if (uri || name) {
-    document.getElementById("file-status").textContent =
-      `File input received: ${name || "(unnamed)"} (${uri || "no uri"})`;
-  }
+function renderReport() {
+  document.getElementById("report").textContent = JSON.stringify(report, null, 2);
 }
 
 function prepareWriteCandidate(text) {
@@ -197,12 +212,36 @@ function prepareWriteCandidate(text) {
     const parsed = JSON.parse(text);
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
       parsed._spikeSavedAt = new Date().toISOString();
-      return JSON.stringify(parsed, null, 2) + "\\n";
+      return JSON.stringify(parsed, null, 2) + "\n";
     }
   } catch (_ignored) {
     // Non-JSON file (such as .rc or plain text); append a trailing probe line.
   }
-  return text.endsWith("\\n") ? `${text}# spike-saved\\n` : `${text}\\n# spike-saved\\n`;
+  return text.endsWith("\n") ? `${text}# spike-saved\n` : `${text}\n# spike-saved\n`;
+}
+
+function defaultWriteTextForFile(file) {
+  const lower = (file?.name || file?.resourceUri || "").toLowerCase();
+  if (lower.endsWith(".rc")) {
+    return "RC_PROBE_V1\n# spike-saved\n";
+  }
+  return JSON.stringify(
+    {format: "spike-uid", _spikeSavedAt: new Date().toISOString()},
+    null,
+    2
+  ) + "\n";
+}
+
+function isSafeAutoWriteTarget(file, rawText) {
+  if (typeof rawText === "string" && (
+    rawText.includes("spike-uid") ||
+    rawText.includes("RC_PROBE_V1") ||
+    rawText.includes("spike-auto-probe")
+  )) {
+    return true;
+  }
+  const uri = typeof file?.resourceUri === "string" ? file.resourceUri : "";
+  return /^file:\/\/(\/private)?\/tmp\/[^?#]*\.(uid|rc)$/i.test(uri);
 }
 
 function request(method, params) {
@@ -264,6 +303,152 @@ async function syncReport(trigger, extraArgs = {}) {
   }
 }
 
+function currentFileInput() {
+  const uri = document.getElementById("file-uri").value.trim();
+  const name =
+    document.getElementById("file-name").value.trim() ||
+    (uri ? uri.split("/").pop() || "sample.uid" : "sample.uid");
+  report.file.uri = uri || null;
+  report.file.name = name || null;
+  return {name, resourceUri: uri};
+}
+
+async function performReadFile(file, {sync = true} = {}) {
+  try {
+    const readResult = await request("resources/read", {uri: file.resourceUri});
+    const content = readResult?.contents?.[0] || null;
+    const meta = content?._meta || null;
+    const openAiMeta = meta?.["openai/resource"] || null;
+    lastReadEtag = openAiMeta?.etag || meta?.etag || null;
+    const hasText = typeof content?.text === "string";
+    const hasBlob = typeof content?.blob === "string";
+    lastReadRawText = hasText ? content.text : null;
+    report.file.read = {
+      ok: true,
+      uri: content?.uri || file.resourceUri,
+      mimeType: content?.mimeType || null,
+      representation: hasText ? "text" : (hasBlob ? "blob" : "empty"),
+      length: hasText ? content.text.length : (hasBlob ? content.blob.length : 0),
+      meta,
+      writable: openAiMeta?.writable ?? meta?.writable ?? null,
+      etag: lastReadEtag
+    };
+    if (hasText) {
+      document.getElementById("write-text").value = prepareWriteCandidate(content.text);
+    }
+    document.getElementById("file-status").textContent =
+      `Read ${file.name}: ${report.file.read.representation} (${report.file.read.length} chars).`;
+    if (sync) await syncReport("file-read");
+    return true;
+  } catch (error) {
+    lastReadRawText = null;
+    report.file.read = {ok: false, error};
+    document.getElementById("file-status").textContent = "resources/read failed; see report JSON.";
+    if (sync) await syncReport("file-read-error");
+    return false;
+  }
+}
+
+async function performSubscribeAndTouch(file) {
+  try {
+    const subResult = await request("resources/subscribe", {uri: file.resourceUri});
+    report.file.subscribe = {ok: true, result: subResult ?? {}};
+  } catch (error) {
+    report.file.subscribe = {ok: false, error};
+  }
+  const echoResponse = await syncReport("file-subscribe-and-touch", {
+    file,
+    touch: true
+  });
+  report.file.serverEcho = echoResponse?.structuredContent ?? null;
+  document.getElementById("file-status").textContent =
+    "Subscribed and probed server _meta echo; see report JSON.";
+  renderReport();
+}
+
+async function performWriteFile(file, text, {trigger = "file-write"} = {}) {
+  const attempts = [];
+  const candidates = [
+    [
+      "openai/resources/write",
+      {uri: file.resourceUri, text, ...(lastReadEtag ? {ifMatch: lastReadEtag} : {})}
+    ],
+    ["resources/write", {uri: file.resourceUri, text}],
+    ["ui/resources/write", {uri: file.resourceUri, text}]
+  ];
+  let succeededMethod = null;
+  for (const [method, params] of candidates) {
+    try {
+      const writeResult = await request(method, params);
+      attempts.push({method, ok: true, result: writeResult ?? {}});
+      const nextEtag = writeResult?.etag || writeResult?._meta?.["openai/resource"]?.etag;
+      if (nextEtag) lastReadEtag = nextEtag;
+      succeededMethod = method;
+      break;
+    } catch (error) {
+      attempts.push({method, ok: false, error});
+      if (error && typeof error === "object" && error.code !== -32601) {
+        // Method exists on the host, so stop probing fallback method names.
+        break;
+      }
+    }
+  }
+  report.file.writeAttempts = attempts;
+  document.getElementById("file-status").textContent = succeededMethod
+    ? `Saved local file via ${succeededMethod}.`
+    : "Local file write returned an error; see writeAttempts in report JSON.";
+  await syncReport(trigger);
+}
+
+async function maybeAutoProbeFile() {
+  if (!AUTO_PROBE) return;
+  await bridgeReady;
+  if (!initialized) return;
+  const file = currentFileInput();
+  if (!file.resourceUri || autoFileProbedUris.has(file.resourceUri)) return;
+  autoFileProbedUris.add(file.resourceUri);
+  report.autoProbe.fileUrisProbed.push(file.resourceUri);
+
+  await performReadFile(file, {sync: false});
+  await performSubscribeAndTouch(file);
+  await delay(120);
+
+  if (isSafeAutoWriteTarget(file, lastReadRawText)) {
+    const writeBox = document.getElementById("write-text");
+    if (!writeBox.value) {
+      writeBox.value = defaultWriteTextForFile(file);
+    }
+    await performWriteFile(file, writeBox.value, {trigger: "auto-file-write"});
+    await delay(120);
+    await syncReport("auto-file-probe-settled");
+  } else {
+    report.autoProbe.writeSkippedReason =
+      "refused auto-write outside /tmp or spike scratch markers; use Confirm save button";
+    await syncReport("auto-file-write-skipped");
+  }
+}
+
+function setFileCandidate(file) {
+  if (!file || typeof file !== "object") return;
+  const uri = typeof file.resourceUri === "string" ? file.resourceUri : (typeof file.uri === "string" ? file.uri : "");
+  const name = typeof file.name === "string" ? file.name : "";
+  if (uri) {
+    document.getElementById("file-uri").value = uri;
+    report.file.uri = uri;
+  }
+  if (name) {
+    document.getElementById("file-name").value = name;
+    report.file.name = name;
+  }
+  if (uri || name) {
+    document.getElementById("file-status").textContent =
+      `File input received: ${name || "(unnamed)"} (${uri || "no uri"})`;
+  }
+  if (uri && AUTO_PROBE) {
+    void maybeAutoProbeFile();
+  }
+}
+
 window.addEventListener("message", event => {
   if (event.source !== window.parent) return;
   const message = event.data;
@@ -314,6 +499,45 @@ window.addEventListener("message", event => {
   }
 }, {passive: true});
 
+async function runAutoBridgeProbe() {
+  if (!AUTO_PROBE || autoBridgeProbed || !initialized) return;
+  autoBridgeProbed = true;
+  report.autoProbe.bridgeRan = true;
+  try {
+    let response;
+    try {
+      response = await request("tools/call", {name: "status", arguments: {}});
+    } catch (_directError) {
+      response = await callServerTool("status", {});
+    }
+    const statusText = response.content?.[0]?.text || "Status requested; use the text fallback.";
+    report.viewerAction = {ok: true, auto: true, statusText};
+    document.getElementById("status").textContent = `Auto-probe status: ${statusText}`;
+  } catch (error) {
+    report.viewerAction = {ok: false, auto: true, error};
+  }
+  try {
+    const contextResult = await request("ui/update-model-context", {
+      content: [{type: "text", text: "Spike viewer auto-probe active."}]
+    });
+    report.autoProbe.modelContext = {ok: true, result: contextResult ?? {}};
+  } catch (error) {
+    report.autoProbe.modelContext = {ok: false, error};
+  }
+  if (AUTO_PROBE_MESSAGE) {
+    try {
+      const messageResult = await request("ui/message", {
+        role: "user",
+        content: {type: "text", text: "Spike viewer auto-probe status check (no reply needed)."}
+      });
+      report.autoProbe.uiMessage = {ok: true, result: messageResult ?? {}};
+    } catch (error) {
+      report.autoProbe.uiMessage = {ok: false, error};
+    }
+  }
+  await syncReport("auto-bridge-probe");
+}
+
 async function initializeBridge() {
   try {
     const initResult = await request("ui/initialize", {
@@ -323,12 +547,13 @@ async function initializeBridge() {
     });
     initialized = true;
     report.initialize = initResult;
-    setFileCandidate(initResult?.hostContext?.file || initResult?.hostContext);
     notify("ui/notifications/initialized", {});
     const hostName = initResult?.hostInfo?.name || "host";
     document.getElementById("status").textContent =
       `Bridge initialized with ${hostName}.`;
     await syncReport("initialized");
+    await runAutoBridgeProbe();
+    setFileCandidate(initResult?.hostContext?.file || initResult?.hostContext);
   } catch (error) {
     report.initialize = {error};
     renderReport();
@@ -388,16 +613,6 @@ document.getElementById("copy-report").addEventListener("click", async () => {
   }
 });
 
-function currentFileInput() {
-  const uri = document.getElementById("file-uri").value.trim();
-  const name =
-    document.getElementById("file-name").value.trim() ||
-    (uri ? uri.split("/").pop() || "sample.uid" : "sample.uid");
-  report.file.uri = uri || null;
-  report.file.name = name || null;
-  return {name, resourceUri: uri};
-}
-
 document.getElementById("read-file").addEventListener("click", async () => {
   await bridgeReady;
   const file = currentFileInput();
@@ -405,35 +620,7 @@ document.getElementById("read-file").addEventListener("click", async () => {
     document.getElementById("file-status").textContent = "Enter or open a file resourceUri first.";
     return;
   }
-  try {
-    const readResult = await request("resources/read", {uri: file.resourceUri});
-    const content = readResult?.contents?.[0] || null;
-    const meta = content?._meta || null;
-    const openAiMeta = meta?.["openai/resource"] || null;
-    lastReadEtag = openAiMeta?.etag || meta?.etag || null;
-    const hasText = typeof content?.text === "string";
-    const hasBlob = typeof content?.blob === "string";
-    report.file.read = {
-      ok: true,
-      uri: content?.uri || file.resourceUri,
-      mimeType: content?.mimeType || null,
-      representation: hasText ? "text" : (hasBlob ? "blob" : "empty"),
-      length: hasText ? content.text.length : (hasBlob ? content.blob.length : 0),
-      meta,
-      writable: openAiMeta?.writable ?? meta?.writable ?? null,
-      etag: lastReadEtag
-    };
-    if (hasText) {
-      document.getElementById("write-text").value = prepareWriteCandidate(content.text);
-    }
-    document.getElementById("file-status").textContent =
-      `Read ${file.name}: ${report.file.read.representation} (${report.file.read.length} chars).`;
-    await syncReport("file-read");
-  } catch (error) {
-    report.file.read = {ok: false, error};
-    document.getElementById("file-status").textContent = "resources/read failed; see report JSON.";
-    await syncReport("file-read-error");
-  }
+  await performReadFile(file);
 });
 
 document.getElementById("subscribe-file").addEventListener("click", async () => {
@@ -443,30 +630,14 @@ document.getElementById("subscribe-file").addEventListener("click", async () => 
     document.getElementById("file-status").textContent = "Enter or open a file resourceUri first.";
     return;
   }
-  try {
-    const subResult = await request("resources/subscribe", {uri: file.resourceUri});
-    report.file.subscribe = {ok: true, result: subResult ?? {}};
-  } catch (error) {
-    report.file.subscribe = {ok: false, error};
-  }
-  const echoResponse = await syncReport("file-subscribe-and-touch", {
-    file,
-    touch: true
-  });
-  report.file.serverEcho = echoResponse?.structuredContent ?? null;
-  document.getElementById("file-status").textContent =
-    "Subscribed and probed server _meta echo; see report JSON.";
-  renderReport();
+  await performSubscribeAndTouch(file);
 });
 
 document.getElementById("arm-write").addEventListener("click", () => {
+  const file = currentFileInput();
   const writeBox = document.getElementById("write-text");
   if (!writeBox.value) {
-    writeBox.value = JSON.stringify(
-      {format: "spike-uid", _spikeSavedAt: new Date().toISOString()},
-      null,
-      2
-    ) + "\\n";
+    writeBox.value = defaultWriteTextForFile(file);
   }
   document.getElementById("confirm-write").hidden = false;
   document.getElementById("file-status").textContent =
@@ -481,43 +652,23 @@ document.getElementById("confirm-write").addEventListener("click", async () => {
     document.getElementById("file-status").textContent = "Enter or open a file resourceUri first.";
     return;
   }
-  const text = document.getElementById("write-text").value;
-  const attempts = [];
-  const candidates = [
-    [
-      "openai/resources/write",
-      {uri: file.resourceUri, text, ...(lastReadEtag ? {ifMatch: lastReadEtag} : {})}
-    ],
-    ["resources/write", {uri: file.resourceUri, text}],
-    ["ui/resources/write", {uri: file.resourceUri, text}]
-  ];
-  let succeededMethod = null;
-  for (const [method, params] of candidates) {
-    try {
-      const writeResult = await request(method, params);
-      attempts.push({method, ok: true, result: writeResult ?? {}});
-      const nextEtag = writeResult?.etag || writeResult?._meta?.["openai/resource"]?.etag;
-      if (nextEtag) lastReadEtag = nextEtag;
-      succeededMethod = method;
-      break;
-    } catch (error) {
-      attempts.push({method, ok: false, error});
-      if (error && typeof error === "object" && error.code !== -32601) {
-        // Method exists on the host, so stop probing fallback method names.
-        break;
-      }
-    }
-  }
-  report.file.writeAttempts = attempts;
-  document.getElementById("file-status").textContent = succeededMethod
-    ? `Saved local file via ${succeededMethod}.`
-    : "Local file write returned an error; see writeAttempts in report JSON.";
-  await syncReport("file-write");
+  await performWriteFile(file, document.getElementById("write-text").value);
 });
 </script>
 </body>
 </html>
 """
+
+
+def viewer_html(*, auto_probe: bool = False, auto_probe_message: bool = False) -> str:
+    return VIEWER_HTML_TEMPLATE.replace(
+        "__SPIKE_AUTO_PROBE__", "true" if auto_probe else "false"
+    ).replace(
+        "__SPIKE_AUTO_PROBE_MESSAGE__", "true" if auto_probe_message else "false"
+    )
+
+
+VIEWER_HTML = viewer_html()
 
 FILE_INPUT_SCHEMA: dict[str, object] = {
     "type": "object",
@@ -650,6 +801,7 @@ def flush_log() -> None:
     if not SESSION_INITIALIZED:
         return
     SESSION_LOG["serverName"] = SERVER_NAME
+    SESSION_LOG["autoProbe"] = AUTO_PROBE
     LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
     LOG_PATH.write_text(
         json.dumps(SESSION_LOG, indent=2, sort_keys=True) + "\n",
@@ -679,6 +831,7 @@ def log_initialize(params: object) -> None:
     SESSION_LOG.update(
         {
             "serverName": SERVER_NAME,
+            "autoProbe": AUTO_PROBE,
             "protocolVersion": protocol_version,
             "clientInfo": client_info,
             "capabilities": capabilities,
@@ -854,7 +1007,10 @@ def handle(request: object) -> None:
                         {
                             "uri": VIEWER_URI,
                             "mimeType": VIEWER_MIME_TYPE,
-                            "text": VIEWER_HTML,
+                            "text": viewer_html(
+                                auto_probe=AUTO_PROBE,
+                                auto_probe_message=AUTO_PROBE_MESSAGE,
+                            ),
                             "_meta": VIEWER_RESOURCE_META,
                         }
                     ]

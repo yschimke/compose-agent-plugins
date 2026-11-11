@@ -73,25 +73,36 @@ and `v2.31.0` added local file save support for MCP App file viewers. Run the
 interactive smoke helper on a desktop machine with Antigravity `v2.31.0+`:
 
 ```sh
-python3 scripts/antigravity-mcp-apps-smoke.py
+python3 scripts/antigravity-mcp-apps-smoke.py --auto-probe
 ```
+
+Pass `--auto-probe` (or `python3 spike/prepare.py --auto-probe`) when driving
+the check from a local Antigravity agent session without manual clicks inside
+the iframe: as soon as `ui://spike/app` mounts, the viewer automatically runs
+`tools/call` → `status`, `ui/update-model-context`, and (when `open_file`
+supplies a scratch `/tmp/*.uid` or `/tmp/*.rc` file) `resources/read`,
+`resources/subscribe`, server `_meta` echo + mtime `touch`, and the local file
+write-back probe, flushing the result to `/tmp/spike-*.json`. Non-scratch files
+outside `/tmp` skip automatic writes and keep the two-step manual confirm
+button. Pass `--auto-probe-message` to also fire `ui/message` automatically on
+mount; omit `--auto-probe` for interactive button-by-button probing.
 
 The helper runs `spike/prepare.py` and `spike/run-protocol-smoke.py`, stages
 scratch `sample.uid` and `sample.rc` files in a temporary directory, prints the
-exact `agy plugin install` and chat/editor steps, and summarizes the updated
-`/tmp/spike-*.json` files after pressing Enter:
+exact `agy plugin install` command and local agent prompt, and summarizes the
+updated `/tmp/spike-*.json` files after pressing Enter:
 
 1. **Capabilities & Side Panel (`render_preview`)** — confirms whether
    `initialize` advertises `capabilities.extensions["io.modelcontextprotocol/ui"]`,
    whether Antigravity reads `ui://spike/app` and mounts it in Side Panel →
    `Extensions` (or inline), whether `ui/notifications/tool-input` and
-   `ui/notifications/tool-result` fire, and whether `Send viewer action`
-   completes `tools/call` + `ui/message`.
+   `ui/notifications/tool-result` fire, and whether `status` / `ui/message`
+   bridge calls succeed.
 2. **File viewer & local save (`open_file`)** — probes `.uid` / `.rc` file
    entrypoint matching (`_meta["openai/ui"].entrypoints`), `resources/read`
    (`_meta`, `writable`, `etag`), `resources/subscribe`, server-side `_meta`
-   local path injection on `viewer_report`, and two-step confirmed local file
-   write-back (`openai/resources/write`, `resources/write`, `ui/resources/write`).
+   local path injection on `viewer_report`, and local file write-back
+   (`openai/resources/write`, `resources/write`, `ui/resources/write`).
 3. **Cleanup & evidence** — uninstall `p1` / `p2` (`agy plugin uninstall p1`),
    record observed outputs in `docs/evidence/`, and only then update
    `docs/harness-matrix.md`.

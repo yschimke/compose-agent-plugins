@@ -3,15 +3,17 @@
 
 Run from a checkout:
 
-  python3 scripts/antigravity-mcp-apps-smoke.py              # prepare, print steps, summarize logs
-  python3 scripts/antigravity-mcp-apps-smoke.py --check-only # non-interactive fixture + smoke check
+  python3 scripts/antigravity-mcp-apps-smoke.py               # manual viewer clicks
+  python3 scripts/antigravity-mcp-apps-smoke.py --auto-probe  # zero viewer clicks (agent-friendly)
+  python3 scripts/antigravity-mcp-apps-smoke.py --check-only  # non-interactive fixture + smoke check
   python3 scripts/antigravity-mcp-apps-smoke.py --logs-dir /tmp
 
 Antigravity v2.30.0 rolled out MCP Apps in the Side Panel Extensions tab, and
 v2.31.0 added local file save support for MCP App file viewers. This helper
 prepares the dependency-free spike fixture (`spike/p1` and `spike/p2`), stages
-scratch `.uid` and `.rc` probe files, guides the live desktop verification, and
-summarizes the `/tmp/spike-*.json` server and bridge reports afterward.
+scratch `.uid` and `.rc` probe files, guides the live desktop verification (or
+prints a ready-to-paste local agent prompt with `--auto-probe`), and summarizes
+the `/tmp/spike-*.json` server and bridge reports afterward.
 """
 
 from __future__ import annotations
@@ -34,7 +36,12 @@ def report(status: str, message: str, results: list[str]) -> None:
     print(f"{status:<4} {message}")
 
 
-def check_and_prepare(results: list[str]) -> None:
+def check_and_prepare(
+    results: list[str],
+    *,
+    auto_probe: bool = False,
+    auto_probe_message: bool = False,
+) -> None:
     prepare = ROOT / "spike" / "prepare.py"
     smoke = ROOT / "spike" / "run-protocol-smoke.py"
     for script in (prepare, smoke):
@@ -42,8 +49,13 @@ def check_and_prepare(results: list[str]) -> None:
             report("FIX", f"missing {script.relative_to(ROOT)}", results)
             return
 
+    prepare_cmd = [sys.executable, str(prepare)]
+    if auto_probe:
+        prepare_cmd.append("--auto-probe")
+    if auto_probe_message:
+        prepare_cmd.append("--auto-probe-message")
     completed_prepare = subprocess.run(
-        [sys.executable, str(prepare)],
+        prepare_cmd,
         capture_output=True,
         text=True,
         check=False,
@@ -52,7 +64,8 @@ def check_and_prepare(results: list[str]) -> None:
         detail = (completed_prepare.stderr or completed_prepare.stdout).strip()
         report("FIX", f"spike/prepare.py failed: {detail}", results)
         return
-    report("ok", "prepared spike/p1 and spike/p2 Antigravity fixtures", results)
+    mode_note = " (with --auto-probe)" if (auto_probe or auto_probe_message) else ""
+    report("ok", f"prepared spike/p1 and spike/p2 Antigravity fixtures{mode_note}", results)
 
     for plugin_name, server_name in (("p1", "alpha"), ("p2", "beta")):
         plugin_root = ROOT / "spike" / plugin_name
@@ -72,7 +85,11 @@ def check_and_prepare(results: list[str]) -> None:
         if server_name not in servers:
             report("FIX", f"{plugin_name}: mcp_config.json missing server {server_name!r}", results)
         else:
-            report("ok", f"{plugin_name}: mcp_config.json wires {server_name} -> {server_path.name}", results)
+            server_args = servers[server_name].get("args") or []
+            if (auto_probe or auto_probe_message) and "--auto-probe" not in server_args:
+                report("FIX", f"{plugin_name}: mcp_config.json missing --auto-probe arg", results)
+            else:
+                report("ok", f"{plugin_name}: mcp_config.json wires {server_name} -> {server_path.name}", results)
 
     shipping_manifest = ROOT / "plugins" / "compose-preview" / "plugin.json"
     shipping_mcp = ROOT / "plugins" / "compose-preview" / "mcp_config.json"
@@ -115,6 +132,7 @@ def summarize_log_file(path: Path) -> list[str]:
     client = data.get("clientInfo") or {}
     lines.append(
         f"  server={data.get('serverName')!r} "
+        f"autoProbe={bool(data.get('autoProbe'))} "
         f"client={client.get('name')!r}@{client.get('version')!r} "
         f"protocolVersion={data.get('protocolVersion')!r}"
     )
@@ -146,6 +164,11 @@ def summarize_log_file(path: Path) -> list[str]:
         lines.append(f"  latest trigger: {bridge.get('lastTrigger')!r}")
         lines.append(f"  ui/initialize hostInfo: {json.dumps(init_res.get('hostInfo'))}")
         lines.append(f"  ui/initialize hostCapabilities: {json.dumps(init_res.get('hostCapabilities'))}")
+        if bridge.get("viewerAction") is not None:
+            lines.append(f"  viewerAction (tools/call -> status): {json.dumps(bridge.get('viewerAction'))}")
+        auto_state = bridge.get("autoProbe")
+        if isinstance(auto_state, dict) and auto_state.get("enabled"):
+            lines.append(f"  autoProbe state: {json.dumps(auto_state)}")
         tool_result = bridge.get("toolResult")
         if isinstance(tool_result, dict):
             lines.append(
@@ -162,6 +185,8 @@ def summarize_log_file(path: Path) -> list[str]:
         write_attempts = file_probe.get("writeAttempts")
         if write_attempts:
             lines.append(f"  file writeAttempts: {json.dumps(write_attempts)}")
+        if bridge.get("resourceUpdates"):
+            lines.append(f"  resourceUpdates: {json.dumps(bridge.get('resourceUpdates'))}")
         other_notes = bridge.get("otherNotifications")
         if other_notes:
             lines.append(f"  other host notifications: {json.dumps(other_notes)}")
@@ -204,7 +229,7 @@ def stage_probe_files(work: Path) -> tuple[Path, Path]:
     return uid_file, rc_file
 
 
-def print_live_steps(uid_file: Path, rc_file: Path) -> None:
+def print_live_steps(uid_file: Path, rc_file: Path, *, auto_probe: bool) -> None:
     p1_dir = ROOT / "spike" / "p1"
     p2_dir = ROOT / "spike" / "p2"
     print()
@@ -215,40 +240,66 @@ def print_live_steps(uid_file: Path, rc_file: Path) -> None:
     print("   - Check Settings -> Labs and note whether any MCP Apps / Extensions toggle exists.")
     print()
     print("1. Install the prepared spike fixture plugin(s)")
-    print(f"     agy plugin install {p1_dir}")
+    print(f"     agy plugin uninstall p1 2>/dev/null; agy plugin install {p1_dir}")
     print(f"     agy plugin install {p2_dir}   # optional: tests colliding tool names (Q2/Q10)")
-    print("   Start a new conversation or reload so Antigravity spawns the alpha MCP server.")
+    print("   Start a new Antigravity chat/session so it spawns the alpha MCP server.")
     print()
-    print("2. Probe Side Panel MCP Apps (Q8, Q16, Q17)")
-    print('   - In chat, ask: "Call render_preview on alpha."')
-    print("   - Confirm the text fallback + 1x1 PNG still appear in chat.")
-    print("   - Open Side Panel -> Extensions (or check inline chat) for 'Spike echo viewer'.")
-    print("   - Click 'Send viewer action' inside the viewer.")
-    print("     (Tests tools/call -> status, ui/message, and auto-saves report to /tmp/spike-*.json.)")
-    print()
-    print("3. Probe MCP App file viewer + local file save (Antigravity v2.31.0+)")
-    print(f"   - Staged .uid probe file: {uid_file}")
-    print(f"   - Staged .rc probe file:  {rc_file}")
-    print("   - Open sample.uid in Antigravity (or ask the agent to call open_file with")
-    print(f'     {{"file": {{"name": "{uid_file.name}", "resourceUri": "{uid_file.as_uri()}"}}}}).')
-    print("   - Inside the Spike Design Viewer:")
-    print("       a) Click '1. Read file (resources/read)'")
-    print("       b) Click '2. Subscribe + echo host _meta'")
-    print("       c) Click '3. Save local file...' -> 'Confirm save to local file'")
-    print()
-    print("4. Optional: test real Compose Preview MCP App surfaces")
+    if auto_probe:
+        print("2. Agent-driven auto-probe (zero clicks inside the viewer)")
+        print("   Paste this prompt into the new local Antigravity chat:")
+        print()
+        print("   ---")
+        print(
+            f"   Call alpha's `render_preview` tool, then call alpha's `open_file` tool "
+            f'with `{{"file": {{"name": "{uid_file.name}", "resourceUri": "{uid_file.as_uri()}"}}}}`. '
+            f"Wait 3 seconds, then run `python3 {ROOT / 'scripts/antigravity-mcp-apps-smoke.py'} --logs-dir /tmp` "
+            f"and show the full output plus the contents of `{uid_file}`."
+        )
+        print("   ---")
+        print()
+        print("   Note: if Antigravity lazy-mounts the webview, open Side Panel -> Extensions")
+        print(f"   (or open {uid_file} in the editor) once — auto-probe runs status, model-context,")
+        print("   resources/read, resources/subscribe + touch, and local file save automatically on mount.")
+        print()
+    else:
+        print("2. Probe Side Panel MCP Apps (Q8, Q16, Q17)")
+        print('   - In chat, ask: "Call render_preview on alpha."')
+        print("   - Confirm the text fallback + 1x1 PNG still appear in chat.")
+        print("   - Open Side Panel -> Extensions (or check inline chat) for 'Spike echo viewer'.")
+        print("   - Click 'Send viewer action' inside the viewer.")
+        print("     (Tests tools/call -> status, ui/message, and auto-saves report to /tmp/spike-*.json.)")
+        print()
+        print("3. Probe MCP App file viewer + local file save (Antigravity v2.31.0+)")
+        print(f"   - Staged .uid probe file: {uid_file}")
+        print(f"   - Staged .rc probe file:  {rc_file}")
+        print("   - Open sample.uid in Antigravity (or ask the agent to call open_file with")
+        print(f'     {{"file": {{"name": "{uid_file.name}", "resourceUri": "{uid_file.as_uri()}"}}}}).')
+        print("   - Inside the Spike Design Viewer:")
+        print("       a) Click '1. Read file (resources/read)'")
+        print("       b) Click '2. Subscribe + echo host _meta'")
+        print("       c) Click '3. Save local file...' -> 'Confirm save to local file'")
+        print()
+    print("Optional: test real Compose Preview MCP App surfaces afterward")
     print("   - Uninstall the spike plugins first:")
     print("       agy plugin uninstall p1 && agy plugin uninstall p2")
     print("   - Install shipping compose-preview:")
     print("       python3 scripts/antigravity-install.py")
     print('   - Ask: "Render a Wear Material 3 EdgeButton preview" and check Side Panel -> Extensions.')
-    print("   - For the Kotlin OpenAI/file-viewer probe in compose-preview-mcp, launch with")
-    print("     COMPOSE_PREVIEW_MCP_OPENAI_PROBE=1.")
     print()
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser.add_argument(
+        "--auto-probe",
+        action="store_true",
+        help="enable automatic viewer bridge and scratch-file probes on iframe mount (zero viewer clicks)",
+    )
+    parser.add_argument(
+        "--auto-probe-message",
+        action="store_true",
+        help="with --auto-probe, also send ui/message automatically on mount",
+    )
     parser.add_argument(
         "--check-only",
         action="store_true",
@@ -261,6 +312,7 @@ def main() -> int:
         help="summarize existing spike-*.json files in this directory and exit",
     )
     options = parser.parse_args()
+    auto_probe = options.auto_probe or options.auto_probe_message
 
     if options.logs_dir is not None:
         summarize_logs(options.logs_dir)
@@ -268,7 +320,11 @@ def main() -> int:
 
     results: list[str] = []
     print("== 1. Static & protocol checks for Antigravity MCP Apps spike ==")
-    check_and_prepare(results)
+    check_and_prepare(
+        results,
+        auto_probe=auto_probe,
+        auto_probe_message=options.auto_probe_message,
+    )
     failed = any(status == "FIX" for status in results)
     print()
     if failed:
@@ -288,7 +344,7 @@ def main() -> int:
     try:
         uid_file, rc_file = stage_probe_files(work)
         before_uid = uid_file.read_text(encoding="utf-8")
-        print_live_steps(uid_file, rc_file)
+        print_live_steps(uid_file, rc_file, auto_probe=auto_probe)
         try:
             input("Press Enter after completing the live Antigravity steps to summarize /tmp/spike-*.json... ")
         except EOFError:

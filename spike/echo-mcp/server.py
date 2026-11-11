@@ -163,9 +163,9 @@ const pending = new Map();
 let nextId = 1;
 let initialized = false;
 let resolvedTools = null;
-let lastReadEtag = null;
-let lastReadRawText = null;
+const lastReadEtagByUri = new Map();
 let autoBridgeProbed = false;
+let autoProbeQueue = Promise.resolve();
 const autoFileProbedUris = new Set();
 
 const report = {
@@ -314,15 +314,23 @@ function currentFileInput() {
 }
 
 async function performReadFile(file, {sync = true} = {}) {
+  report.file.uri = file.resourceUri || null;
+  report.file.name = file.name || null;
   try {
     const readResult = await request("resources/read", {uri: file.resourceUri});
     const content = readResult?.contents?.[0] || null;
     const meta = content?._meta || null;
     const openAiMeta = meta?.["openai/resource"] || null;
-    lastReadEtag = openAiMeta?.etag || meta?.etag || null;
+    const readEtag = openAiMeta?.etag || meta?.etag || null;
+    if (readEtag) {
+      lastReadEtagByUri.set(file.resourceUri, readEtag);
+    } else {
+      lastReadEtagByUri.delete(file.resourceUri);
+    }
     const hasText = typeof content?.text === "string";
     const hasBlob = typeof content?.blob === "string";
-    lastReadRawText = hasText ? content.text : null;
+    const rawText = hasText ? content.text : null;
+    const writeCandidate = hasText ? prepareWriteCandidate(content.text) : null;
     report.file.read = {
       ok: true,
       uri: content?.uri || file.resourceUri,
@@ -331,21 +339,21 @@ async function performReadFile(file, {sync = true} = {}) {
       length: hasText ? content.text.length : (hasBlob ? content.blob.length : 0),
       meta,
       writable: openAiMeta?.writable ?? meta?.writable ?? null,
-      etag: lastReadEtag
+      etag: readEtag
     };
-    if (hasText) {
-      document.getElementById("write-text").value = prepareWriteCandidate(content.text);
+    if (writeCandidate !== null) {
+      document.getElementById("write-text").value = writeCandidate;
     }
     document.getElementById("file-status").textContent =
       `Read ${file.name}: ${report.file.read.representation} (${report.file.read.length} chars).`;
     if (sync) await syncReport("file-read");
-    return true;
+    return {ok: true, rawText, writeCandidate, etag: readEtag};
   } catch (error) {
-    lastReadRawText = null;
+    lastReadEtagByUri.delete(file.resourceUri);
     report.file.read = {ok: false, error};
     document.getElementById("file-status").textContent = "resources/read failed; see report JSON.";
     if (sync) await syncReport("file-read-error");
-    return false;
+    return {ok: false, rawText: null, writeCandidate: null, etag: null};
   }
 }
 
@@ -366,12 +374,14 @@ async function performSubscribeAndTouch(file) {
   renderReport();
 }
 
-async function performWriteFile(file, text, {trigger = "file-write"} = {}) {
+async function performWriteFile(file, text, {trigger = "file-write", etag = undefined} = {}) {
   const attempts = [];
+  const effectiveEtag =
+    etag !== undefined ? etag : (lastReadEtagByUri.get(file.resourceUri) || null);
   const candidates = [
     [
       "openai/resources/write",
-      {uri: file.resourceUri, text, ...(lastReadEtag ? {ifMatch: lastReadEtag} : {})}
+      {uri: file.resourceUri, text, ...(effectiveEtag ? {ifMatch: effectiveEtag} : {})}
     ],
     ["resources/write", {uri: file.resourceUri, text}],
     ["ui/resources/write", {uri: file.resourceUri, text}]
@@ -382,7 +392,7 @@ async function performWriteFile(file, text, {trigger = "file-write"} = {}) {
       const writeResult = await request(method, params);
       attempts.push({method, ok: true, result: writeResult ?? {}});
       const nextEtag = writeResult?.etag || writeResult?._meta?.["openai/resource"]?.etag;
-      if (nextEtag) lastReadEtag = nextEtag;
+      if (nextEtag) lastReadEtagByUri.set(file.resourceUri, nextEtag);
       succeededMethod = method;
       break;
     } catch (error) {
@@ -400,25 +410,31 @@ async function performWriteFile(file, text, {trigger = "file-write"} = {}) {
   await syncReport(trigger);
 }
 
-async function maybeAutoProbeFile() {
-  if (!AUTO_PROBE) return;
+async function runAutoProbeForFile(file) {
   await bridgeReady;
   if (!initialized) return;
-  const file = currentFileInput();
-  if (!file.resourceUri || autoFileProbedUris.has(file.resourceUri)) return;
-  autoFileProbedUris.add(file.resourceUri);
   report.autoProbe.fileUrisProbed.push(file.resourceUri);
+  report.autoProbe.writeSkippedReason = null;
+  report.file = {
+    name: file.name,
+    uri: file.resourceUri,
+    read: null,
+    subscribe: null,
+    serverEcho: null,
+    writeAttempts: []
+  };
 
-  await performReadFile(file, {sync: false});
+  const readOutcome = await performReadFile(file, {sync: false});
   await performSubscribeAndTouch(file);
   await delay(120);
 
-  if (isSafeAutoWriteTarget(file, lastReadRawText)) {
-    const writeBox = document.getElementById("write-text");
-    if (!writeBox.value) {
-      writeBox.value = defaultWriteTextForFile(file);
-    }
-    await performWriteFile(file, writeBox.value, {trigger: "auto-file-write"});
+  if (isSafeAutoWriteTarget(file, readOutcome.rawText)) {
+    const textToWrite = readOutcome.writeCandidate || defaultWriteTextForFile(file);
+    document.getElementById("write-text").value = textToWrite;
+    await performWriteFile(file, textToWrite, {
+      trigger: "auto-file-write",
+      etag: readOutcome.etag
+    });
     await delay(120);
     await syncReport("auto-file-probe-settled");
   } else {
@@ -426,6 +442,16 @@ async function maybeAutoProbeFile() {
       "refused auto-write outside /tmp or spike scratch markers; use Confirm save button";
     await syncReport("auto-file-write-skipped");
   }
+}
+
+function enqueueAutoProbeFile(file) {
+  if (!AUTO_PROBE || !file.resourceUri || autoFileProbedUris.has(file.resourceUri)) return;
+  autoFileProbedUris.add(file.resourceUri);
+  autoProbeQueue = autoProbeQueue
+    .then(() => runAutoProbeForFile(file))
+    .catch(error => {
+      console.error("Auto file probe failed:", error);
+    });
 }
 
 function setFileCandidate(file) {
@@ -445,7 +471,8 @@ function setFileCandidate(file) {
       `File input received: ${name || "(unnamed)"} (${uri || "no uri"})`;
   }
   if (uri && AUTO_PROBE) {
-    void maybeAutoProbeFile();
+    const resolvedName = name || uri.split("/").pop() || "sample.uid";
+    enqueueAutoProbeFile({name: resolvedName, resourceUri: uri});
   }
 }
 

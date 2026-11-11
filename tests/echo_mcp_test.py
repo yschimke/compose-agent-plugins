@@ -58,7 +58,8 @@ import vm from "node:vm";
 
 const code = fs.readFileSync(process.argv[2], "utf8");
 
-function runScenario({uri, name, fileContent}) {
+function runScenario({files, expectedTerminalReports = 1}) {
+  const fileMap = new Map(files.map(item => [item.uri, item]));
   const elements = new Map();
   const getEl = id => {
     if (!elements.has(id)) {
@@ -77,7 +78,7 @@ function runScenario({uri, name, fileContent}) {
   let messageListener = null;
   const hostCalls = [];
   const savedReports = [];
-  let writtenText = null;
+  const writes = [];
 
   const parentWindow = {
     postMessage(msg) {
@@ -106,22 +107,24 @@ function runScenario({uri, name, fileContent}) {
         } else if (msg.method === "ui/update-model-context") {
           respond({result: {}});
         } else if (msg.method === "resources/read") {
+          const entry = fileMap.get(msg.params.uri);
           respond({
             result: {
               contents: [{
                 uri: msg.params.uri,
                 mimeType: "application/json",
-                text: fileContent,
-                _meta: {"openai/resource": {writable: true, etag: "etag-1"}}
+                text: entry ? entry.fileContent : "",
+                _meta: {"openai/resource": {writable: true, etag: entry?.etag || "etag-1"}}
               }]
             }
           });
         } else if (msg.method === "resources/subscribe") {
           respond({result: {}});
         } else if (msg.method === "openai/resources/write") {
+          writes.push({method: msg.method, uri: msg.params.uri, text: msg.params.text, ifMatch: msg.params.ifMatch || null});
           respond({error: {code: -32601, message: "Method not found"}});
         } else if (msg.method === "resources/write") {
-          writtenText = msg.params.text;
+          writes.push({method: msg.method, uri: msg.params.uri, text: msg.params.text, ifMatch: null});
           respond({result: {etag: "etag-2"}});
         } else {
           respond({error: {code: -32601, message: `Unhandled ${msg.method}`}});
@@ -148,21 +151,37 @@ function runScenario({uri, name, fileContent}) {
 
   vm.runInNewContext(code, sandbox);
   setImmediate(() => {
+    const first = files[0];
     messageListener({
       source: parentWindow,
       data: {
         jsonrpc: "2.0",
         method: "ui/notifications/tool-input",
-        params: {arguments: {file: {name, resourceUri: uri}}}
+        params: {arguments: {file: {name: first.name, resourceUri: first.uri}}}
       }
     });
+    for (const extra of files.slice(1)) {
+      setImmediate(() => {
+        messageListener({
+          source: parentWindow,
+          data: {
+            jsonrpc: "2.0",
+            method: "ui/notifications/host-context-changed",
+            params: {file: {name: extra.name, resourceUri: extra.uri}}
+          }
+        });
+      });
+    }
   });
 
   return new Promise(resolve => {
     const checkDone = (ticks = 0) => {
-      const last = savedReports.at(-1)?.report?.lastTrigger;
-      if (last === "auto-file-probe-settled" || last === "auto-file-write-skipped" || ticks > 60) {
-        resolve({hostCalls, savedReports, writtenText, reportText: getEl("report").textContent});
+      const terminalCount = savedReports.filter(item => {
+        const trigger = item?.report?.lastTrigger;
+        return trigger === "auto-file-probe-settled" || trigger === "auto-file-write-skipped";
+      }).length;
+      if (terminalCount >= expectedTerminalReports || ticks > 120) {
+        resolve({hostCalls, savedReports, writes, reportText: getEl("report").textContent});
       } else {
         setImmediate(() => checkDone(ticks + 1));
       }
@@ -172,16 +191,39 @@ function runScenario({uri, name, fileContent}) {
 }
 
 const safeRun = await runScenario({
-  uri: "file:///tmp/sample.uid",
-  name: "sample.uid",
-  fileContent: '{"format": "spike-uid"}\\n'
+  files: [{
+    uri: "file:///tmp/sample.uid",
+    name: "sample.uid",
+    fileContent: '{"format": "spike-uid"}\\n',
+    etag: "etag-1"
+  }]
 });
 const unsafeRun = await runScenario({
-  uri: "file:///Users/dev/project/production.uid",
-  name: "production.uid",
-  fileContent: '{"screen": "RealUserFile"}\\n'
+  files: [{
+    uri: "file:///Users/dev/project/production.uid",
+    name: "production.uid",
+    fileContent: '{"screen": "RealUserFile"}\\n',
+    etag: "etag-prod"
+  }]
 });
-process.stdout.write(JSON.stringify({safeRun, unsafeRun}));
+const overlapRun = await runScenario({
+  files: [
+    {
+      uri: "file:///Users/dev/project/production.uid",
+      name: "production.uid",
+      fileContent: '{"screen": "RealUserFile"}\\n',
+      etag: "etag-prod"
+    },
+    {
+      uri: "file:///tmp/sample.uid",
+      name: "sample.uid",
+      fileContent: '{"format": "spike-uid", "screen": "Scratch"}\\n',
+      etag: "etag-scratch"
+    }
+  ],
+  expectedTerminalReports: 2
+});
+process.stdout.write(JSON.stringify({safeRun, unsafeRun, overlapRun}));
 """,
         encoding="utf-8",
     )
@@ -213,7 +255,7 @@ process.stdout.write(JSON.stringify({safeRun, unsafeRun}));
         "resources/write",
     ]
     assert safe_final["file"]["writeAttempts"][1]["ok"] is True
-    assert "_spikeSavedAt" in outcome["safeRun"]["writtenText"]
+    assert "_spikeSavedAt" in outcome["safeRun"]["writes"][-1]["text"]
     assert not any(
         call_msg.get("method") == "ui/message" for call_msg in outcome["safeRun"]["hostCalls"]
     )
@@ -223,8 +265,14 @@ process.stdout.write(JSON.stringify({safeRun, unsafeRun}));
     assert unsafe_final["file"]["read"]["ok"] is True
     assert unsafe_final["file"]["subscribe"]["ok"] is True
     assert unsafe_final["file"]["writeAttempts"] == []
-    assert outcome["unsafeRun"]["writtenText"] is None
+    assert outcome["unsafeRun"]["writes"] == []
     assert "refused auto-write" in (unsafe_final["autoProbe"]["writeSkippedReason"] or "")
+
+    overlap_writes = outcome["overlapRun"]["writes"]
+    assert all(w["uri"] == "file:///tmp/sample.uid" for w in overlap_writes)
+    assert overlap_writes[0]["ifMatch"] == "etag-scratch"
+    assert '"screen": "Scratch"' in overlap_writes[-1]["text"]
+    assert "RealUserFile" not in overlap_writes[-1]["text"]
 
 
 assert echo_mcp.parse_cli_args([]) == ("unnamed", False, False)

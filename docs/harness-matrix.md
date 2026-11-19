@@ -28,11 +28,12 @@ On 2026-09-26, `python3 spike/prepare.py && python3 spike/run-protocol-smoke.py`
 The fixture’s Antigravity `plugin.json` follows Google's
 [official plugin manifest documentation](https://antigravity.google/docs/plugins#manifest-file-plugin-json):
 the v1 schema URL and a required `name`. The generated product manifests in
-`plugins/*/plugin.json` also populate the modern `agy` 1.4.x metadata fields
-(`displayName`, `version`, `description`, `author`, `homepage`, `repository`,
+`plugins/*/plugin.json` also populate the modern `agy` 1.4.x+ metadata fields
+(`displayName`, `version`, `description`, `logo` where bundled, `author`, `homepage`, `repository`,
 `license`, `keywords`, `suggestedPrompts`), which `agy plugin validate` accepts
-without warnings, alongside `sidecars/compose-preview/sidecar.json` for the
-Auxiliary Pane sidecar and `SessionStart` + `Stop` entries in `hooks.json`.
+without warnings, alongside eager-loaded core render tools (`tools.<name>.eager: true`) in
+`mcp_config.json`, `sidecars/compose-preview/sidecar.json` for the
+Auxiliary Pane sidecar, and `SessionStart` + `Stop` entries (with `timeout`) in `hooks.json`.
 The documentation both recommends the `$schema` property and shows it in the canonical example,
 although the full schema printed on that page omits `$schema` from `properties`. The vendored schema
 keeps `$schema` as a constant so the documented example validates while a different schema URL does

@@ -4,14 +4,24 @@
       "headers": {
         "X-Compose-Preview-Token": "${COMPOSE_PREVIEW_TOKEN:-}"
       },
-      "serverUrl": "https://preview.coo.ee/mcp"
+      "serverUrl": "https://preview.coo.ee/mcp",
+      "tools": {
+        "catalog_render_preview": {
+          "eager": true
+        }
+      }
     },
     "compose-preview-mcp": {
       "args": [
         "mcp",
         "serve"
       ],
-      "command": "compose-preview"
+      "command": "compose-preview",
+      "tools": {
+        "render_preview": {
+          "eager": true
+        }
+      }
     }
   }
 }

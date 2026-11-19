@@ -240,12 +240,22 @@ expect_output 'third consecutive turn is allowed' '' "$(run_gate claude "$worksp
 expect_no_cli 'after the consecutive-block cap'
 expect_golden 'the cap resets after allowing' render-failure.claude.json "$(run_gate claude "$workspace")"
 
-# Antigravity: workspacePaths locates the checkout, and conversationId keys the
-# consecutive-block cap, which is its only loop guard.
+# Antigravity: workspacePaths locates the checkout, continuation_active allows
+# an immediate stop (agy 1.5.6+), and conversationId keys the consecutive-block
+# cap for older releases.
 reset_fake
 expect_output 'Antigravity pixel changes allow the stop' '' \
   "$(run_antigravity_gate "$workspace" conversation-pixels)"
 grep -q '^show --json$' "$log" || fail 'Antigravity: workspacePaths must locate the checkout'
+
+reset_fake
+FAKE_SHOW_JSON="$data/show-render-failed.json" FAKE_SHOW_STATUS=2
+expect_output 'Antigravity continuation_active allows the stop' '' \
+  "$(
+    printf '{"conversationId":"conv-cont","workspacePaths":["%s"],"terminationReason":"NO_TOOL_CALL","continuation_active":true}' "$workspace" |
+      (cd / && TMPDIR="$temporary_root/tmp" "$gate" --harness=antigravity)
+  )"
+expect_no_cli 'Antigravity continuation_active'
 
 reset_fake
 FAKE_SHOW_JSON="$data/show-render-failed.json" FAKE_SHOW_STATUS=2

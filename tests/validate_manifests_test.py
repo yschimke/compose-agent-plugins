@@ -206,5 +206,71 @@ class AgentToolNamesTest(unittest.TestCase):
             self.check("mcp__plugin_compose-preview_other__render_preview")
 
 
+class AntigravityGenerationTests(unittest.TestCase):
+    def test_manifest_includes_logo_when_bundled(self) -> None:
+        from generate import render_antigravity_manifest
+
+        plugin = {
+            "name": "compose-preview",
+            "version": "0.14.0",
+            "description": "Preview plugin.",
+            "interface": {"displayName": "Compose Preview", "defaultPrompt": ["Render a preview."]},
+            "assets": ["compose-preview-logo.png"],
+        }
+        manifest = render_antigravity_manifest(
+            plugin=plugin,
+            owner="Yuri Schimke",
+            repository="https://github.com/yschimke/compose-agent-plugins",
+            license_name="Apache-2.0",
+        )
+        self.assertEqual(manifest.get("logo"), "assets/compose-preview-logo.png")
+
+    def test_mcp_eager_tools_only_for_antigravity(self) -> None:
+        from generate import render_mcp_servers
+
+        entries = [
+            {
+                "name": "compose-preview-mcp",
+                "kind": "stdio",
+                "command": "compose-preview",
+                "args": ["mcp", "serve"],
+                "eagerTools": ["render_preview"],
+            }
+        ]
+        agy = render_mcp_servers("compose-preview", entries, "antigravity")
+        self.assertEqual(agy["compose-preview-mcp"].get("tools"), {"render_preview": {"eager": True}})
+        claude = render_mcp_servers("compose-preview", entries, "claude")
+        self.assertNotIn("tools", claude["compose-preview-mcp"])
+
+    def test_mcp_rejects_empty_eager_tools(self) -> None:
+        from generate import render_mcp_servers
+
+        entries = [
+            {
+                "name": "compose-preview-mcp",
+                "kind": "stdio",
+                "command": "compose-preview",
+                "args": ["mcp", "serve"],
+                "eagerTools": [],
+            }
+        ]
+        with self.assertRaisesRegex(ValueError, "eagerTools"):
+            render_mcp_servers("compose-preview", entries, "antigravity")
+
+    def test_antigravity_hooks_preserve_timeout(self) -> None:
+        from generate import render_antigravity_hooks
+
+        rendered = render_antigravity_hooks(
+            "compose-preview",
+            [
+                {"event": "SessionStart", "command": "scripts/session-start-summary.sh", "timeout": 10},
+                {"event": "Stop", "command": "scripts/stop-gate.sh", "timeout": 360},
+            ],
+        )
+        assert rendered is not None
+        self.assertEqual(rendered["compose-preview"]["SessionStart"][0]["timeout"], 10)
+        self.assertEqual(rendered["compose-preview"]["Stop"][0]["timeout"], 360)
+
+
 if __name__ == "__main__":
     unittest.main()

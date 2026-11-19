@@ -20,6 +20,7 @@
     "displayName": {"type": "string"},
     "version": {"type": "string"},
     "description": {"type": "string"},
+    "logo": {"type": "string"},
     "author": {
       "type": "object",
       "required": ["name"],

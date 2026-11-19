@@ -4,7 +4,10 @@
     "browse"
   ],
   "command": "node",
+  "description": "Interactive Compose preview gallery, local UI Builder, and Robolectric app simulator.",
+  "display_name": "Compose Preview",
   "has_web_ui": true,
+  "restart_policy": "on-failure",
   "ui_config": {
     "views": [
       {

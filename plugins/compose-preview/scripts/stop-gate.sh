@@ -98,7 +98,7 @@ exec 3<&0
 run_bounded 2 "$hook_input" sh -c 'cat <&3' || : >"$hook_input"
 exec 3<&-
 
-if grep -Eq '"stop_hook_active"[[:space:]]*:[[:space:]]*true' "$hook_input"; then
+if grep -Eq '"(stop_hook_active|continuation_active)"[[:space:]]*:[[:space:]]*true' "$hook_input"; then
   exit 0
 fi
 

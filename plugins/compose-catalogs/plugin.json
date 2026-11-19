@@ -15,6 +15,7 @@
     "guidelines"
   ],
   "license": "Apache-2.0",
+  "logo": "assets/compose-preview-logo.png",
   "name": "compose-catalogs",
   "repository": "https://github.com/yschimke/compose-agent-plugins",
   "suggestedPrompts": [

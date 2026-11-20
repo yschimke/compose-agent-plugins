@@ -266,12 +266,14 @@ assert antigravity == {
         "SessionStart": [
             {
                 "command": "./scripts/session-start-summary.sh --harness=antigravity",
+                "timeout": 10,
                 "type": "command",
             }
         ],
         "Stop": [
             {
                 "command": "./scripts/stop-gate.sh --harness=antigravity",
+                "timeout": 360,
                 "type": "command",
             }
         ],

@@ -19,9 +19,12 @@ workflows themselves are in the `compose-preview` and `compose-ui-builder` skill
   change done (R1). If rendering fails, say so with the error. Never hand-build a mock of a render.
 - **Show it** with the `antigravity-viewer-card` skill: the `embed` line, a few bullets, no base64.
 - **Sidecar & simulator:** offer `[Compose Preview](sidecar://compose-preview/compose-preview/)` to
-  open the Auxiliary Pane sidecar (`browse`, `ui-builder`, or `simulator` via `compose-preview launch --adb`),
-  and pair `compose-preview launch --project <dir> --live --adb` with `[Android Device Hub](sidecar://android-cli-plugin/device-hub/)`
-  or `--control stdio` when testing whole-app flows.
+  open the Auxiliary Pane sidecar (`browse`, `ui-builder`, or `simulator`). After calling
+  `android_simulator_launch` (single or paired phone + watch), surface
+  `[Open Simulator in Sidebar](sidecar://compose-preview/compose-preview/?mode=simulator)` so the
+  person sees one live interactive side-pane view instead of inline cards, or pair
+  `compose-preview launch --project <dir> --live --adb` with `[Android Device Hub](sidecar://android-cli-plugin/device-hub/)`
+  when testing standalone ADB flows.
 - **Design reviews:** delegate with `invoke_subagent(TypeName="self")`, not the packaged
   `design-reviewer` type or `define_subagent`, and start the task with `Follow ~/.gemini/config/plugins/compose-preview/agents/design-reviewer.md: review only, no edits; local previews through compose-preview-mcp or the CLI, never the catalog server; return its compact verdict. Subject: <preview or design>.`
 - **UI Builder designs:** before finishing work on one, run `compose-preview design status` once

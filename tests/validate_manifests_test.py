@@ -271,6 +271,29 @@ class AntigravityGenerationTests(unittest.TestCase):
         self.assertEqual(rendered["compose-preview"]["SessionStart"][0]["timeout"], 10)
         self.assertEqual(rendered["compose-preview"]["Stop"][0]["timeout"], 360)
 
+    def test_antigravity_name_keeps_tool_names_within_64_chars(self) -> None:
+        from generate import render_mcp_servers
+
+        entries = [
+            {
+                "name": "compose-preview-mcp",
+                "antigravityName": "mcp",
+                "kind": "stdio",
+                "command": "compose-preview",
+                "args": ["mcp", "serve"],
+            }
+        ]
+        agy = render_mcp_servers("compose-preview", entries, "antigravity")
+        self.assertIn("mcp", agy)
+        self.assertNotIn("compose-preview-mcp", agy)
+        claude = render_mcp_servers("compose-preview", entries, "claude")
+        self.assertIn("compose-preview-mcp", claude)
+
+        # Antigravity namespaces plugin MCP tools as mcp_<plugin>_<server>_<tool> (<= 64 chars).
+        longest_tool = "android_simulator_watchface_snapshot"
+        full_name = f"mcp_compose-preview_mcp_{longest_tool}"
+        self.assertLessEqual(len(full_name), 64)
+
 
 if __name__ == "__main__":
     unittest.main()

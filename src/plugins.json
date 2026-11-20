@@ -32,6 +32,7 @@
       "mcp": [
         {
           "name": "compose-preview-mcp",
+          "antigravityName": "mcp",
           "kind": "stdio",
           "command": "compose-preview",
           "args": [
@@ -45,6 +46,7 @@
         },
         {
           "name": "compose-preview-catalog",
+          "antigravityName": "catalog",
           "kind": "http",
           "url": "https://preview.coo.ee/mcp",
           "headers": {
@@ -146,6 +148,7 @@
       "mcp": [
         {
           "name": "compose-preview-catalog",
+          "antigravityName": "catalog",
           "kind": "http",
           "url": "https://preview.coo.ee/mcp",
           "headers": {

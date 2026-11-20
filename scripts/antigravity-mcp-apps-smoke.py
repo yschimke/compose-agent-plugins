@@ -95,7 +95,7 @@ def check_and_prepare(
     shipping_mcp = ROOT / "plugins" / "compose-preview" / "mcp_config.json"
     if shipping_manifest.is_file() and shipping_mcp.is_file():
         mcp_data = json.loads(shipping_mcp.read_text(encoding="utf-8")).get("mcpServers") or {}
-        if "compose-preview-mcp" in mcp_data and "compose-preview-catalog" in mcp_data:
+        if "mcp" in mcp_data and "catalog" in mcp_data:
             report("ok", "compose-preview: Antigravity plugin.json + mcp_config.json present", results)
         else:
             report("FIX", "compose-preview: missing expected MCP servers in mcp_config.json", results)

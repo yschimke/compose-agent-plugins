@@ -773,9 +773,15 @@ def render_mcp_servers(
         if not isinstance(entry, dict):
             raise ValueError(f"{plugin_name}.mcp entries must be objects")
         name = require_string(entry.get("name"), f"{plugin_name}.mcp.name")
+        if harness == "antigravity" and entry.get("antigravityName") is not None:
+            server_key = require_string(
+                entry.get("antigravityName"), f"{plugin_name}.mcp.{name}.antigravityName"
+            )
+        else:
+            server_key = name
         kind = require_string(entry.get("kind"), f"{plugin_name}.mcp.{name}.kind")
-        if name in servers:
-            raise ValueError(f"{plugin_name}.mcp contains duplicate server {name}")
+        if server_key in servers:
+            raise ValueError(f"{plugin_name}.mcp contains duplicate server {server_key}")
         if kind == "stdio":
             command = require_string(entry.get("command"), f"{plugin_name}.mcp.{name}.command")
             args = entry.get("args", [])
@@ -876,7 +882,7 @@ def render_mcp_servers(
                 )
             if harness == "antigravity":
                 server["tools"] = {tool.strip(): {"eager": True} for tool in eager_tools}
-        servers[name] = server
+        servers[server_key] = server
     return servers
 
 

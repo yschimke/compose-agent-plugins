@@ -635,9 +635,14 @@ def render_antigravity_hooks(plugin_name: str, entries: object) -> dict[str, obj
         if event not in ANTIGRAVITY_HOOK_EVENTS:
             continue
         script = f"./{entry['command'].strip()}"
-        events.setdefault(event, []).append(
-            {"command": f"{script} --harness=antigravity", "type": "command"}
-        )
+        handler: dict[str, object] = {
+            "command": f"{script} --harness=antigravity",
+            "type": "command",
+        }
+        timeout = entry.get("timeout")
+        if timeout is not None:
+            handler["timeout"] = timeout
+        events.setdefault(event, []).append(handler)
     if not events:
         return None
     return {plugin_name: {"enabled": True, **events}}
@@ -859,6 +864,18 @@ def render_mcp_servers(
                 raise ValueError(f"{plugin_name}.mcp.{name}: unsupported MCP harness {harness}")
         else:
             raise ValueError(f"{plugin_name}.mcp.{name}.kind must be stdio or http")
+        eager_tools = entry.get("eagerTools")
+        if eager_tools is not None:
+            if (
+                not isinstance(eager_tools, list)
+                or not eager_tools
+                or not all(isinstance(tool, str) and tool.strip() for tool in eager_tools)
+            ):
+                raise ValueError(
+                    f"{plugin_name}.mcp.{name}.eagerTools must be a non-empty list of tool names"
+                )
+            if harness == "antigravity":
+                server["tools"] = {tool.strip(): {"eager": True} for tool in eager_tools}
         servers[name] = server
     return servers
 
@@ -882,7 +899,7 @@ def render_antigravity_manifest(
         require_string(prompt, f"{name}.interface.defaultPrompt[{index}]")
         for index, prompt in enumerate(default_prompt)
     ]
-    return {
+    manifest: dict[str, object] = {
         "$schema": ANTIGRAVITY_SCHEMA,
         "author": {"name": owner},
         "description": plugin["description"],
@@ -895,6 +912,10 @@ def render_antigravity_manifest(
         "suggestedPrompts": rendered_prompts,
         "version": plugin["version"],
     }
+    assets = plugin.get("assets", [])
+    if isinstance(assets, list) and "compose-preview-logo.png" in assets:
+        manifest["logo"] = "assets/compose-preview-logo.png"
+    return manifest
 
 
 def render_claude_manifest(

@@ -17,12 +17,12 @@ edit touched no Compose file or when anything about the hook itself fails. It
 runs in Claude Code (`Edit`, `Write`, `MultiEdit`) and Codex (`apply_patch`).
 In OpenCode the same reminder is a plugin, `opencode/plugins/compose-preview.js`,
 that appends the line to the `edit`, `write` or `apply_patch` result.
-Antigravity gets only Stop hooks for now: its post-edit tool names differ and
-its context output for that event has not been verified. Instead the
-`compose-preview` plugin ships `rules/AGENTS.md`, which Antigravity loads on
-every turn: render first with `project=<workspace>`, render after editing
-Compose UI, and check `compose-preview design status` before finishing design
-work. Claude Code ignores a plugin's `rules/`.
+Antigravity does not use `PostToolUse` for reminders because Antigravity's
+`PostToolUse` hook only returns `{}` (logging/auditing, no context injection).
+Instead the `compose-preview` plugin ships `rules/AGENTS.md`, which Antigravity
+loads on every turn: render first with `project=<workspace>`, render after
+editing Compose UI, and check `compose-preview design status` before finishing
+design work. Claude Code ignores a plugin's `rules/`.
 
 In a Gradle workspace, the SessionStart hook in Claude Code and Codex also adds
 one routing line: call `render_preview` by name before searching the project,
@@ -77,11 +77,12 @@ its harness explicitly:
   `{"decision":"block","reason":…}` response.
 - Antigravity (the root `hooks.json`, `--harness=antigravity`) runs plugin-relative
   `./scripts/session-start-summary.sh --harness=antigravity` on `SessionStart`
-  (emitting `injectSteps` when setup or design status needs attention) and
-  `./scripts/stop-gate.sh --harness=antigravity` on `Stop` (emitting
-  `{"decision":"continue","reason":…}`). Its Stop gate ignores non-normal
-  `terminationReason` values (`USER_CANCELED`, `ERROR`, `MAX_INVOCATIONS`, etc.)
+  (timeout 10 s, emitting `injectSteps` when setup or design status needs attention)
+  and `./scripts/stop-gate.sh --harness=antigravity` on `Stop` (timeout 360 s,
+  emitting `{"decision":"continue","reason":…}`). Its Stop gate honors
+  `continuation_active` (Antigravity CLI v1.5.6+), ignores non-normal
+  `terminationReason` values (`USER_CANCELED`, `ERROR`, `MAX_INVOCATIONS`, etc.),
   and keys its two-turn consecutive-block cap by `conversationId`. The gate
-  finds the checkout from the first `workspacePaths` entry. Antigravity has no
-  non-blocking Stop message, so the design reminder is emitted on `SessionStart`
-  rather than `Stop`.
+  finds the checkout from `cwd` (v1.5.4+) or the first `workspacePaths` entry.
+  Antigravity has no non-blocking Stop message, so the design reminder is
+  emitted on `SessionStart` rather than `Stop`.

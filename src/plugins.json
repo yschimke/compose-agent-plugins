@@ -38,7 +38,10 @@
             "mcp",
             "serve"
           ],
-          "pathFallback": "$HOME/.local/bin"
+          "pathFallback": "$HOME/.local/bin",
+          "eagerTools": [
+            "render_preview"
+          ]
         },
         {
           "name": "compose-preview-catalog",
@@ -52,7 +55,10 @@
           },
           "userConfigHeaders": {
             "X-Compose-Preview-Token": "compose_preview_token"
-          }
+          },
+          "eagerTools": [
+            "catalog_render_preview"
+          ]
         }
       ],
       "userConfig": {
@@ -150,7 +156,10 @@
           },
           "userConfigHeaders": {
             "X-Compose-Preview-Token": "compose_preview_token"
-          }
+          },
+          "eagerTools": [
+            "catalog_render_preview"
+          ]
         }
       ],
       "userConfig": {

@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "compose-preview-catalog": {
+    "catalog": {
       "headers": {
         "X-Compose-Preview-Token": "${COMPOSE_PREVIEW_TOKEN:-}"
       },

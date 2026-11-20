@@ -45,18 +45,18 @@ from pathlib import Path
 
 root = Path(sys.argv[1])
 # Claude Code takes the token from a sensitive userConfig option, never the environment (#53).
-for relative, key, expected in (
-    ("plugins/compose-catalogs/.mcp.json", "mcpServers", "${user_config.compose_preview_token}"),
-    ("plugins/compose-catalogs/mcp_config.json", "mcpServers", "${COMPOSE_PREVIEW_TOKEN:-}"),
-    ("plugins/compose-catalogs/.cursor-plugin/plugin.json", "mcpServers", "${COMPOSE_PREVIEW_TOKEN}"),
-    ("gemini-extension.json", "mcpServers", "${COMPOSE_PREVIEW_TOKEN}"),
+for relative, key, server, expected in (
+    ("plugins/compose-catalogs/.mcp.json", "mcpServers", "compose-preview-catalog", "${user_config.compose_preview_token}"),
+    ("plugins/compose-catalogs/mcp_config.json", "mcpServers", "catalog", "${COMPOSE_PREVIEW_TOKEN:-}"),
+    ("plugins/compose-catalogs/.cursor-plugin/plugin.json", "mcpServers", "compose-preview-catalog", "${COMPOSE_PREVIEW_TOKEN}"),
+    ("gemini-extension.json", "mcpServers", "compose-preview-catalog", "${COMPOSE_PREVIEW_TOKEN}"),
     # compose-preview carries the same hosted server, so a coding agent needs no second plugin.
-    ("plugins/compose-preview/.mcp.json", "mcpServers", "${user_config.compose_preview_token}"),
-    ("plugins/compose-preview/mcp_config.json", "mcpServers", "${COMPOSE_PREVIEW_TOKEN:-}"),
-    ("plugins/compose-preview/.cursor-plugin/plugin.json", "mcpServers", "${COMPOSE_PREVIEW_TOKEN}"),
+    ("plugins/compose-preview/.mcp.json", "mcpServers", "compose-preview-catalog", "${user_config.compose_preview_token}"),
+    ("plugins/compose-preview/mcp_config.json", "mcpServers", "catalog", "${COMPOSE_PREVIEW_TOKEN:-}"),
+    ("plugins/compose-preview/.cursor-plugin/plugin.json", "mcpServers", "compose-preview-catalog", "${COMPOSE_PREVIEW_TOKEN}"),
 ):
     data = json.loads((root / relative).read_text(encoding="utf-8"))
-    actual = data[key]["compose-preview-catalog"]["headers"]["X-Compose-Preview-Token"]
+    actual = data[key][server]["headers"]["X-Compose-Preview-Token"]
     if actual != expected:
         raise SystemExit(f"{relative}: expected {expected!r}, got {actual!r}")
 claude = json.loads((root / "plugins/compose-catalogs/.claude-plugin/plugin.json").read_text(encoding="utf-8"))

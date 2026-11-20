@@ -54,19 +54,23 @@ change done (R1).
 ## Compose Preview Sidecar & App Simulator
 
 The `compose-preview` plugin ships an Antigravity Auxiliary Pane sidecar with
-three interactive modes (`browse`, `ui-builder`, and `simulator` via
-`compose-preview launch --adb`). Surface a one-click pill in chat when the
-person wants an interactive gallery, the local UI Builder, or a live
-interactive app simulator:
+three interactive modes (`browse`, `ui-builder`, and `simulator`). Surface a
+one-click pill in chat when the person wants an interactive gallery, the local
+UI Builder, or a live interactive app simulator:
 
 - Open [Compose Preview](sidecar://compose-preview/compose-preview/) in the side
-  pane to browse all `@Preview`s live, switch to the local UI Builder, or run
-  `compose-preview launch --adb` in the browser simulator.
-- When `Simulator (launch --adb)` is active in the sidecar (or started from the
-  CLI with `compose-preview launch --project <dir> --live --adb`), it registers
-  `emulator-5554` + gRPC `8554` with `adb`, so the person can also mirror and
-  control the running app in [Android Device Hub](sidecar://android-cli-plugin/device-hub/)
-  if `android-cli-plugin` is installed.
+  pane to browse all `@Preview`s live or switch to the local UI Builder.
+- After calling `android_simulator_launch` (including paired phone + watch
+  sessions), surface
+  [Open Android Simulator](sidecar://compose-preview/compose-preview/simulator)
+  so the person gets one persistent live interactive view of the running
+  simulator (with paired phone + watch side-by-side) in the Auxiliary Pane.
+- When `Boot Standalone Simulator (launch --adb)` is active in the sidecar (or
+  started from the CLI with `compose-preview launch --project <dir> --live --adb`),
+  it registers `emulator-5554` + gRPC `8554` with `adb`, so the person can also
+  mirror and control the running app in
+  [Android Device Hub](sidecar://android-cli-plugin/device-hub/) if
+  `android-cli-plugin` is installed.
 
 **Never fake a render.** Don't hand-build HTML, CSS, SVG or any other mock
 of the preview, and don't draw it from the source. Only the PNG and card

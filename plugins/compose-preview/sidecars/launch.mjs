@@ -113,6 +113,39 @@ function mcpWorkspacesFile() {
   return path.join(cacheBase, 'composeai', 'mcp', 'workspaces.json');
 }
 
+function simulatorBridgeFile() {
+  const cacheBase = process.env.XDG_CACHE_HOME || path.join(os.homedir(), '.cache');
+  return path.join(cacheBase, 'composeai', 'simulator-bridge.json');
+}
+
+function isPidAlive(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return err && err.code === 'EPERM';
+  }
+}
+
+function readSimulatorBridge() {
+  try {
+    const file = simulatorBridgeFile();
+    if (!existsSync(file)) return null;
+    const parsed = JSON.parse(readFileSync(file, 'utf8'));
+    const portNum = Number(parsed?.port);
+    const token = typeof parsed?.token === 'string' ? parsed.token : '';
+    const pid = Number(parsed?.pid);
+    if (!Number.isInteger(portNum) || portNum <= 0 || !token || !isPidAlive(pid)) {
+      return null;
+    }
+    const simulators = Array.isArray(parsed?.simulators) ? parsed.simulators : [];
+    return { pid, port: portNum, token, simulators };
+  } catch {
+    return null;
+  }
+}
+
 function readRecentMcpWorkspaces() {
   try {
     const file = mcpWorkspacesFile();
@@ -302,11 +335,16 @@ function stopChild() {
   grpcPort = null;
 }
 
-async function startBackend(requestedMode = activeMode) {
+async function startBackend(requestedMode = activeMode, { adb = false } = {}) {
   activeMode = MODES.has(requestedMode) ? requestedMode : 'browse';
   stopChild();
   logLines.length = 0;
   lastError = '';
+
+  if (activeMode === 'simulator' && !adb) {
+    state = 'ready';
+    return;
+  }
 
   const cli = findCli();
   if (!cli) {
@@ -403,6 +441,7 @@ function getStatusPayload() {
   const workspace = resolveWorkspace();
   const projectRoot = detectBuildProject(workspace);
   const recentWorkspaces = readRecentMcpWorkspaces().slice(0, 5);
+  const bridge = readSimulatorBridge();
   return {
     ok: state === 'ready',
     mode: activeMode,
@@ -415,6 +454,8 @@ function getStatusPayload() {
     backendPort,
     adbSerial,
     grpcPort,
+    bridgeActive: Boolean(bridge && bridge.simulators.length > 0),
+    bridgeSimulators: bridge ? bridge.simulators : [],
     lastError,
     logs: logLines,
   };
@@ -428,17 +469,18 @@ function escapeHtml(str) {
     .replaceAll('"', '&quot;');
 }
 
-function renderControlPage() {
-  const status = getStatusPayload();
+function renderControlPage(viewMode = activeMode) {
+  const status = { ...getStatusPayload(), mode: viewMode };
   const titleByMode = {
     browse: 'Component Browser',
     'ui-builder': 'Compose UI Builder',
-    simulator: 'Robolectric Simulator (--adb)',
+    simulator: 'Android Simulator',
   };
   const logText = status.logs.length
     ? escapeHtml(status.logs.slice(-25).join('\n'))
     : 'Waiting for output…';
 
+  let fullBleed = false;
   let bodySection = '';
   if (status.state === 'missing-cli') {
     bodySection = `
@@ -458,33 +500,47 @@ function renderControlPage() {
     bodySection = `
       <h2>No Compose / Gradle project detected</h2>
       <p>Checked <code>${escapeHtml(status.workspace)}</code> for <code>settings.gradle(.kts)</code>, <code>gradlew</code>, <code>MODULE.bazel</code>, or <code>.buckconfig</code>.</p>
-      <p>Enter your Compose project directory below, or boot a standalone Robolectric virtual device on <code>adb</code> for the Android Device Hub:</p>
+      <p>Enter your Compose project directory below, or switch to the Android Simulator:</p>
       <div class="actions" style="margin-bottom: 12px;">
         <input id="workspaceInput" type="text" value="${escapeHtml(status.workspace)}" placeholder="/path/to/your/compose-project" style="flex: 1; min-width: 240px; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--card); color: var(--fg); font: inherit;" />
         <button class="primary" onclick="setWorkspace()">Use Workspace</button>
       </div>
       ${recentButtons ? `<div class="actions" style="margin-bottom: 12px;">${recentButtons}</div>` : ''}
       <div class="actions">
-        <button onclick="switchMode('simulator')">Boot Simulator (<code>launch --adb</code>)</button>
+        <button onclick="switchMode('simulator')">Open Simulator</button>
         <button onclick="switchMode('browse')">Retry Project Discovery</button>
       </div>`;
-  } else if (status.state === 'simulator' || status.mode === 'simulator') {
-    const deviceReady = status.state === 'ready' && status.adbSerial;
-    bodySection = `
-      <h2>${deviceReady ? `Simulator running on <code>${escapeHtml(status.adbSerial)}</code>` : 'Starting Robolectric Simulator…'}</h2>
-      <p>${
-        deviceReady
-          ? `Registered with <code>adb</code> as <code>${escapeHtml(status.adbSerial)}</code>${
-              status.grpcPort ? ` (emulator gRPC port <code>${status.grpcPort}</code>)` : ''
-            }. Open <strong>Android Device Hub</strong> or run <code>adb devices</code> to mirror and interact with the device.`
-          : 'Converting APK / provisioning Robolectric virtual device…'
-      }</p>
-      <pre id="logs">${logText}</pre>
-      <div class="actions">
-        <button class="primary" onclick="switchMode('simulator')">Restart Simulator</button>
-        <button onclick="switchMode('browse')">Switch to Component Browser</button>
-        <button onclick="switchMode('ui-builder')">Switch to UI Builder</button>
-      </div>`;
+  } else if (status.mode === 'simulator') {
+    if (status.bridgeActive) {
+      fullBleed = true;
+      bodySection = `<iframe class="sim-frame" src="/__sidecar/simulator-ui?transport=http&amp;apiBase=/__sidecar/sim" title="Android Simulator"></iframe>`;
+    } else if (childProc || status.adbSerial) {
+      const deviceReady = status.state === 'ready' && status.adbSerial;
+      bodySection = `
+        <h2>${deviceReady ? `Simulator running on <code>${escapeHtml(status.adbSerial)}</code>` : 'Starting Robolectric Simulator…'}</h2>
+        <p>${
+          deviceReady
+            ? `Registered with <code>adb</code> as <code>${escapeHtml(status.adbSerial)}</code>${
+                status.grpcPort ? ` (emulator gRPC port <code>${status.grpcPort}</code>)` : ''
+              }. Open <strong>Android Device Hub</strong> or run <code>adb devices</code> to mirror and interact with the device.`
+            : 'Converting APK / provisioning Robolectric virtual device…'
+        }</p>
+        <pre id="logs">${logText}</pre>
+        <div class="actions">
+          <button class="primary" onclick="switchMode('simulator', true)">Restart ADB Simulator</button>
+          <button onclick="switchMode('browse')">Component Browser</button>
+          <button onclick="switchMode('ui-builder')">UI Builder</button>
+        </div>`;
+    } else {
+      bodySection = `
+        <h2>Waiting for Android Simulator…</h2>
+        <p>Launch an app (or a paired phone + watch app) with <code>android_simulator_launch</code> and its live interactive screen will appear here automatically.</p>
+        <div class="actions">
+          <button class="primary" onclick="switchMode('simulator', true)">Boot Standalone Simulator (<code>launch --adb</code>)</button>
+          <button onclick="switchMode('browse')">Component Browser</button>
+          <button onclick="switchMode('ui-builder')">UI Builder</button>
+        </div>`;
+    }
   } else if (status.state === 'failed') {
     bodySection = `
       <h2>${escapeHtml(titleByMode[status.mode] || 'Compose Preview')} stopped</h2>
@@ -494,7 +550,7 @@ function renderControlPage() {
         <button class="primary" onclick="switchMode('${escapeHtml(status.mode)}')">Retry</button>
         <button onclick="switchMode('browse')">Component Browser</button>
         <button onclick="switchMode('ui-builder')">UI Builder</button>
-        <button onclick="switchMode('simulator')">Simulator (<code>--adb</code>)</button>
+        <button onclick="switchMode('simulator')">Simulator</button>
       </div>`;
   } else {
     bodySection = `
@@ -504,7 +560,7 @@ function renderControlPage() {
       <div class="actions">
         <button onclick="switchMode('browse')">Component Browser</button>
         <button onclick="switchMode('ui-builder')">UI Builder</button>
-        <button onclick="switchMode('simulator')">Simulator (<code>--adb</code>)</button>
+        <button onclick="switchMode('simulator')">Simulator</button>
       </div>`;
   }
 
@@ -526,18 +582,21 @@ function renderControlPage() {
   }
   * { box-sizing: border-box; }
   body {
-    margin: 0; padding: 20px; min-height: 100vh;
+    margin: 0; padding: ${fullBleed ? '0' : '20px'}; min-height: 100vh;
     font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     color: var(--fg); background: var(--bg);
+    ${fullBleed ? 'display: flex; flex-direction: column; height: 100vh; overflow: hidden;' : ''}
   }
   .header {
     display: flex; align-items: center; justify-content: space-between;
-    gap: 8px; padding-bottom: 12px; margin-bottom: 16px;
-    border-bottom: 1px solid var(--border);
+    gap: 8px; ${fullBleed ? 'padding: 8px 12px;' : 'padding-bottom: 12px; margin-bottom: 16px;'}
+    border-bottom: 1px solid var(--border); flex: none;
   }
   .brand { font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 8px; }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); display: inline-block; }
   .tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tabs button.active { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  .sim-frame { flex: 1 1 auto; width: 100%; border: 0; background: var(--bg); }
   h2 { font-size: 15px; font-weight: 600; margin: 0 0 8px; }
   p { margin: 0 0 12px; color: var(--muted); }
   p.error { color: var(--err); }
@@ -561,16 +620,19 @@ function renderControlPage() {
   <div class="header">
     <div class="brand"><span class="dot"></span>Compose Preview</div>
     <div class="tabs">
-      <button onclick="switchMode('browse')">Browse</button>
-      <button onclick="switchMode('ui-builder')">UI Builder</button>
-      <button onclick="switchMode('simulator')">Simulator</button>
+      <button class="${status.mode === 'browse' ? 'active' : ''}" onclick="switchMode('browse')">Browse</button>
+      <button class="${status.mode === 'ui-builder' ? 'active' : ''}" onclick="switchMode('ui-builder')">UI Builder</button>
+      <button class="${status.mode === 'simulator' ? 'active' : ''}" onclick="switchMode('simulator')">Simulator</button>
     </div>
   </div>
   ${bodySection}
 <script>
-async function switchMode(mode) {
-  await fetch('/__sidecar/mode?mode=' + encodeURIComponent(mode), { method: 'POST' });
-  location.reload();
+const VIEW_MODE = '${escapeHtml(status.mode)}';
+const WAS_BRIDGE_ACTIVE = ${status.bridgeActive ? 'true' : 'false'};
+async function switchMode(mode, adb = false) {
+  const qs = 'mode=' + encodeURIComponent(mode) + (adb ? '&adb=1' : '');
+  await fetch('/__sidecar/mode?' + qs, { method: 'POST' });
+  location.href = mode === 'simulator' ? '/simulator' : '/?mode=' + encodeURIComponent(mode);
 }
 async function setWorkspace() {
   const input = document.getElementById('workspaceInput');
@@ -590,7 +652,11 @@ setInterval(async () => {
       logsEl.textContent = data.logs.slice(-25).join('\\n');
       logsEl.scrollTop = logsEl.scrollHeight;
     }
-    if (data.state === 'ready' && data.backendPort) {
+    if (VIEW_MODE === 'simulator') {
+      if (!WAS_BRIDGE_ACTIVE && data.bridgeActive) {
+        location.reload();
+      }
+    } else if (data.state === 'ready' && data.backendPort) {
       location.reload();
     }
   } catch {}
@@ -617,6 +683,95 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (reqUrl.pathname === '/simulator') {
+    const html = renderControlPage('simulator');
+    res.writeHead(200, {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
+    });
+    res.end(html);
+    return;
+  }
+
+  if (reqUrl.pathname === '/__sidecar/simulator-ui') {
+    const bridge = readSimulatorBridge();
+    if (!bridge) {
+      res.writeHead(200, {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'no-store',
+      });
+      res.end(renderControlPage());
+      return;
+    }
+    const proxyReq = http.request(
+      {
+        hostname: '127.0.0.1',
+        port: bridge.port,
+        path: '/',
+        method: 'GET',
+        headers: { host: `127.0.0.1:${bridge.port}` },
+      },
+      (proxyRes) => {
+        res.writeHead(proxyRes.statusCode || 502, {
+          'Content-Type': proxyRes.headers['content-type'] || 'text/html; charset=utf-8',
+          'Cache-Control': 'no-store',
+        });
+        proxyRes.pipe(res);
+      },
+    );
+    proxyReq.on('error', () => {
+      res.writeHead(502, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('Simulator bridge unavailable');
+    });
+    proxyReq.end();
+    return;
+  }
+
+  if (reqUrl.pathname === '/__sidecar/sim' || reqUrl.pathname.startsWith('/__sidecar/sim/')) {
+    const bridge = readSimulatorBridge();
+    const suffix = reqUrl.pathname.slice('/__sidecar/sim'.length);
+    if (!bridge) {
+      if (req.method === 'GET' && (!suffix || suffix === '/')) {
+        res.writeHead(200, {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Cache-Control': 'no-store',
+        });
+        res.end(JSON.stringify({ simulators: [] }));
+        return;
+      }
+      res.writeHead(503, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store',
+      });
+      res.end(JSON.stringify({ error: 'No running MCP simulator bridge' }));
+      return;
+    }
+    const targetPath = `/api/simulators${suffix}${reqUrl.search}`;
+    const proxyReq = http.request(
+      {
+        hostname: '127.0.0.1',
+        port: bridge.port,
+        path: targetPath,
+        method: req.method,
+        headers: {
+          ...req.headers,
+          host: `127.0.0.1:${bridge.port}`,
+          'x-simulator-token': bridge.token,
+        },
+      },
+      (proxyRes) => {
+        res.writeHead(proxyRes.statusCode || 502, proxyRes.headers);
+        proxyRes.pipe(res);
+      },
+    );
+    proxyReq.on('error', () => {
+      res.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ error: 'Simulator bridge unreachable' }));
+    });
+    req.pipe(proxyReq);
+    return;
+  }
+
   if (reqUrl.pathname === '/__sidecar/workspace') {
     const requestedWorkspace = reqUrl.searchParams.get('workspace') || '';
     const updated = persistWorkspaceOverride(requestedWorkspace);
@@ -630,15 +785,21 @@ const server = http.createServer(async (req, res) => {
 
   if (reqUrl.pathname === '/__sidecar/mode') {
     const requested = reqUrl.searchParams.get('mode') || 'browse';
+    const adb = reqUrl.searchParams.get('adb') === '1';
     if (requested === 'stop') {
       stopChild();
       state = 'stopped';
     } else {
-      await startBackend(requested);
+      await startBackend(requested, { adb });
     }
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify(getStatusPayload()));
     return;
+  }
+
+  const queryMode = reqUrl.searchParams.get('mode');
+  if (reqUrl.pathname === '/' && queryMode && MODES.has(queryMode) && queryMode !== activeMode) {
+    await startBackend(queryMode);
   }
 
   // Lazy start on first user/pane navigation so idle workspaces pay zero JVM cost.

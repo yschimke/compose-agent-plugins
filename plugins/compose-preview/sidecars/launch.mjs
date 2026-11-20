@@ -469,8 +469,8 @@ function escapeHtml(str) {
     .replaceAll('"', '&quot;');
 }
 
-function renderControlPage() {
-  const status = getStatusPayload();
+function renderControlPage(viewMode = activeMode) {
+  const status = { ...getStatusPayload(), mode: viewMode };
   const titleByMode = {
     browse: 'Component Browser',
     'ui-builder': 'Compose UI Builder',
@@ -627,11 +627,12 @@ function renderControlPage() {
   </div>
   ${bodySection}
 <script>
+const VIEW_MODE = '${escapeHtml(status.mode)}';
 const WAS_BRIDGE_ACTIVE = ${status.bridgeActive ? 'true' : 'false'};
 async function switchMode(mode, adb = false) {
   const qs = 'mode=' + encodeURIComponent(mode) + (adb ? '&adb=1' : '');
   await fetch('/__sidecar/mode?' + qs, { method: 'POST' });
-  location.href = '/?mode=' + encodeURIComponent(mode);
+  location.href = mode === 'simulator' ? '/simulator' : '/?mode=' + encodeURIComponent(mode);
 }
 async function setWorkspace() {
   const input = document.getElementById('workspaceInput');
@@ -651,8 +652,10 @@ setInterval(async () => {
       logsEl.textContent = data.logs.slice(-25).join('\\n');
       logsEl.scrollTop = logsEl.scrollHeight;
     }
-    if (data.mode === 'simulator' && !WAS_BRIDGE_ACTIVE && data.bridgeActive) {
-      location.reload();
+    if (VIEW_MODE === 'simulator') {
+      if (!WAS_BRIDGE_ACTIVE && data.bridgeActive) {
+        location.reload();
+      }
     } else if (data.state === 'ready' && data.backendPort) {
       location.reload();
     }
@@ -677,6 +680,16 @@ const server = http.createServer(async (req, res) => {
       'Cache-Control': 'no-store',
     });
     res.end(payload);
+    return;
+  }
+
+  if (reqUrl.pathname === '/simulator') {
+    const html = renderControlPage('simulator');
+    res.writeHead(200, {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
+    });
+    res.end(html);
     return;
   }
 

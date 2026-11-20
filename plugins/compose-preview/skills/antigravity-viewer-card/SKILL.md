@@ -62,7 +62,7 @@ UI Builder, or a live interactive app simulator:
   pane to browse all `@Preview`s live or switch to the local UI Builder.
 - After calling `android_simulator_launch` (including paired phone + watch
   sessions), surface
-  [Open Simulator in Sidebar](sidecar://compose-preview/compose-preview/?mode=simulator)
+  [Open Android Simulator](sidecar://compose-preview/compose-preview/simulator)
   so the person gets one persistent live interactive view of the running
   simulator (with paired phone + watch side-by-side) in the Auxiliary Pane.
 - When `Boot Standalone Simulator (launch --adb)` is active in the sidecar (or

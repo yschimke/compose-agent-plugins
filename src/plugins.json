@@ -32,7 +32,7 @@
       "mcp": [
         {
           "name": "compose-preview-mcp",
-          "antigravityName": "mcp",
+          "antigravityName": "cli",
           "kind": "stdio",
           "command": "compose-preview",
           "args": [

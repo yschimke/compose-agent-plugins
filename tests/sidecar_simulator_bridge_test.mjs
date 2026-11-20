@@ -98,6 +98,18 @@ test('sidecar proxies simulator bridge with server-side auth token and embeds si
   const baseUrl = `http://127.0.0.1:${sidecarPort}`;
   await waitForHttp(`${baseUrl}/__sidecar/status`);
 
+  // Dedicated /simulator Auxiliary Pane route serves the live simulator without starting browse.
+  const simPaneRes = await fetch(`${baseUrl}/simulator`);
+  assert.equal(simPaneRes.status, 200);
+  const simPaneHtml = await simPaneRes.text();
+  assert.match(simPaneHtml, /iframe class="sim-frame" src="\/__sidecar\/simulator-ui\?transport=http&amp;apiBase=\/__sidecar\/sim"/);
+
+  const beforeStatus = await (await fetch(`${baseUrl}/__sidecar/status`)).json();
+  assert.equal(beforeStatus.mode, 'browse');
+  assert.equal(beforeStatus.state, 'idle');
+  assert.equal(beforeStatus.bridgeActive, true);
+  assert.deepEqual(beforeStatus.bridgeSimulators[0].devices, ['phone', 'watch']);
+
   const pageRes = await fetch(`${baseUrl}/?mode=simulator`);
   assert.equal(pageRes.status, 200);
   const html = await pageRes.text();

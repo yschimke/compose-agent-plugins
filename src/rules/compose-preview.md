@@ -21,7 +21,7 @@ workflows themselves are in the `compose-preview` and `compose-ui-builder` skill
 - **Sidecar & simulator:** offer `[Compose Preview](sidecar://compose-preview/compose-preview/)` to
   open the Auxiliary Pane sidecar (`browse`, `ui-builder`, or `simulator`). After calling
   `android_simulator_launch` (single or paired phone + watch), surface
-  `[Open Simulator in Sidebar](sidecar://compose-preview/compose-preview/?mode=simulator)` so the
+  `[Open Android Simulator](sidecar://compose-preview/compose-preview/simulator)` so the
   person sees one live interactive side-pane view instead of inline cards, or pair
   `compose-preview launch --project <dir> --live --adb` with `[Android Device Hub](sidecar://android-cli-plugin/device-hub/)`
   when testing standalone ADB flows.

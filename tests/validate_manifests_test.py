@@ -277,21 +277,21 @@ class AntigravityGenerationTests(unittest.TestCase):
         entries = [
             {
                 "name": "compose-preview-mcp",
-                "antigravityName": "mcp",
+                "antigravityName": "cli",
                 "kind": "stdio",
                 "command": "compose-preview",
                 "args": ["mcp", "serve"],
             }
         ]
         agy = render_mcp_servers("compose-preview", entries, "antigravity")
-        self.assertIn("mcp", agy)
+        self.assertIn("cli", agy)
         self.assertNotIn("compose-preview-mcp", agy)
         claude = render_mcp_servers("compose-preview", entries, "claude")
         self.assertIn("compose-preview-mcp", claude)
 
         # Antigravity namespaces plugin MCP tools as mcp_<plugin>_<server>_<tool> (<= 64 chars).
         longest_tool = "android_simulator_watchface_snapshot"
-        full_name = f"mcp_compose-preview_mcp_{longest_tool}"
+        full_name = f"mcp_compose-preview_cli_{longest_tool}"
         self.assertLessEqual(len(full_name), 64)
 
 

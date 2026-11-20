@@ -11,7 +11,7 @@
         }
       }
     },
-    "mcp": {
+    "cli": {
       "args": [
         "mcp",
         "serve"

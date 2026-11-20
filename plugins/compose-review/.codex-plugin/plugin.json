@@ -29,5 +29,5 @@
   "name": "compose-review",
   "repository": "https://github.com/yschimke/compose-agent-plugins",
   "skills": "./skills/",
-  "version": "0.14.0"
+  "version": "0.15.0"
 }

@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.15.0](https://github.com/yschimke/compose-agent-plugins/compare/v0.14.0...v0.15.0) (2026-11-20)
+
+
+### Features
+
+* **antigravity:** add logo, eager render tools, hook timeouts, and continuation_active guard ([#196](https://github.com/yschimke/compose-agent-plugins/issues/196)) ([3a1a731](https://github.com/yschimke/compose-agent-plugins/commit/3a1a731336701ac98c7cafe092b9e22fc8143b0d))
+* **spike:** add --auto-probe mode for agent-driven MCP App checks ([#195](https://github.com/yschimke/compose-agent-plugins/issues/195)) ([1b90017](https://github.com/yschimke/compose-agent-plugins/commit/1b900170940ebf725461d1a9b9bb31e0b0b12239))
+* **spike:** probe Antigravity v2.31 MCP Apps and file-viewer writes ([#193](https://github.com/yschimke/compose-agent-plugins/issues/193)) ([7367aef](https://github.com/yschimke/compose-agent-plugins/commit/7367aefedd201042247f70342d21145bb1e7c590))
+
+
+### Bug Fixes
+
+* **antigravity:** shorten MCP server keys and connect simulator sidebar ([#197](https://github.com/yschimke/compose-agent-plugins/issues/197)) ([541f5b4](https://github.com/yschimke/compose-agent-plugins/commit/541f5b4e01f4e63037fd7d89a596f4700b06d501))
+* bundle the viewer from compose-preview-mcp v4.23.0 ([#191](https://github.com/yschimke/compose-agent-plugins/issues/191)) ([4784f4d](https://github.com/yschimke/compose-agent-plugins/commit/4784f4dbf718c03eef0073cc4eae4877aad2a0d4))
+
 ## [0.14.0](https://github.com/yschimke/compose-agent-plugins/compare/v0.13.0...v0.14.0) (2026-11-07)
 
 

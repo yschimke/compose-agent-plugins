@@ -1,6 +1,6 @@
 {
   "$comment": "Written by scripts/update-skills.py. Do not edit the vendored skills; scripts/check_generated.py checks them against this file.",
-  "commit": "ecdcc9b225e48487fad9ca1a75db0be865ba4029",
+  "commit": "dfec324f84d225bedff39615ac8d23a18dc11112",
   "files": {
     "compose-preview-ci/SKILL.md": {
       "mode": "100644",

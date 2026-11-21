@@ -482,35 +482,7 @@ function renderControlPage(viewMode = activeMode) {
 
   let fullBleed = false;
   let bodySection = '';
-  if (status.state === 'missing-cli') {
-    bodySection = `
-      <h2><code>compose-preview</code> CLI not found</h2>
-      <p>Install the Compose Preview CLI so Antigravity can render <code>@Preview</code> composables, open the UI Builder, and run the Robolectric simulator:</p>
-      <pre>${escapeHtml(INSTALL_CMD)}</pre>
-      <div class="actions">
-        <button class="primary" onclick="switchMode('${escapeHtml(status.mode)}')">Retry</button>
-      </div>`;
-  } else if (status.state === 'no-project') {
-    const recentButtons = (status.recentWorkspaces || [])
-      .map(
-        (w) =>
-          `<button onclick="selectWorkspace('${escapeHtml(w)}')">${escapeHtml(path.basename(w))}</button>`,
-      )
-      .join('');
-    bodySection = `
-      <h2>No Compose / Gradle project detected</h2>
-      <p>Checked <code>${escapeHtml(status.workspace)}</code> for <code>settings.gradle(.kts)</code>, <code>gradlew</code>, <code>MODULE.bazel</code>, or <code>.buckconfig</code>.</p>
-      <p>Enter your Compose project directory below, or switch to the Android Simulator:</p>
-      <div class="actions" style="margin-bottom: 12px;">
-        <input id="workspaceInput" type="text" value="${escapeHtml(status.workspace)}" placeholder="/path/to/your/compose-project" style="flex: 1; min-width: 240px; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--card); color: var(--fg); font: inherit;" />
-        <button class="primary" onclick="setWorkspace()">Use Workspace</button>
-      </div>
-      ${recentButtons ? `<div class="actions" style="margin-bottom: 12px;">${recentButtons}</div>` : ''}
-      <div class="actions">
-        <button onclick="switchMode('simulator')">Open Simulator</button>
-        <button onclick="switchMode('browse')">Retry Project Discovery</button>
-      </div>`;
-  } else if (status.mode === 'simulator') {
+  if (status.mode === 'simulator') {
     if (status.bridgeActive) {
       fullBleed = true;
       bodySection = `<iframe class="sim-frame" src="/__sidecar/simulator-ui?transport=http&amp;apiBase=/__sidecar/sim" title="Android Simulator"></iframe>`;
@@ -541,6 +513,34 @@ function renderControlPage(viewMode = activeMode) {
           <button onclick="switchMode('ui-builder')">UI Builder</button>
         </div>`;
     }
+  } else if (status.state === 'missing-cli') {
+    bodySection = `
+      <h2><code>compose-preview</code> CLI not found</h2>
+      <p>Install the Compose Preview CLI so Antigravity can render <code>@Preview</code> composables, open the UI Builder, and run the Robolectric simulator:</p>
+      <pre>${escapeHtml(INSTALL_CMD)}</pre>
+      <div class="actions">
+        <button class="primary" onclick="switchMode('${escapeHtml(status.mode)}')">Retry</button>
+      </div>`;
+  } else if (status.state === 'no-project') {
+    const recentButtons = (status.recentWorkspaces || [])
+      .map(
+        (w) =>
+          `<button onclick="selectWorkspace('${escapeHtml(w)}')">${escapeHtml(path.basename(w))}</button>`,
+      )
+      .join('');
+    bodySection = `
+      <h2>No Compose / Gradle project detected</h2>
+      <p>Checked <code>${escapeHtml(status.workspace)}</code> for <code>settings.gradle(.kts)</code>, <code>gradlew</code>, <code>MODULE.bazel</code>, or <code>.buckconfig</code>.</p>
+      <p>Enter your Compose project directory below, or switch to the Android Simulator:</p>
+      <div class="actions" style="margin-bottom: 12px;">
+        <input id="workspaceInput" type="text" value="${escapeHtml(status.workspace)}" placeholder="/path/to/your/compose-project" style="flex: 1; min-width: 240px; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--card); color: var(--fg); font: inherit;" />
+        <button class="primary" onclick="setWorkspace()">Use Workspace</button>
+      </div>
+      ${recentButtons ? `<div class="actions" style="margin-bottom: 12px;">${recentButtons}</div>` : ''}
+      <div class="actions">
+        <button onclick="switchMode('simulator')">Open Simulator</button>
+        <button onclick="switchMode('browse')">Retry Project Discovery</button>
+      </div>`;
   } else if (status.state === 'failed') {
     bodySection = `
       <h2>${escapeHtml(titleByMode[status.mode] || 'Compose Preview')} stopped</h2>

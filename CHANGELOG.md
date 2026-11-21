@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.0](https://github.com/yschimke/compose-agent-plugins/compare/v0.15.0...v0.16.0) (2026-11-21)
+
+
+### Bug Fixes
+
+* **sidecar:** prioritize simulator view over browse setup errors ([#200](https://github.com/yschimke/compose-agent-plugins/issues/200)) ([58bdde6](https://github.com/yschimke/compose-agent-plugins/commit/58bdde6da58dd2401fd19eb75bab767cf25c4c8f))
+
 ## [0.15.0](https://github.com/yschimke/compose-agent-plugins/compare/v0.14.0...v0.15.0) (2026-11-20)
 
 

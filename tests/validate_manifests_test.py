@@ -242,6 +242,19 @@ class AntigravityGenerationTests(unittest.TestCase):
         claude = render_mcp_servers("compose-preview", entries, "claude")
         self.assertNotIn("tools", claude["compose-preview-mcp"])
 
+    def test_compose_preview_registers_simulator_open_eager_tool(self) -> None:
+        mcp_config = json.loads(
+            (ROOT / "plugins" / "compose-preview" / "mcp_config.json").read_text(encoding="utf-8")
+        )
+        cli_server = mcp_config["mcpServers"]["cli"]
+        self.assertEqual(
+            cli_server.get("tools"),
+            {
+                "render_preview": {"eager": True},
+                "simulator_open": {"eager": True},
+            },
+        )
+
     def test_mcp_rejects_empty_eager_tools(self) -> None:
         from generate import render_mcp_servers
 

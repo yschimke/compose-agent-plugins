@@ -324,7 +324,7 @@ if ((elapsed >= 6)); then fail "timeout took $elapsed seconds"; fi
 # Without python3 the preview checks cannot parse anything, so they are skipped.
 no_python="$temporary_root/no-python"
 mkdir "$no_python"
-for tool in sh cat git grep sed sort tr wc head mkdir mktemp rm chmod id sleep dirname; do
+for tool in bash sh cat git grep sed sort tr wc head mkdir mktemp rm chmod id sleep dirname readlink awk; do
   ln -s "$(command -v "$tool")" "$no_python/$tool"
 done
 reset_fake
@@ -335,7 +335,8 @@ expect_output 'missing python3 allows the stop' '' "$(run_gate claude "$workspac
 # python3 and not some other missing tool.
 with_python="$temporary_root/with-python"
 PATH="$base_path" mkdir "$with_python"
-PATH="$base_path" ln -s "$(PATH="$base_path" command -v python3)" "$with_python/python3"
+python_bin=$(PATH="$base_path" pyenv which python3 2>/dev/null || PATH="$base_path" command -v python3)
+PATH="$base_path" ln -s "$python_bin" "$with_python/python3"
 PATH="$fake_bin:$no_python:$with_python"
 expect_golden 'minimal PATH with python3 blocks' render-failure.claude.json \
   "$(run_gate claude "$workspace")"

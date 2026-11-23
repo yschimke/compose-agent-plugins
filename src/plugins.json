@@ -41,7 +41,8 @@
           ],
           "pathFallback": "$HOME/.local/bin",
           "eagerTools": [
-            "render_preview"
+            "render_preview",
+            "simulator_open"
           ]
         },
         {

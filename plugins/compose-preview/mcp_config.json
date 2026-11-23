@@ -20,6 +20,9 @@
       "tools": {
         "render_preview": {
           "eager": true
+        },
+        "simulator_open": {
+          "eager": true
         }
       }
     }

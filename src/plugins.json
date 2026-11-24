@@ -246,7 +246,7 @@
     "name": "io.github.yschimke/compose-preview",
     "title": "Compose Preview Catalogs",
     "description": "Browse, inspect and render Jetpack Compose Material 3 and Wear component catalogs.",
-    "version": "3.88.0",
+    "version": "3.198.0",
     "plugin": "compose-catalogs",
     "server": "compose-preview-catalog",
     "repository": "https://github.com/yschimke/compose-preview-server"

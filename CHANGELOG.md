@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.17.0](https://github.com/yschimke/compose-agent-plugins/compare/v0.16.0...v0.17.0) (2026-11-25)
+
+
+### Bug Fixes
+
+* bundle the viewer from compose-preview-mcp v4.26.0 ([#202](https://github.com/yschimke/compose-agent-plugins/issues/202)) ([8389ba5](https://github.com/yschimke/compose-agent-plugins/commit/8389ba51bba9132f84953327ae2327abde052dd8))
+* vendor yschimke/skills at 58ae34abc9b9 ([#199](https://github.com/yschimke/compose-agent-plugins/issues/199)) ([dc66f9d](https://github.com/yschimke/compose-agent-plugins/commit/dc66f9d748311c018b83f1b225060d2275e4149f))
+
+
+### Performance Improvements
+
+* **compose-preview:** lazy-start MCP proxy and idle-shutdown sidecar ([#209](https://github.com/yschimke/compose-agent-plugins/issues/209)) ([e82270e](https://github.com/yschimke/compose-agent-plugins/commit/e82270e80f680499965de1924a487c8ffe1dc266))
+
 ## [0.16.0](https://github.com/yschimke/compose-agent-plugins/compare/v0.15.0...v0.16.0) (2026-11-24)
 
 

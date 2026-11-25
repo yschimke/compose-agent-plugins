@@ -40,6 +40,7 @@
             "serve"
           ],
           "pathFallback": "$HOME/.local/bin",
+          "proxyScript": "scripts/mcp-proxy.mjs",
           "eagerTools": [
             "render_preview",
             "simulator_open"

@@ -26,6 +26,7 @@ PORTABLE_AGENT_DIR = "agents"
 CLAUDE_AGENT_DIR = "claude-agents"
 PORTABLE_AGENT_FIELDS = ("name", "description")
 HOOK_SOURCE_ROOT = ROOT / "src" / "hooks"
+SCRIPT_SOURCE_ROOT = ROOT / "src" / "scripts"
 ASSET_SOURCE_ROOT = ROOT / "src" / "assets"
 ASSET_LEDGER_NAME = ".generated-assets.json"
 SIDECAR_SOURCE_ROOT = ROOT / "src" / "sidecars"
@@ -467,6 +468,31 @@ def write_hook(plugin_root: Path, command: str) -> None:
     target.chmod(source.stat().st_mode)
 
 
+def validate_mcp_proxy_script(script: object, field: str) -> str:
+    value = require_string(script, field)
+    script_path = Path(value)
+    if (
+        script_path.is_absolute()
+        or ".." in script_path.parts
+        or script_path.parts[:1] != ("scripts",)
+        or len(script_path.parts) != 2
+    ):
+        raise ValueError(f"{field} must be a plugin-local scripts/<file> path: {value}")
+    source = SCRIPT_SOURCE_ROOT / script_path.name
+    if not source.is_file():
+        raise ValueError(f"missing shared MCP proxy script: {source.relative_to(ROOT)}")
+    return value
+
+
+def write_mcp_proxy_script(plugin_root: Path, script: str) -> None:
+    validated = validate_mcp_proxy_script(script, "proxyScript")
+    source = SCRIPT_SOURCE_ROOT / Path(validated).name
+    target = plugin_root / validated
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+    target.chmod(source.stat().st_mode)
+
+
 def write_asset(plugin_root: Path, asset: str) -> None:
     asset_path = Path(asset)
     if asset_path.is_absolute() or ".." in asset_path.parts or len(asset_path.parts) != 1:
@@ -790,13 +816,36 @@ def render_mcp_servers(
                 raise ValueError(f"{plugin_name}.mcp.{name}.args must be a list of strings")
             server: dict[str, object] = {"args": args, "command": command}
             fallback = entry.get("pathFallback")
-            if fallback is not None and harness == "claude":
-                # Claude Code starts MCP servers with its own PATH, and a SessionStart hook cannot
-                # change it, so a CLI only in the installer's bin directory would never launch.
-                # Append that directory (unbraced, so Claude does not expand it) and exec.
+            if fallback is not None:
                 fallback = require_string(fallback, f"{plugin_name}.mcp.{name}.pathFallback")
                 if "${" in fallback or "'" in fallback:
                     raise ValueError(f"{plugin_name}.mcp.{name}.pathFallback must use unbraced $VARs")
+            proxy_script = entry.get("proxyScript")
+            if proxy_script is not None:
+                proxy_script = validate_mcp_proxy_script(
+                    proxy_script, f"{plugin_name}.mcp.{name}.proxyScript"
+                )
+            proxy_path_by_harness = {
+                "claude": f"${{CLAUDE_PLUGIN_ROOT}}/{proxy_script}" if proxy_script else None,
+                "codex": f"${{CLAUDE_PLUGIN_ROOT}}/{proxy_script}" if proxy_script else None,
+                "antigravity": f"./{proxy_script}" if proxy_script else None,
+                "gemini": f"${{extensionPath}}/plugins/{plugin_name}/{proxy_script}" if proxy_script else None,
+            }
+            proxy_path = proxy_path_by_harness.get(harness)
+            if proxy_path is not None:
+                path_prefix = f'PATH="$PATH:{fallback}"; export PATH; ' if fallback else ""
+                shell_cmd = (
+                    f'{path_prefix}if command -v node >/dev/null 2>&1 && [ -f "$1" ]; '
+                    f'then exec node "$@"; fi; shift; exec "$@"'
+                )
+                server = {
+                    "args": ["-c", shell_cmd, f"{name}-launcher", proxy_path, command, *args],
+                    "command": "sh",
+                }
+            elif fallback is not None and harness == "claude":
+                # Claude Code starts MCP servers with its own PATH, and a SessionStart hook cannot
+                # change it, so a CLI only in the installer's bin directory would never launch.
+                # Append that directory (unbraced, so Claude does not expand it) and exec.
                 server = {
                     "args": ["-c", f'PATH="$PATH:{fallback}"; export PATH; exec "$0" "$@"', command, *args],
                     "command": "sh",
@@ -1259,6 +1308,9 @@ def main() -> None:
             {"description": description, "name": name, "source": f"plugins/{name}"}
         )
         if mcp:
+            for entry in mcp:
+                if isinstance(entry, dict) and entry.get("proxyScript") is not None:
+                    write_mcp_proxy_script(root, entry["proxyScript"])
             write_json(
                 root / "mcp_config.json",
                 {"mcpServers": render_mcp_servers(name, mcp, "antigravity")},

@@ -25,6 +25,7 @@ from generate import (
     README_SOURCE_ROOT,
     RULES_SOURCE_ROOT,
     RULES_TARGET,
+    SCRIPT_SOURCE_ROOT,
     SIDECAR_LAUNCHER_NAME,
     SIDECAR_SOURCE_ROOT,
     SKILL_IGNORED_PARTS,
@@ -662,6 +663,17 @@ def main() -> None:
             raise ValueError(f"{root} contains stale hook configuration")
         mcp = plugin.get("mcp", [])
         if mcp:
+            for entry in mcp:
+                if isinstance(entry, dict) and entry.get("proxyScript") is not None:
+                    proxy_script = entry["proxyScript"]
+                    generated_proxy = root / proxy_script
+                    shared_proxy = SCRIPT_SOURCE_ROOT / Path(proxy_script).name
+                    if not generated_proxy.is_file():
+                        raise ValueError(f"{generated_proxy}: missing generated MCP proxy script")
+                    if generated_proxy.read_bytes() != shared_proxy.read_bytes():
+                        raise ValueError(
+                            f"{generated_proxy}: generated MCP proxy script differs from shared source"
+                        )
             antigravity_mcp = read_json(root / "mcp_config.json")
             claude_mcp = read_json(root / ".mcp.json")
             if antigravity_mcp != {

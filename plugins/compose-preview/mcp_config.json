@@ -13,10 +13,15 @@
     },
     "cli": {
       "args": [
+        "-c",
+        "PATH=\"$PATH:$HOME/.local/bin\"; export PATH; if command -v node >/dev/null 2>&1 && [ -f \"$1\" ]; then exec node \"$@\"; fi; shift; exec \"$@\"",
+        "compose-preview-mcp-launcher",
+        "./scripts/mcp-proxy.mjs",
+        "compose-preview",
         "mcp",
         "serve"
       ],
-      "command": "compose-preview",
+      "command": "sh",
       "tools": {
         "render_preview": {
           "eager": true

@@ -67,6 +67,9 @@ def generated_paths(source: object) -> tuple[list[Path], set[str]]:
         )
         if plugin.get("mcp"):
             paths.extend((plugin_root / "mcp_config.json", plugin_root / ".mcp.json"))
+            for entry in plugin["mcp"]:
+                if isinstance(entry, dict) and isinstance(entry.get("proxyScript"), str):
+                    paths.append(plugin_root / entry["proxyScript"])
         if plugin.get("apps"):
             paths.append(plugin_root / ".app.json")
         if plugin.get("rules"):
@@ -272,6 +275,10 @@ def main() -> None:
             errors.append(f"{name} has stale generated skill files: {', '.join(stale_skills)}")
         expected_hooks = {
             Path(hook["command"]).name for hook in plugin.get("hooks", []) if "command" in hook
+        } | {
+            Path(entry["proxyScript"]).name
+            for entry in plugin.get("mcp", [])
+            if isinstance(entry, dict) and isinstance(entry.get("proxyScript"), str)
         }
         scripts_root = plugins_root / name / "scripts"
         actual_hooks = (

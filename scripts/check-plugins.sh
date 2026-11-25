@@ -31,3 +31,5 @@ python3 tests/opencode_install_test.py
 python3 tests/cursor_install_test.py
 python3 tests/update_skills_test.py
 node --test tests/opencode_plugin_test.mjs
+node --test tests/sidecar_simulator_bridge_test.mjs
+node --test tests/mcp_proxy_test.mjs

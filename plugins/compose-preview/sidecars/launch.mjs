@@ -282,13 +282,62 @@ function probePort(targetPort) {
   });
 }
 
+const DEFAULT_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
+
+function parseIdleTimeoutMs() {
+  const raw = process.env.COMPOSE_PREVIEW_SIDECAR_IDLE_TIMEOUT_MS;
+  if (raw == null || raw.trim() === '') return DEFAULT_IDLE_TIMEOUT_MS;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 0) return DEFAULT_IDLE_TIMEOUT_MS;
+  return Math.floor(parsed);
+}
+
+const idleTimeoutMs = parseIdleTimeoutMs();
+
 let childProc = null;
 let backendPort = null;
 let state = 'idle'; // 'idle' | 'missing-cli' | 'no-project' | 'starting' | 'ready' | 'failed' | 'stopped'
 let lastError = '';
 let adbSerial = null;
 let grpcPort = null;
+let lastActivityAt = Date.now();
+let activeWsConnections = 0;
+let idleTimer = null;
 const logLines = [];
+
+function clearIdleTimer() {
+  if (idleTimer) {
+    clearTimeout(idleTimer);
+    idleTimer = null;
+  }
+}
+
+function scheduleIdleShutdown() {
+  clearIdleTimer();
+  if (idleTimeoutMs <= 0) return;
+  if (!childProc || state !== 'ready' || activeWsConnections > 0) return;
+  const remaining = Math.max(0, idleTimeoutMs - (Date.now() - lastActivityAt));
+  idleTimer = setTimeout(() => {
+    idleTimer = null;
+    if (!childProc || state !== 'ready' || activeWsConnections > 0) return;
+    if (Date.now() - lastActivityAt < idleTimeoutMs) {
+      scheduleIdleShutdown();
+      return;
+    }
+    const secs = Math.round(idleTimeoutMs / 1000);
+    process.stderr.write(
+      `compose-preview-sidecar: stopping idle ${activeMode} backend after ${secs}s (will restart on next pane open)\n`,
+    );
+    stopChild();
+    state = 'idle';
+  }, remaining);
+  if (idleTimer.unref) idleTimer.unref();
+}
+
+function recordActivity() {
+  lastActivityAt = Date.now();
+  scheduleIdleShutdown();
+}
 
 function pushLog(text) {
   for (const raw of String(text).split(/\r?\n/)) {
@@ -321,6 +370,7 @@ function pushLog(text) {
 }
 
 function stopChild() {
+  clearIdleTimer();
   if (childProc) {
     const proc = childProc;
     childProc = null;
@@ -392,24 +442,28 @@ async function startBackend(requestedMode = activeMode, { adb = false } = {}) {
 
   proc.stdout.on('data', (chunk) => {
     pushLog(chunk);
-    if (activeMode === 'simulator' && adbSerial) {
+    if (activeMode === 'simulator' && adbSerial && state !== 'ready') {
       state = 'ready';
+      recordActivity();
     }
   });
   proc.stderr.on('data', (chunk) => {
     pushLog(chunk);
-    if (activeMode === 'simulator' && adbSerial) {
+    if (activeMode === 'simulator' && adbSerial && state !== 'ready') {
       state = 'ready';
+      recordActivity();
     }
   });
   proc.on('error', (err) => {
     if (childProc !== proc) return;
+    clearIdleTimer();
     lastError = err.message;
     state = 'failed';
     childProc = null;
   });
   proc.on('exit', (code, signal) => {
     if (childProc !== proc) return;
+    clearIdleTimer();
     childProc = null;
     if (state !== 'stopped') {
       lastError = code ? `compose-preview exited with code ${code}` : `stopped (${signal || 'exit'})`;
@@ -429,6 +483,7 @@ async function pollBackendPort(proc, targetPort) {
     if (childProc !== proc) return;
     if (up) {
       state = 'ready';
+      recordActivity();
       return;
     }
     // eslint-disable-next-line no-await-in-loop
@@ -808,6 +863,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (state === 'ready' && backendPort) {
+    recordActivity();
     const proxyReq = http.request(
       {
         hostname: '127.0.0.1',
@@ -845,6 +901,15 @@ server.on('upgrade', (req, socket, head) => {
     socket.destroy();
     return;
   }
+  activeWsConnections++;
+  clearIdleTimer();
+  let wsClosed = false;
+  const onWsClose = () => {
+    if (wsClosed) return;
+    wsClosed = true;
+    activeWsConnections = Math.max(0, activeWsConnections - 1);
+    recordActivity();
+  };
   const upstream = net.connect(backendPort, '127.0.0.1', () => {
     const lines = [`${req.method} ${req.url} HTTP/${req.httpVersion}`];
     for (let i = 0; i < req.rawHeaders.length; i += 2) {
@@ -861,8 +926,16 @@ server.on('upgrade', (req, socket, head) => {
     if (head && head.length) upstream.write(head);
     socket.pipe(upstream).pipe(socket);
   });
-  upstream.on('error', () => socket.destroy());
-  socket.on('error', () => upstream.destroy());
+  upstream.on('error', () => {
+    onWsClose();
+    socket.destroy();
+  });
+  socket.on('error', () => {
+    onWsClose();
+    upstream.destroy();
+  });
+  upstream.on('close', onWsClose);
+  socket.on('close', onWsClose);
 });
 
 for (const sig of ['SIGINT', 'SIGTERM']) {

@@ -335,6 +335,49 @@ test('mcp-proxy launches cached compose-preview-mcp directly without parent CLI 
   await new Promise((resolve) => proc.once('exit', resolve));
 });
 
+test('mcp-proxy bypasses cached initialize when client requests a different protocolVersion', async (t) => {
+  const tmpDir = mkdtempSync(path.join(os.tmpdir(), 'mcp-proxy-proto-'));
+  const spawnLog = path.join(tmpDir, 'spawns.log');
+  const cacheFile = path.join(tmpDir, 'proxy-cache.json');
+  const fakeBackend = createFakeBackendScript(tmpDir, spawnLog);
+
+  t.after(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  // Populate cache with 2025-03-26.
+  const proc1 = spawn(process.execPath, [PROXY, process.execPath, fakeBackend], {
+    env: {
+      ...process.env,
+      COMPOSE_PREVIEW_MCP_PROXY_CACHE: cacheFile,
+      COMPOSE_PREVIEW_MCP_IDLE_TIMEOUT_MS: '0',
+    },
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+  const client1 = new JsonRpcClient(proc1);
+  await client1.request('initialize', { protocolVersion: '2025-03-26', capabilities: {} });
+  proc1.stdin.end();
+  await new Promise((resolve) => proc1.once('exit', resolve));
+  assert.equal(readLogLines(spawnLog).filter((l) => l.startsWith('spawn:')).length, 1);
+
+  // Second session requesting 2024-11-05 must NOT replay cached 2025-03-26 without waking backend.
+  const proc2 = spawn(process.execPath, [PROXY, process.execPath, fakeBackend], {
+    env: {
+      ...process.env,
+      COMPOSE_PREVIEW_MCP_PROXY_CACHE: cacheFile,
+      COMPOSE_PREVIEW_MCP_IDLE_TIMEOUT_MS: '0',
+    },
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+  t.after(() => proc2.kill('SIGTERM'));
+  const client2 = new JsonRpcClient(proc2);
+  await client2.request('initialize', { protocolVersion: '2024-11-05', capabilities: {} });
+  assert.equal(readLogLines(spawnLog).filter((l) => l.startsWith('spawn:')).length, 2);
+
+  proc2.stdin.end();
+  await new Promise((resolve) => proc2.once('exit', resolve));
+});
+
 function allocatePort() {
   return new Promise((resolve, reject) => {
     const srv = net.createServer();

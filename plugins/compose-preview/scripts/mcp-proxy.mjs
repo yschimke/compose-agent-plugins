@@ -365,47 +365,66 @@ function scheduleIdleShutdown() {
   if (idleTimer.unref) idleTimer.unref();
 }
 
-function stopBackend(reason) {
+let stoppingBackend = null;
+
+function stopBackend(reason, { waitForExit = false } = {}) {
   clearIdleTimer();
   const proc = backend;
-  if (!proc) return;
+  if (!proc) return Promise.resolve();
   backend = null;
   backendReady = false;
   backendStopping = true;
+  stoppingBackend = proc;
   if (reason === 'idle') {
     const secs = Math.round(idleTimeoutMs / 1000);
     process.stderr.write(
       `compose-preview-mcp-proxy: stopping idle backend after ${secs}s (will restart on next tool call)\n`,
     );
   }
-  try {
-    if (proc.stdin && !proc.stdin.destroyed) {
-      proc.stdin.end();
+  return new Promise((resolve) => {
+    let settled = false;
+    let termTimer = null;
+    let killTimer = null;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      if (termTimer) clearTimeout(termTimer);
+      if (killTimer) clearTimeout(killTimer);
+      if (stoppingBackend === proc) stoppingBackend = null;
+      if (backend === null) backendStopping = false;
+      resolve();
+    };
+
+    if (proc.exitCode !== null || proc.signalCode !== null) {
+      finish();
+      return;
     }
-  } catch {
-    // ignore
-  }
-  const termTimer = setTimeout(() => {
+
+    proc.once('exit', finish);
     try {
-      proc.kill('SIGTERM');
+      if (proc.stdin && !proc.stdin.destroyed) {
+        proc.stdin.end();
+      }
     } catch {
       // ignore
     }
-    const killTimer = setTimeout(() => {
+    termTimer = setTimeout(() => {
       try {
-        proc.kill('SIGKILL');
+        proc.kill('SIGTERM');
       } catch {
         // ignore
       }
-    }, SHUTDOWN_KILL_GRACE_MS);
-    if (killTimer.unref) killTimer.unref();
-  }, SHUTDOWN_TERM_GRACE_MS);
-  if (termTimer.unref) termTimer.unref();
-  proc.once('exit', () => {
-    clearTimeout(termTimer);
-    if (backend === null) {
-      backendStopping = false;
-    }
+      killTimer = setTimeout(() => {
+        try {
+          proc.kill('SIGKILL');
+        } catch {
+          // ignore
+        }
+        finish();
+      }, SHUTDOWN_KILL_GRACE_MS);
+      if (!waitForExit && killTimer.unref) killTimer.unref();
+    }, SHUTDOWN_TERM_GRACE_MS);
+    if (!waitForExit && termTimer.unref) termTimer.unref();
   });
 }
 
@@ -692,7 +711,17 @@ async function handleClientMessage(msg) {
 
   if (method === 'initialize') {
     clientInitParams = msg.params || {};
-    if (!backend && cacheState.initialize) {
+    const requestedProtocol =
+      typeof clientInitParams.protocolVersion === 'string'
+        ? clientInitParams.protocolVersion
+        : null;
+    const cachedProtocol =
+      typeof cacheState.initialize?.protocolVersion === 'string'
+        ? cacheState.initialize.protocolVersion
+        : null;
+    const protocolCompatible =
+      !requestedProtocol || (cachedProtocol !== null && cachedProtocol === requestedProtocol);
+    if (!backend && cacheState.initialize && protocolCompatible) {
       writeToHost({ jsonrpc: '2.0', id: msg.id, result: cacheState.initialize });
       return;
     }
@@ -792,23 +821,26 @@ process.stdin.on('data', (chunk) => {
   }
 });
 
-process.stdin.on('end', () => {
+let shutdownStarted = false;
+function shutdownAndExit(reason) {
+  if (shutdownStarted) return;
+  shutdownStarted = true;
   hostClosed = true;
-  stopBackend('host-eof');
-  process.exit(0);
-});
-
-for (const sig of ['SIGINT', 'SIGTERM']) {
-  process.on(sig, () => {
-    hostClosed = true;
-    stopBackend(sig);
+  stopBackend(reason, { waitForExit: true }).finally(() => {
     process.exit(0);
   });
 }
+
+process.stdin.on('end', () => shutdownAndExit('host-eof'));
+
+for (const sig of ['SIGINT', 'SIGTERM']) {
+  process.on(sig, () => shutdownAndExit(sig));
+}
 process.on('exit', () => {
-  if (backend) {
+  const proc = backend || stoppingBackend;
+  if (proc) {
     try {
-      backend.kill('SIGTERM');
+      proc.kill('SIGTERM');
     } catch {
       // ignore
     }

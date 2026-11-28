@@ -96,7 +96,9 @@ the harness runs hooks: every Stop, and SessionStart (`startup|resume`).
 
 **Which pull requests.** Every open pull request whose head is the checkout's
 current branch on `origin`, when `origin` is a GitHub remote (`github.com`,
-`GH_HOST`, or a host listed in `PR_WATCH_GITHUB_HOSTS`); a fork's pull request from a branch with the same
+`GH_HOST`, or a host listed in `PR_WATCH_GITHUB_HOSTS`). In a fork checkout
+with a GitHub remote named `upstream`, it also looks there for pull requests
+whose head is the branch on `origin`. A fork's pull request from a branch with the same
 name is not watched. When more than five open pull requests share the branch
 name, discovery goes through REST, which filters by the head owner. Plus any URL listed with
 `git config --add pr-watch.url <url>`. Merged and closed ones are dropped,

@@ -445,6 +445,36 @@ class PrWatchTest(unittest.TestCase):
         self.assertIsNotNone(self.run_hook(payload={"session_id": "ghe2"}, PR_WATCH_GITHUB_HOSTS="git.corp.example"))
         self.assertIsNotNone(self.run_hook(payload={"session_id": "ghe3"}, GH_HOST="git.corp.example"))
 
+    def test_fork_checkout_finds_the_upstream_pull_request(self) -> None:
+        git = ["git", "-C", str(self.workspace), "remote"]
+        subprocess.run([*git, "set-url", "origin", "git@github.com:me/app.git"], check=True)
+        subprocess.run([*git, "add", "upstream", "https://github.com/acme/app.git"], check=True)
+        mine = pull_request(headRepository={"nameWithOwner": "me/app"})
+        stranger = pull_request(number=8, url="https://github.com/acme/app/pull/8",
+                                headRepository={"nameWithOwner": "stranger/app"})
+        stranger["reviewThreads"]["nodes"][0]["comments"]["nodes"][0]["body"] = "stranger comment"
+        self.response.write_text(json.dumps({"data": {
+            "branch": {"pullRequests": {"nodes": []}},
+            "upstream": {"pullRequests": {"nodes": [stranger, mine]}},
+        }}))
+        reason = self.run_hook()["reason"]
+        self.assertIn("https://github.com/acme/app/pull/7", reason)
+        self.assertNotIn("stranger comment", reason)
+        query = json.loads((self.root / "query.json").read_text())
+        self.assertEqual((query["variables"]["uOwner"], query["variables"]["uName"]), ("acme", "app"))
+        # REST asks the upstream repository for pull requests whose head is on the fork.
+        self.rest_fixture("repos/me/app/pulls?state=open&head=me:agent%2Fsettings&per_page=100", [])
+        self.rest_pull_request(mergeable_state="clean")
+        self.rest_fixture("repos/acme/app/pulls?state=open&head=me:agent%2Fsettings&per_page=100", [{"number": 7}])
+        rest_reason = self.run_hook(PR_WATCH_API="rest", payload={"session_id": "s7"})["reason"]
+        self.assertIn("https://github.com/acme/app/pull/7", rest_reason)
+
+    def test_upstream_equal_to_origin_is_searched_once(self) -> None:
+        subprocess.run(["git", "-C", str(self.workspace), "remote", "add", "upstream",
+                        "git@github.com:ACME/app.git"], check=True)
+        self.run_hook()
+        self.assertNotIn("uOwner", json.loads((self.root / "query.json").read_text())["variables"])
+
     def test_rest_merged_and_partial_failure(self) -> None:
         self.rest_pull_request()
         (self.root / "rest" / re.sub(r"[^A-Za-z0-9]", "_", "repos/acme/app/pulls/7/reviews?per_page=100")).unlink()

@@ -16,7 +16,8 @@ CI; finish the turn and let the hook report it.
 
 ## What it watches
 
-- Every open pull request whose head is the current branch on `origin`.
+- Every open pull request whose head is the current branch on `origin`,
+  in `origin` or, in a fork checkout, in a remote named `upstream`.
 - Any other pull request you add:
 
   ```sh

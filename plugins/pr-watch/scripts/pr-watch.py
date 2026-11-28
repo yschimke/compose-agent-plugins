@@ -244,15 +244,25 @@ def parse_remote(remote: str) -> tuple[str, str] | None:
 PR_URL = re.compile(r"^https://github\.com/(?P<owner>[A-Za-z0-9_.-]+)/(?P<name>[A-Za-z0-9_.-]+)/pull/(?P<number>[0-9]+)")
 
 
-def watch_targets(cwd: str | None) -> tuple[tuple[str, str, str] | None, list[tuple[str, str, int]]]:
-    """(owner, name, branch) for the current branch, and explicit (owner, name, number) URLs."""
+def watch_targets(cwd: str | None):
+    """The current branch and the explicit (owner, name, number) URLs.
+
+    The branch target is (owner, name, branch, upstream): owner/name is the
+    GitHub `origin`, where the branch lives, and upstream is the (owner, name)
+    of a GitHub remote named `upstream` that differs from it, or None. In a fork
+    checkout the pull request lives in upstream while its head stays on origin.
+    """
     branch_target = None
     remote = git(cwd, "remote", "get-url", "origin")
     branch = git(cwd, "symbolic-ref", "--quiet", "--short", "HEAD")
     if remote and branch:
         repository = parse_remote(remote)
         if repository:
-            branch_target = (*repository, branch)
+            upstream_remote = git(cwd, "remote", "get-url", "upstream")
+            upstream = parse_remote(upstream_remote) if upstream_remote else None
+            if upstream and "/".join(upstream).lower() == "/".join(repository).lower():
+                upstream = None
+            branch_target = (*repository, branch, upstream)
     explicit = []
     for line in (git(cwd, "config", "--get-all", "pr-watch.url") or "").splitlines():
         match = PR_URL.match(line.strip())
@@ -351,15 +361,21 @@ def rest(path: str, deadline: Deadline) -> object | None:
 
 def fetch_graphql(branch_target, explicit, deadline: Deadline) -> list[dict] | None:
     parts, variables, declarations = [], {}, []
+    branch_aliases = []
     if branch_target:
-        owner, name, branch = branch_target
-        declarations += ["$bOwner: String!", "$bName: String!", "$branch: String!"]
-        variables.update(bOwner=owner, bName=name, branch=branch)
-        parts.append(
-            "branch: repository(owner: $bOwner, name: $bName) {"
-            " pullRequests(headRefName: $branch, states: OPEN, first: 5) {"
-            " pageInfo { hasNextPage } nodes {" + PR_FIELDS + "} } }"
-        )
+        owner, name, branch, upstream = branch_target
+        declarations += ["$branch: String!"]
+        variables["branch"] = branch
+        searched = [("branch", "b", (owner, name))] + ([("upstream", "u", upstream)] if upstream else [])
+        for alias, prefix, (repo_owner, repo_name) in searched:
+            declarations += [f"${prefix}Owner: String!", f"${prefix}Name: String!"]
+            variables.update({f"{prefix}Owner": repo_owner, f"{prefix}Name": repo_name})
+            parts.append(
+                f"{alias}: repository(owner: ${prefix}Owner, name: ${prefix}Name) {{"
+                " pullRequests(headRefName: $branch, states: OPEN, first: 5) {"
+                " pageInfo { hasNextPage } nodes {" + PR_FIELDS + "} } }"
+            )
+            branch_aliases.append(alias)
     for index, (owner, name, number) in enumerate(explicit):
         declarations += [f"$o{index}: String!", f"$n{index}: String!", f"$p{index}: Int!"]
         variables.update({f"o{index}": owner, f"n{index}": name, f"p{index}": number})
@@ -373,19 +389,19 @@ def fetch_graphql(branch_target, explicit, deadline: Deadline) -> list[dict] | N
         return None
     data = response["data"]
     found = []
-    branch_data = data.get("branch") or {}
     # headRefName matches the branch name in any repository, forks included.
     # Watch only pull requests whose head is the checkout's own origin, so the
     # agent is never sent to work on another contributor's pull request.
-    if branch_target and more_after(branch_data.get("pullRequests")):
-        # More pull requests share the branch name than one page holds, and forks
-        # could fill it. REST filters by the head owner on GitHub's side, so the
-        # whole read goes there instead.
-        log("more than one page of pull requests share the branch name; using REST")
-        return None
+    for alias in branch_aliases:
+        if more_after((data.get(alias) or {}).get("pullRequests")):
+            # More pull requests share the branch name than one page holds, and
+            # forks could fill it. REST filters by the head owner on GitHub's
+            # side, so the whole read goes there instead.
+            log("more than one page of pull requests share the branch name; using REST")
+            return None
     if branch_target:
         origin = f"{branch_target[0]}/{branch_target[1]}".lower()
-        for node in nodes(branch_data.get("pullRequests")):
+        for node in (node for alias in branch_aliases for node in nodes((data.get(alias) or {}).get("pullRequests"))):
             head_repository = node.get("headRepository")
             head = head_repository.get("nameWithOwner") if isinstance(head_repository, dict) else None
             if isinstance(head, str) and head.lower() == origin:
@@ -524,13 +540,15 @@ def rest_pull_request(owner: str, name: str, number: int, deadline: Deadline) ->
 def fetch_rest(branch_target, explicit, deadline: Deadline) -> list[dict] | None:
     numbers: list[tuple[str, str, int]] = []
     if branch_target:
-        owner, name, branch = branch_target
-        listed = rest_list(
-            f"repos/{owner}/{name}/pulls?state=open&head={urllib.parse.quote(owner + ':' + branch, safe=':')}", deadline
-        )
-        if listed is None:
-            return None
-        numbers += [(owner, name, int(pr["number"])) for pr in listed[:5] if isinstance(pr.get("number"), int)]
+        owner, name, branch, upstream = branch_target
+        head = urllib.parse.quote(owner + ":" + branch, safe=":")
+        for repo_owner, repo_name in [(owner, name)] + ([upstream] if upstream else []):
+            listed = rest_list(f"repos/{repo_owner}/{repo_name}/pulls?state=open&head={head}", deadline)
+            if listed is None:
+                return None
+            numbers += [
+                (repo_owner, repo_name, int(pr["number"])) for pr in listed[:5] if isinstance(pr.get("number"), int)
+            ]
     numbers += explicit
     found = []
     for owner, name, number in numbers:

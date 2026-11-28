@@ -106,8 +106,8 @@ Code cloud sessions, it falls back to the REST API (`GITHUB_API_URL`): one
 list request for the branch, then six per pull request (the pull request, its
 comments, reviews, review comments, check runs and commit statuses).
 `PR_WATCH_API=graphql` or `rest` forces one. GraphQL returns at most 100
-comments, reviews, threads and comments per thread; a pull request with more
-is read again through REST, which follows up to 10 pages of 100 per list. A
+comments, reviews, threads, comments per thread and checks on the head commit;
+a pull request with more is read again through REST, which follows up to 10 pages of 100 per list. A
 longer list fails the run. All requests of a run share a
 24-second budget. REST does not say whether a review thread is resolved, so
 there a thread with no current line (outdated) counts as resolved. If any

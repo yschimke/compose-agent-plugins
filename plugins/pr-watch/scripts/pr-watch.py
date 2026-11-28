@@ -85,7 +85,7 @@ PR_FIELDS = """
     }
   }
   commits(last: 1) {
-    nodes { commit { oid statusCheckRollup { state contexts(first: 100) { nodes {
+    nodes { commit { oid statusCheckRollup { state contexts(first: 100) { pageInfo { hasNextPage } nodes {
       __typename
       ... on CheckRun { name status conclusion detailsUrl }
       ... on StatusContext { context state targetUrl }
@@ -416,8 +416,10 @@ def rest_pull_request(owner: str, name: str, number: int, deadline: Deadline) ->
     reviews = rest_list(f"{repo}/pulls/{number}/reviews", deadline)
     review_comments = rest_list(f"{repo}/pulls/{number}/comments", deadline)
     check_runs = rest_list(f"{repo}/commits/{sha}/check-runs", deadline) if sha else []
-    status = rest(f"{repo}/commits/{sha}/status", deadline) if sha else {}
-    if None in (comments, reviews, review_comments, check_runs) or not isinstance(status, dict):
+    # The list endpoint pages like the others and returns every status, newest
+    # first; the combined /status endpoint stops at its first page.
+    statuses = rest_list(f"{repo}/commits/{sha}/statuses", deadline) if sha else []
+    if None in (comments, reviews, review_comments, check_runs, statuses):
         return None
     shaped["comments"] = {"nodes": [
         {"id": c.get("node_id"), "author": rest_author(c), "body": c.get("body"), "createdAt": c.get("created_at")}
@@ -454,7 +456,12 @@ def rest_pull_request(owner: str, name: str, number: int, deadline: Deadline) ->
             "conclusion": str(run.get("conclusion") or "").upper() or None,
             "detailsUrl": run.get("details_url") or run.get("html_url"),
         })
-    for item in status.get("statuses") or []:
+    latest: set[str] = set()
+    for item in statuses:
+        context = str(item.get("context") or "")
+        if context in latest:
+            continue  # An older status of a context already reported.
+        latest.add(context)
         if isinstance(item, dict):
             contexts.append({
                 "__typename": "StatusContext",
@@ -491,11 +498,22 @@ def more_before(connection: object) -> bool:
     return bool(info.get("hasPreviousPage")) if isinstance(info, dict) else False
 
 
+def more_after(connection: object) -> bool:
+    info = connection.get("pageInfo") if isinstance(connection, dict) else None
+    return bool(info.get("hasNextPage")) if isinstance(info, dict) else False
+
+
 def truncated(pr: dict) -> bool:
-    """Whether one GraphQL page left out older comments, reviews or review threads."""
+    """Whether one GraphQL page left out comments, reviews, review threads or checks."""
     if any(more_before(pr.get(field)) for field in ("comments", "reviews", "reviewThreads")):
         return True
-    return any(more_before(thread.get("comments")) for thread in nodes(pr.get("reviewThreads")))
+    if any(more_before(thread.get("comments")) for thread in nodes(pr.get("reviewThreads"))):
+        return True
+    for commit in nodes(pr.get("commits")):
+        rollup = (commit.get("commit") or {}).get("statusCheckRollup")
+        if isinstance(rollup, dict) and more_after(rollup.get("contexts")):
+            return True
+    return False
 
 
 def fetch_pull_requests(branch_target, explicit) -> list[dict] | None:

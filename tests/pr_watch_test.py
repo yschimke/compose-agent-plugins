@@ -282,9 +282,12 @@ class PrWatchTest(unittest.TestCase):
             {"name": "build", "status": "completed", "conclusion": "failure", "details_url": "https://ci/1"},
             {"name": "lint", "status": "completed", "conclusion": "success", "details_url": ""},
         ]})
-        self.rest_fixture(f"{repo}/commits/{sha}/status", {"state": "failure", "statuses": [
+        self.rest_fixture(f"{repo}/commits/{sha}/statuses?per_page=100", [
             {"context": "deploy/preview", "state": "error", "target_url": "https://preview/1"},
-        ]})
+            {"context": "deploy/preview", "state": "pending", "target_url": ""},
+            {"context": "deploy/docs", "state": "success", "target_url": ""},
+            {"context": "deploy/docs", "state": "failure", "target_url": "https://old/1"},
+        ])
 
     def test_rest_fallback_when_graphql_is_refused(self) -> None:
         self.rest_pull_request()
@@ -361,6 +364,28 @@ class PrWatchTest(unittest.TestCase):
         (self.root / "rest" / re.sub(r"[^A-Za-z0-9]", "_", "repos/acme/app/pulls/7/reviews?per_page=100")).unlink()
         self.assertIsNone(self.run_hook(payload={"session_id": "s5"}))
         self.assertFalse((self.root / "state" / "s5.json").exists())
+
+    def test_checks_past_the_first_graphql_page_are_reread_through_rest(self) -> None:
+        pr = pull_request()
+        rollup = pr["commits"]["nodes"][0]["commit"]["statusCheckRollup"]
+        rollup["contexts"]["nodes"] = [{"__typename": "CheckRun", "name": "lint", "status": "COMPLETED",
+                                        "conclusion": "SUCCESS", "detailsUrl": ""}]
+        rollup["contexts"]["pageInfo"] = {"hasNextPage": True}
+        self.respond([pr])
+        self.rest_pull_request(mergeable_state="clean")
+        reason = self.run_hook()["reason"]
+        self.assertIn("build (failure) https://ci/1", reason)  # Only on the REST pages.
+        self.assertIn("deploy/preview (error)", reason)
+        self.assertNotIn("deploy/docs", reason)  # Its newest status passed; the old failure is history.
+
+    def test_rest_statuses_follow_pages(self) -> None:
+        self.rest_pull_request(mergeable_state="clean")
+        repo = "repos/acme/app"
+        self.rest_fixture(f"{repo}/commits/abc1234def/statuses?per_page=100",
+                          [{"context": f"ok/{n}", "state": "success", "target_url": ""} for n in range(100)])
+        self.rest_fixture(f"{repo}/commits/abc1234def/statuses?per_page=100&page=2",
+                          [{"context": "late/check", "state": "failure", "target_url": "https://late/1"}])
+        self.assertIn("late/check (failure)", self.run_hook(PR_WATCH_API="rest")["reason"])
 
     def test_rest_merged_and_partial_failure(self) -> None:
         self.rest_pull_request()

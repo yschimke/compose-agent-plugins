@@ -44,6 +44,7 @@ def pull_request(**overrides) -> dict:
         "baseRefName": "main",
         "headRefName": "agent/settings",
         "headRefOid": "abc1234def",
+        "headRepository": {"nameWithOwner": "acme/app"},
         "comments": {"nodes": [{"id": "IC1", "author": {"login": "old"}, "body": "old chatter", "createdAt": "2026-01-01T00:00:00Z"}]},
         "reviews": {"nodes": []},
         "reviewThreads": {"nodes": [
@@ -386,6 +387,22 @@ class PrWatchTest(unittest.TestCase):
         self.rest_fixture(f"{repo}/commits/abc1234def/statuses?per_page=100&page=2",
                           [{"context": "late/check", "state": "failure", "target_url": "https://late/1"}])
         self.assertIn("late/check (failure)", self.run_hook(PR_WATCH_API="rest")["reason"])
+
+    def test_fork_pull_requests_on_the_same_branch_name_are_ignored(self) -> None:
+        fork = pull_request(number=99, url="https://github.com/acme/app/pull/99", headRepository={"nameWithOwner": "stranger/app"})
+        fork["reviewThreads"]["nodes"][0]["comments"]["nodes"][0]["body"] = "fork-only comment"
+        deleted = pull_request(number=98, url="https://github.com/acme/app/pull/98", headRepository=None)
+        self.respond([fork, deleted, pull_request(headRepository={"nameWithOwner": "ACME/App"})])
+        reason = self.run_hook()["reason"]
+        self.assertIn("pull/7", reason)
+        self.assertNotIn("pull/99", reason)
+        self.assertNotIn("pull/98", reason)
+        self.assertNotIn("fork-only", reason)
+        # An explicitly listed URL is watched whatever its head repository.
+        subprocess.run(["git", "-C", str(self.workspace), "config", "--add", "pr-watch.url",
+                        "https://github.com/acme/app/pull/99"], check=True)
+        self.respond([fork], explicit=fork)
+        self.assertIn("fork-only comment", self.run_hook(payload={"session_id": "s6"})["reason"])
 
     def test_rest_merged_and_partial_failure(self) -> None:
         self.rest_pull_request()

@@ -74,7 +74,7 @@ FAILED_STATES = {"FAILURE", "ERROR"}
 
 PR_FIELDS = """
   number url title state merged isDraft mergeable mergeStateStatus
-  baseRefName headRefName headRefOid
+  baseRefName headRefName headRefOid headRepository { nameWithOwner }
   comments(last: 100) { pageInfo { hasPreviousPage } nodes { id author { login } body createdAt } }
   reviews(last: 100) { pageInfo { hasPreviousPage } nodes { id author { login } state body submittedAt } }
   reviewThreads(last: 100) {
@@ -343,7 +343,16 @@ def fetch_graphql(branch_target, explicit, deadline: Deadline) -> list[dict] | N
     data = response["data"]
     found = []
     branch_data = data.get("branch") or {}
-    found += [node for node in nodes(branch_data.get("pullRequests"))]
+    # headRefName matches the branch name in any repository, forks included.
+    # Watch only pull requests whose head is the checkout's own origin, so the
+    # agent is never sent to work on another contributor's pull request.
+    if branch_target:
+        origin = f"{branch_target[0]}/{branch_target[1]}".lower()
+        for node in nodes(branch_data.get("pullRequests")):
+            head_repository = node.get("headRepository")
+            head = head_repository.get("nameWithOwner") if isinstance(head_repository, dict) else None
+            if isinstance(head, str) and head.lower() == origin:
+                found.append(node)
     for index in range(len(explicit)):
         node = (data.get(f"x{index}") or {}).get("pullRequest")
         if isinstance(node, dict):

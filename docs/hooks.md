@@ -95,7 +95,8 @@ GitHub events into a session, so the plugin checks GitHub at the points where
 the harness runs hooks: every Stop, and SessionStart (`startup|resume`).
 
 **Which pull requests.** Every open pull request whose head is the checkout's
-current branch on `origin`, plus any URL listed with
+current branch on `origin`; a fork's pull request from a branch with the same
+name is not watched. Plus any URL listed with
 `git config --add pr-watch.url <url>`. Merged and closed ones are dropped,
 with a one-line notice in Claude Code and Codex.
 

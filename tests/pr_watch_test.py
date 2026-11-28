@@ -312,6 +312,28 @@ class PrWatchTest(unittest.TestCase):
         self.assertIn('on app/Settings.kt:12: "Still not a Switch."', reason)
         self.assertNotIn("Merge conflict", reason)
 
+    def test_rest_follows_pages_to_the_newest_comments(self) -> None:
+        self.rest_pull_request(mergeable_state="clean")
+        repo = "repos/acme/app"
+        page = lambda start, count: [  # noqa: E731
+            {"node_id": f"IC{n}", "user": {"login": "chatty"}, "body": f"comment-{n} ok",
+             "created_at": f"2026-01-01T00:{n // 60:02d}:{n % 60:02d}Z"}
+            for n in range(start, start + count)
+        ]
+        self.rest_fixture(f"{repo}/issues/7/comments?per_page=100", page(0, 100))
+        self.rest_fixture(f"{repo}/issues/7/comments?per_page=100&page=2", [])
+        self.run_hook(PR_WATCH_API="rest")  # First look: history.
+        self.assertIn("issues/7/comments?per_page=100&page=2", self.calls.read_text())
+        self.rest_fixture(f"{repo}/issues/7/comments?per_page=100&page=2", page(100, 2))
+        reason = self.run_hook(PR_WATCH_API="rest")["reason"]
+        self.assertIn('"comment-100 ok"', reason)
+        self.assertIn('"comment-101 ok"', reason)
+        self.assertNotIn("comment-99 ", reason)
+        # A list longer than the page limit fails the read instead of hiding the tail.
+        for number in range(2, 11):
+            self.rest_fixture(f"{repo}/issues/7/comments?per_page=100&page={number}", page(number * 100, 100))
+        self.assertIsNone(self.run_hook(PR_WATCH_API="rest", payload={"session_id": "s4"}))
+
     def test_rest_merged_and_partial_failure(self) -> None:
         self.rest_pull_request()
         (self.root / "rest" / re.sub(r"[^A-Za-z0-9]", "_", "repos/acme/app/pulls/7/reviews?per_page=100")).unlink()

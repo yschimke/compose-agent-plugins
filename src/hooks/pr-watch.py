@@ -54,6 +54,8 @@ MAX_CONSECUTIVE_BLOCKS = 3
 REQUEST_TIMEOUT = 15
 # Every request of one run shares this budget, below the 30 s hook timeout.
 DEADLINE_SECONDS = 24
+REST_PAGE_SIZE = 100
+REST_MAX_PAGES = 10
 # Budget for the PR sections of one message. A single section always fits:
 # MAX_ITEMS_PER_PR comments of at most about 420 characters plus a few CI and
 # conflict lines.
@@ -354,13 +356,26 @@ def fetch_graphql(branch_target, explicit, deadline: Deadline) -> list[dict] | N
 
 
 def rest_list(path: str, deadline: Deadline) -> list[dict] | None:
+    """Every item of a REST list, oldest first, following pages up to REST_MAX_PAGES.
+
+    GitHub lists comments oldest first, so stopping at the first page would hide
+    every comment after the hundredth. A list longer than the page limit fails
+    the read rather than show a partial picture.
+    """
     separator = "&" if "?" in path else "?"
-    value = rest(f"{path}{separator}per_page=100", deadline)
-    if isinstance(value, dict) and isinstance(value.get("check_runs"), list):
-        value = value["check_runs"]
-    if not isinstance(value, list):
-        return None
-    return [item for item in value if isinstance(item, dict)]
+    items: list[dict] = []
+    for page in range(1, REST_MAX_PAGES + 1):
+        suffix = f"{separator}per_page={REST_PAGE_SIZE}" + (f"&page={page}" if page > 1 else "")
+        value = rest(f"{path}{suffix}", deadline)
+        if isinstance(value, dict) and isinstance(value.get("check_runs"), list):
+            value = value["check_runs"]
+        if not isinstance(value, list):
+            return None
+        items += [item for item in value if isinstance(item, dict)]
+        if len(value) < REST_PAGE_SIZE:
+            return items
+    log(f"{path}: more than {REST_MAX_PAGES} pages")
+    return None
 
 
 def rest_author(item: dict) -> dict:

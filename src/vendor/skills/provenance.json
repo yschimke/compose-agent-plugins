@@ -1,6 +1,6 @@
 {
   "$comment": "Written by scripts/update-skills.py. Do not edit the vendored skills; scripts/check_generated.py checks them against this file.",
-  "commit": "58ae34abc9b91e32ae4fba1031b0af092faf5e3f",
+  "commit": "f7f43f93e0c2ef42b9512d86a6693a6ecfcfd424",
   "files": {
     "compose-preview-ci/SKILL.md": {
       "mode": "100644",
@@ -52,7 +52,7 @@
     },
     "compose-preview/SKILL.md": {
       "mode": "100644",
-      "sha256": "02c36adfbe45cdea679f5fe854ed2b1e94de7a497e9aa530da0b39f006214e27"
+      "sha256": "c0ebd655de0ea816058a5e18df492d66fc849bc46f9154c1eb0f2e74cb0b33a3"
     },
     "compose-preview/references/a11y.md": {
       "mode": "100644",
@@ -133,6 +133,10 @@
     "compose-preview/references/simulator-network.md": {
       "mode": "100644",
       "sha256": "7ae1928676560149b56e2aa8276fc17f6a01bebaf1db52804c2c23a14bd043e3"
+    },
+    "compose-preview/references/simulator-tests.md": {
+      "mode": "100644",
+      "sha256": "54e4ad7f67fce72e5518603340d84fc11fe5199a51b39b7611288cc04465f49e"
     },
     "compose-preview/references/simulator-wear.md": {
       "mode": "100644",

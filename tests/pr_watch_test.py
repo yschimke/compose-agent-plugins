@@ -206,6 +206,52 @@ class PrWatchTest(unittest.TestCase):
         self.assertIsNone(self.run_hook(PR_WATCH_NO_GH="1", GH_TOKEN="", GITHUB_TOKEN=""))
         self.assertFalse(self.calls.exists())
 
+    # --- Output budget (deferred, never dropped) -----------------------------
+
+    def busy_pull_request(self, number: int, count: int, body_length: int = 290) -> dict:
+        pr = pull_request(number=number, url=f"https://github.com/acme/app/pull/{number}")
+        pr["reviewThreads"]["nodes"] = [
+            {"isResolved": False, "isOutdated": False, "path": f"app/F{index}.kt", "line": 1,
+             "comments": {"nodes": [{"id": f"P{number}C{index}", "author": {"login": "reviewer"},
+                                     "body": f"pr{number}-comment{index} " + "x" * body_length,
+                                     "createdAt": f"2026-01-01T00:00:{index:02d}Z"}]}}
+            for index in range(count)
+        ]
+        pr["commits"]["nodes"][0]["commit"]["statusCheckRollup"]["contexts"]["nodes"] = []
+        return pr
+
+    def test_comments_over_the_per_pr_limit_follow_next_stop(self) -> None:
+        self.respond([self.busy_pull_request(7, 10, body_length=10)])
+        first = self.run_hook()["reason"]
+        self.assertIn("pr7-comment7 ", first)
+        self.assertNotIn("pr7-comment8 ", first)
+        self.assertIn("2 more comments will follow at the next stop", first)
+        second = self.run_hook(payload={"stop_hook_active": False})["reason"]
+        self.assertIn("pr7-comment8 ", second)
+        self.assertIn("pr7-comment9 ", second)
+        self.assertNotIn("pr7-comment0 ", second)
+        self.assertIsNone(self.run_hook())
+
+    def test_pull_requests_over_the_budget_follow_next_stop(self) -> None:
+        # Codex review example on #213: three PRs, eight 300-character comments each.
+        prs = [self.busy_pull_request(number, 8) for number in (7, 8, 9)]
+        subprocess.run(["git", "-C", str(self.workspace), "config", "--add", "pr-watch.url",
+                        "https://github.com/acme/app/pull/9"], check=True)
+        self.respond(prs[:2], explicit=prs[2])
+        first = self.run_hook()["reason"]
+        self.assertIn("more pull request(s) will follow at the next stop.", first)
+        reasons = [first]
+        while True:
+            output = self.run_hook()
+            if output is None:
+                break
+            reasons.append(output["reason"])
+            self.assertLessEqual(len(reasons), 3)
+        reported = "\n".join(reasons)
+        for number in (7, 8, 9):
+            for index in range(8):
+                self.assertEqual(reported.count(f"pr{number}-comment{index} "), 1, (number, index))
+
     # --- REST fallback -------------------------------------------------------
 
     def rest_fixture(self, path: str, value: object) -> None:

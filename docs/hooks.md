@@ -129,7 +129,10 @@ and reports only the latest comment of each unresolved review thread, failed
 checks and conflicts.
 
 Quoted comment text is truncated to 300 characters and introduced as
-information from other people, not instructions.
+information from other people, not instructions. One message carries at most
+eight comments per pull request and about 5,000 characters of pull request
+sections. Anything over either limit is not marked as seen, and the next stop
+reports it.
 
 **When it blocks.** The Stop hook keeps the agent working (Claude Code and
 Codex `{"decision":"block"}`, Antigravity `{"decision":"continue"}`) only when

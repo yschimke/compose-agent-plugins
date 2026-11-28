@@ -74,7 +74,7 @@ FAILED_STATES = {"FAILURE", "ERROR"}
 
 PR_FIELDS = """
   number url title state merged isDraft mergeable mergeStateStatus
-  baseRefName headRefName headRefOid headRepository { nameWithOwner }
+  baseRefName baseRepository { nameWithOwner } headRefName headRefOid headRepository { nameWithOwner }
   comments(last: 100) { pageInfo { hasPreviousPage } nodes { id author { login } body createdAt } }
   reviews(last: 100) { pageInfo { hasPreviousPage } nodes { id author { login } state body submittedAt } }
   reviewThreads(last: 100) {
@@ -466,6 +466,7 @@ def rest_pull_request(owner: str, name: str, number: int, deadline: Deadline) ->
         "mergeable": "CONFLICTING" if merge_state == "DIRTY" else ("MERGEABLE" if pr.get("mergeable") else "UNKNOWN"),
         "mergeStateStatus": merge_state,
         "baseRefName": base.get("ref"),
+        "baseRepository": {"nameWithOwner": (base.get("repo") or {}).get("full_name")},
         "headRefName": head.get("ref"),
         "headRefOid": sha,
     }
@@ -733,13 +734,19 @@ def examine(pr: dict, seen: dict) -> tuple[list[str], bool]:
         )
 
     conflict = pr.get("mergeable") == "CONFLICTING"
+    base_branch = clean(pr.get("baseRefName"), 80)
+    base_repository = pr.get("baseRepository")
+    base_name = base_repository.get("nameWithOwner") if isinstance(base_repository, dict) else None
+    # Name the base repository: in a fork checkout it is upstream, not origin.
+    base = f"{clean(base_name, 100)}'s {base_branch}" if isinstance(base_name, str) and base_name else base_branch
     if conflict and seen.get("conflict_head") != head:
         lines.append(
-            f"Merge conflict with {clean(pr.get('baseRefName'), 80)}: merge the base branch into"
-            f" {clean(pr.get('headRefName'), 80)}, resolve the conflicts and push. Don't rewrite pushed history."
+            f"Merge conflict with {base}: fetch {base_branch} from the pull request's base repository"
+            f" (not necessarily origin), merge it into {clean(pr.get('headRefName'), 80)}, resolve the"
+            " conflicts and push. Don't rewrite pushed history."
         )
     elif pr.get("mergeStateStatus") == "BEHIND" and seen.get("behind_head") != head:
-        lines.append(f"The branch is behind {clean(pr.get('baseRefName'), 80)} and the base requires it to be up to date.")
+        lines.append(f"The branch is behind {base} and the base requires it to be up to date.")
         seen["behind_head"] = head
 
     # Comments beyond the per-PR limit stay unseen, so the next stop reports them.

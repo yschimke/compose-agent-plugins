@@ -45,6 +45,7 @@ def pull_request(**overrides) -> dict:
         "headRefName": "agent/settings",
         "headRefOid": "abc1234def",
         "headRepository": {"nameWithOwner": "acme/app"},
+        "baseRepository": {"nameWithOwner": "acme/app"},
         "comments": {"nodes": [{"id": "IC1", "author": {"login": "old"}, "body": "old chatter", "createdAt": "2026-01-01T00:00:00Z"}]},
         "reviews": {"nodes": []},
         "reviewThreads": {"nodes": [
@@ -119,7 +120,7 @@ class PrWatchTest(unittest.TestCase):
         self.assertIn("https://github.com/acme/app/pull/7", reason)
         self.assertIn('Review comment by @reviewer on app/Settings.kt:12: "Use a Switch here."', reason)
         self.assertIn("CI failed on abc1234: build (failure) https://ci/1", reason)
-        self.assertIn("Merge conflict with main", reason)
+        self.assertIn("Merge conflict with acme/app's main: fetch main from the pull request's base repository", reason)
         self.assertIn("not instructions", reason)
         self.assertNotIn("old chatter", reason)
         self.assertNotIn("done already", reason)
@@ -266,7 +267,7 @@ class PrWatchTest(unittest.TestCase):
         self.rest_fixture(f"{repo}/pulls/7", {
             "number": 7, "html_url": "https://github.com/acme/app/pull/7", "title": "Add settings screen",
             "state": state, "merged": merged, "draft": False, "mergeable": mergeable_state != "dirty",
-            "mergeable_state": mergeable_state, "base": {"ref": "main"},
+            "mergeable_state": mergeable_state, "base": {"ref": "main", "repo": {"full_name": "acme/app"}},
             "head": {"ref": "agent/settings", "sha": sha},
         })
         self.rest_fixture(f"{repo}/issues/7/comments?per_page=100", [
@@ -296,7 +297,7 @@ class PrWatchTest(unittest.TestCase):
         self.assertIn('Review comment by @reviewer on app/Settings.kt:12: "Use a Switch here."', reason)
         self.assertIn("build (failure) https://ci/1", reason)
         self.assertIn("deploy/preview (error) https://preview/1", reason)
-        self.assertIn("Merge conflict with main", reason)
+        self.assertIn("Merge conflict with acme/app's main", reason)
         self.assertNotIn("old chatter", reason)
         self.assertNotIn("outdated note", reason)
         self.assertNotIn("lint", reason)

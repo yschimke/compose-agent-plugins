@@ -28,5 +28,5 @@
   "name": "pr-watch",
   "repository": "https://github.com/yschimke/compose-agent-plugins",
   "skills": "./skills/",
-  "version": "0.17.0"
+  "version": "0.18.0"
 }

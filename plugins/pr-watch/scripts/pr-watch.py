@@ -301,6 +301,24 @@ PR_URL = re.compile(
 )
 
 
+def with_watched(state: dict, host: str, explicit: list[tuple[str, str, int]]) -> list[tuple[str, str, int]]:
+    """Add the pull requests this session watched and has not yet seen merged or closed.
+
+    Branch discovery only finds open pull requests, so without this a merge
+    would make the pull request vanish instead of being reported.
+    """
+    targets = list(explicit)
+    watched = state.get("prs") if isinstance(state.get("prs"), dict) else {}
+    for url, seen in watched.items():
+        match = PR_URL.match(str(url))
+        if not match or (isinstance(seen, dict) and seen.get("closed_reported")):
+            continue
+        target = (match["owner"], match["name"], int(match["number"]))
+        if match["host"].lower() == host and target not in targets:
+            targets.append(target)
+    return targets
+
+
 def watch_targets(cwd: str | None):
     """The GitHub host, the current branch, and the explicit (owner, name, number) URLs.
 
@@ -315,15 +333,17 @@ def watch_targets(cwd: str | None):
     host, branch_target = None, None
     remote = git(cwd, "remote", "get-url", "origin")
     branch = git(cwd, "symbolic-ref", "--quiet", "--short", "HEAD")
-    if remote and branch:
-        repository = parse_remote(remote)
-        if repository:
-            host = repository[0]
-            upstream_remote = git(cwd, "remote", "get-url", "upstream")
-            upstream = parse_remote(upstream_remote) if upstream_remote else None
-            if upstream and (upstream[0] != host or "/".join(upstream).lower() == "/".join(repository).lower()):
-                upstream = None
-            branch_target = (*repository[1:], branch, upstream[1:] if upstream else None)
+    # origin's host holds even without a branch (a detached HEAD after a merge),
+    # so watched pull requests on an Enterprise host are still checked there.
+    repository = parse_remote(remote) if remote else None
+    if repository:
+        host = repository[0]
+    if repository and branch:
+        upstream_remote = git(cwd, "remote", "get-url", "upstream")
+        upstream = parse_remote(upstream_remote) if upstream_remote else None
+        if upstream and (upstream[0] != host or "/".join(upstream).lower() == "/".join(repository).lower()):
+            upstream = None
+        branch_target = (*repository[1:], branch, upstream[1:] if upstream else None)
     explicit = []
     for line in (git(cwd, "config", "--get-all", "pr-watch.url") or "").splitlines():
         match = PR_URL.match(line.strip())
@@ -630,7 +650,8 @@ def fetch_rest(branch_target, explicit, deadline: Deadline) -> list[dict] | None
             numbers += [
                 (repo_owner, repo_name, int(pr["number"])) for pr in listed[:5] if isinstance(pr.get("number"), int)
             ]
-    numbers += explicit
+    # A watched pull request that branch discovery also found is fetched once.
+    numbers = list(dict.fromkeys(numbers + explicit))
     found = []
     for owner, name, number in numbers:
         pr = rest_pull_request(owner, name, number, deadline)
@@ -861,8 +882,23 @@ def summarize(prs: list[dict], state: dict) -> tuple[str, list[str]]:
     for pr in prs:
         url = pr.get("url")
         if pr.get("merged") or pr.get("state") in ("MERGED", "CLOSED"):
+            # A pull request this session watched has finished: the agent needs to
+            # know, once, so it stops working on it. One never watched is history.
             if url in watched and not watched[url].get("closed_reported"):
-                notices.append(f"PR watch: {url} is {'merged' if pr.get('merged') else 'closed'}; no longer watching it.")
+                title = clean(pr.get("title"), 100)
+                base = clean(pr.get("baseRefName"), 80) or "its base"
+                if pr.get("merged") or pr.get("state") == "MERGED":
+                    line = (
+                        f"Merged into {base}. Stop working on this pull request: tell the person, and put any"
+                        f" further changes on a new branch from the updated {base}, not on the merged branch."
+                    )
+                else:
+                    line = (
+                        "Closed without merging. Stop working on it, and ask the person before reopening it"
+                        " or opening a replacement."
+                    )
+                sections.append(f"{url} ({title}):\n- {line}")
+                used += len(sections[-1])
                 watched[url]["closed_reported"] = True
             continue
         before = copy.deepcopy(watched.get(url))
@@ -894,6 +930,7 @@ def summarize(prs: list[dict], state: dict) -> tuple[str, list[str]]:
         + "\n\n".join(sections)
         + later
         + "\n\nHandle each item: fix it and push, or reply on the pull request saying why not."
+        " For a merged or closed pull request, stop working on it and tell the person."
         " If you cannot, tell the person what is left before you stop."
     )
     return message, notices
@@ -916,13 +953,15 @@ def main(argv: list[str]) -> int:
 
     cwd = workspace_dir(hook_input)
     host, branch_target, explicit = watch_targets(cwd)
-    if not branch_target and not explicit:
-        return 0
-
     path = state_path(session_key(hook_input))
+    state = load_state(path)
+    # A pull request watched earlier is still checked when the checkout has
+    # moved on (detached HEAD or another branch after a merge).
+    if not branch_target and not with_watched(state, host, explicit):
+        return 0
     if event == "Rewake":
         return rewake(path, host, branch_target, explicit)
-    state = load_state(path)
+    explicit = with_watched(state, host, explicit)
     blocks = state.get("consecutive_blocks", 0) if isinstance(state.get("consecutive_blocks"), int) else 0
     if event == "Stop" and blocks >= MAX_CONSECUTIVE_BLOCKS:
         state["consecutive_blocks"] = 0
@@ -997,21 +1036,21 @@ def rewake(path: Path, host: str, branch_target, explicit) -> int:
         except OSError:
             return 0
         with state_lock(path):
-            prs = fetch_pull_requests(host, branch_target, explicit)
+            prs = fetch_pull_requests(host, branch_target, with_watched(load_state(path), host, explicit))
             if prs is None:
                 failures += 1
                 if failures >= 3:
                     return 0
                 continue
             failures = 0
-            if not any(pr.get("state") == "OPEN" and not pr.get("merged") for pr in prs):
-                return 0  # Nothing left to watch.
             state = load_state(path)
-            message, _ = summarize(prs, state)
+            message, _ = summarize(prs, state)  # Reports a merge or close before giving up on it.
             save_state(path, state)
         if message:
             print(message, file=sys.stderr)
             return 2
+        if not any(pr.get("state") == "OPEN" and not pr.get("merged") for pr in prs):
+            return 0  # Nothing left to watch.
 
 
 if __name__ == "__main__":

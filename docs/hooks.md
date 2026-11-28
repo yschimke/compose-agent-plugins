@@ -112,8 +112,17 @@ with a GitHub remote named `upstream`, it also looks there for pull requests
 whose head is the branch on `origin`. A fork's pull request from a branch with the same
 name is not watched. When more than five open pull requests share the branch
 name, discovery goes through REST, which filters by the head owner. Plus any URL listed with
-`git config --add pr-watch.url <url>`. Merged and closed ones are dropped,
-with a one-line notice in Claude Code and Codex.
+`git config --add pr-watch.url <url>`.
+
+**Merged and closed.** A pull request the session has watched stays on the
+list after it leaves the open-PR search, so its merge or close is seen even
+from another branch or a detached HEAD. That outcome is reported to the agent
+once, like any other item: on Stop it keeps the agent working ("Merged into
+main. Stop working on this pull request: tell the person, and put any further
+changes on a new branch…", or "Closed without merging…"), at SessionStart it
+is context, and it wakes the Claude Code background watcher. After that the
+pull request is no longer checked. One closed before the session first saw it
+is not reported.
 
 **How it asks.** Through an authenticated `gh` or, without one,
 `GH_TOKEN`/`GITHUB_TOKEN` against `api.github.com`. For a GitHub Enterprise
@@ -180,7 +189,7 @@ seconds (default 120) between checks, for up to `PR_WATCH_REWAKE_SECONDS`
 it prints the same summary to stderr and exits 2, which wakes the session even
 when it is idle and shows the summary to the agent as a system reminder. It
 exits quietly when the time is up, when every watched pull request is merged or
-closed, after three failed checks in a row, or when a newer watcher for the
+closed (after waking the session to report it), after three failed checks in a row, or when a newer watcher for the
 same session starts (each Stop starts one; the newest wins). Each check,
 fetch included, runs under a per-session file lock shared with the Stop and
 SessionStart hooks, so one check's older snapshot can never roll back what

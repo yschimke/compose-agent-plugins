@@ -179,7 +179,7 @@ class PrWatchTest(unittest.TestCase):
         self.assertEqual(self.run_hook(), {"systemMessage": "PR watch: checks are still running on https://github.com/acme/app/pull/7."})
         self.assertIsNone(self.run_hook(harness="antigravity"))
 
-    def test_merged_explicit_pr_is_a_notice(self) -> None:
+    def test_merged_explicit_pr_is_reported_to_the_agent(self) -> None:
         subprocess.run(["git", "-C", str(self.workspace), "config", "--add", "pr-watch.url", "https://github.com/acme/lib/pull/3"], check=True)
         self.run_hook()
         merged = pull_request(url="https://github.com/acme/lib/pull/3", merged=True, state="MERGED")
@@ -187,7 +187,8 @@ class PrWatchTest(unittest.TestCase):
         self.run_hook(payload={"session_id": "s2"})
         self.respond([pull_request()], explicit=merged)
         output = self.run_hook(payload={"session_id": "s2"})
-        self.assertIn("acme/lib/pull/3 is merged", output["systemMessage"])
+        self.assertIn("https://github.com/acme/lib/pull/3", output["reason"])
+        self.assertIn("Merged into main", output["reason"])
         query = json.loads((self.root / "query.json").read_text())
         self.assertEqual(query["variables"]["o0"], "acme")
         self.assertEqual(query["variables"]["p0"], 3)
@@ -556,7 +557,8 @@ class PrWatchTest(unittest.TestCase):
     def test_rewake_stops_for_merged_pull_requests_and_failures(self) -> None:
         self.run_hook()
         self.respond([pull_request(state="MERGED", merged=True)])
-        self.assertEqual(self.run_rewake()[0], 0)
+        self.assertEqual(self.run_rewake()[0], 2)  # The merge itself is reported, once...
+        self.assertEqual(self.run_rewake()[0], 0)  # ...then nothing is left to watch.
         status, _, elapsed = self.run_rewake(FAKE_GH_FAIL="1")
         self.assertEqual(status, 0)
         self.assertLess(elapsed, 2.5)  # Three failed checks in a row end it early.
@@ -625,6 +627,72 @@ class PrWatchTest(unittest.TestCase):
             self.assertLess(time.monotonic() - started, 10)
         self.assertFalse(self.calls.exists())  # It never fetched an overlapping snapshot.
         self.assertIsNotNone(self.run_hook())  # Once the check is done, the next stop reports.
+
+    # --- Merged and closed pull requests ------------------------------------
+
+    def test_merge_of_a_watched_pull_request_is_reported_to_the_agent_once(self) -> None:
+        self.run_hook()  # Watching the open pull request.
+        # Merged: branch discovery (open only) no longer finds it; the watched URL is re-checked.
+        self.response.write_text(json.dumps({"data": {
+            "branch": {"pullRequests": {"nodes": []}},
+            "x0": {"pullRequest": pull_request(state="MERGED", merged=True)},
+        }}))
+        output = self.run_hook()
+        self.assertEqual(output["decision"], "block")
+        self.assertIn("https://github.com/acme/app/pull/7 (Add settings screen):\n- Merged into main.", output["reason"])
+        self.assertIn("new branch from the updated main", output["reason"])
+        query = json.loads((self.root / "query.json").read_text())
+        self.assertEqual(query["variables"]["p0"], 7)
+        self.assertIsNone(self.run_hook())  # Once.
+        self.assertNotIn("p0", json.loads((self.root / "query.json").read_text())["variables"])  # No longer checked.
+
+    def test_closed_without_merging_and_detached_head(self) -> None:
+        self.run_hook()
+        subprocess.run(["git", "-C", str(self.workspace), "commit", "--quiet", "--allow-empty", "-m", "x"],
+                       check=True, env={**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.invalid",
+                                        "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.invalid"})
+        subprocess.run(["git", "-C", str(self.workspace), "checkout", "--quiet", "--detach"], check=True)
+        self.response.write_text(json.dumps({"data": {"x0": {"pullRequest": pull_request(state="CLOSED")}}}))
+        output = self.run_hook(harness="antigravity")
+        self.assertEqual(output["decision"], "continue")
+        self.assertIn("Closed without merging", output["reason"])
+
+    def test_merge_wakes_the_background_watcher(self) -> None:
+        self.run_hook()
+        self.response.write_text(json.dumps({"data": {
+            "branch": {"pullRequests": {"nodes": []}},
+            "x0": {"pullRequest": pull_request(state="MERGED", merged=True)},
+        }}))
+        status, stderr, _ = self.run_rewake()
+        self.assertEqual(status, 2)
+        self.assertIn("Merged into main", stderr)
+        self.assertEqual(self.run_rewake()[0], 0)  # Reported; nothing left to watch.
+
+    def test_detached_head_keeps_the_enterprise_host_for_watched_pull_requests(self) -> None:
+        git = ["git", "-C", str(self.workspace)]
+        subprocess.run([*git, "remote", "set-url", "origin", "https://git.corp.example/acme/app.git"], check=True)
+        enterprise = {"PR_WATCH_GITHUB_HOSTS": "git.corp.example"}
+        corp = pull_request(url="https://git.corp.example/acme/app/pull/7")
+        self.respond([corp])
+        self.run_hook(**enterprise)
+        subprocess.run([*git, "commit", "--quiet", "--allow-empty", "-m", "x"], check=True,
+                       env={**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.invalid",
+                            "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.invalid"})
+        subprocess.run([*git, "checkout", "--quiet", "--detach"], check=True)
+        self.response.write_text(json.dumps({"data": {"x0": {"pullRequest": {**corp, "state": "MERGED", "merged": True}}}}))
+        output = self.run_hook(**enterprise)
+        self.assertIn("Merged into main", output["reason"])
+        self.assertIn("api --hostname git.corp.example graphql", self.calls.read_text().splitlines()[-1])
+
+    def test_rest_fetches_a_discovered_and_watched_pull_request_once(self) -> None:
+        self.rest_pull_request(mergeable_state="clean")
+        self.run_hook(PR_WATCH_API="rest")  # Now watched as well as discovered.
+        def detail_fetches() -> int:
+            return sum(line.endswith("repos/acme/app/pulls/7") for line in self.calls.read_text().splitlines())
+
+        before = detail_fetches()
+        self.run_hook(PR_WATCH_API="rest")
+        self.assertEqual(detail_fetches() - before, 1)
 
     def test_rest_merged_and_partial_failure(self) -> None:
         self.rest_pull_request()

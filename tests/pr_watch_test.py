@@ -614,6 +614,18 @@ class PrWatchTest(unittest.TestCase):
         self.assertEqual(generate.render_hooks("pr-watch", claude_only, "codex"), {"hooks": {}})
         self.assertIsNone(generate.render_antigravity_hooks("pr-watch", claude_only))
 
+    def test_a_running_check_holds_off_the_stop_hook(self) -> None:
+        import fcntl
+        lock = (self.root / "state").joinpath("s1.lock")
+        lock.parent.mkdir(parents=True, exist_ok=True)
+        with open(lock, "a") as handle:
+            fcntl.flock(handle, fcntl.LOCK_EX)  # As a watcher mid-check would.
+            started = time.monotonic()
+            self.assertIsNone(self.run_hook())
+            self.assertLess(time.monotonic() - started, 10)
+        self.assertFalse(self.calls.exists())  # It never fetched an overlapping snapshot.
+        self.assertIsNotNone(self.run_hook())  # Once the check is done, the next stop reports.
+
     def test_rest_merged_and_partial_failure(self) -> None:
         self.rest_pull_request()
         (self.root / "rest" / re.sub(r"[^A-Za-z0-9]", "_", "repos/acme/app/pulls/7/reviews?per_page=100")).unlink()

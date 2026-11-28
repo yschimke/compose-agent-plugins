@@ -181,8 +181,11 @@ it prints the same summary to stderr and exits 2, which wakes the session even
 when it is idle and shows the summary to the agent as a system reminder. It
 exits quietly when the time is up, when every watched pull request is merged or
 closed, after three failed checks in a row, or when a newer watcher for the
-same session starts (each Stop starts one; the newest wins). It shares the
-Stop hook's state, under a file lock, so an item is reported once by either.
+same session starts (each Stop starts one; the newest wins). Each check,
+fetch included, runs under a per-session file lock shared with the Stop and
+SessionStart hooks, so one check's older snapshot can never roll back what
+another just reported. A Stop hook that cannot get the lock within 4 seconds
+lets the agent stop and leaves the report to the running watcher.
 It is off in Claude Code cloud sessions (`CLAUDE_CODE_REMOTE=true`), which can
 subscribe to pull request events, unless `PR_WATCH_REWAKE=1`;
 `PR_WATCH_REWAKE=0` turns it off everywhere.

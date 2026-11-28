@@ -64,6 +64,9 @@ MAX_CONSECUTIVE_BLOCKS = 3
 REQUEST_TIMEOUT = 15
 # Every request of one run shares this budget, below the 30 s hook timeout.
 DEADLINE_SECONDS = 24
+# How long a Stop or SessionStart hook waits for a running check's lock. With
+# DEADLINE_SECONDS it stays inside the 30 s hook timeout.
+LOCK_WAIT_SECONDS = 4
 REST_PAGE_SIZE = 100
 REST_MAX_PAGES = 10
 # Budget for the PR sections of one message. A single section always fits:
@@ -210,19 +213,38 @@ def save_state(path: Path, state: dict) -> None:
 
 
 @contextlib.contextmanager
-def state_lock(path: Path):
-    """Serialize state updates between the Stop hook and the background watcher."""
+def state_lock(path: Path, wait: float | None = None):
+    """Serialize a whole check (fetch, compare, save) between the Stop hook and the watcher.
+
+    Holding the lock across the fetch matters: a snapshot fetched before another
+    hook saved a newer one would otherwise roll that state back, and its items
+    would be reported again. With `wait`, gives up after that many seconds and
+    yields False; without, waits as long as it takes.
+    """
     handle = None
+    acquired = True
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         handle = open(path.with_suffix(".lock"), "a")
         import fcntl
 
-        fcntl.flock(handle, fcntl.LOCK_EX)
+        if wait is None:
+            fcntl.flock(handle, fcntl.LOCK_EX)
+        else:
+            give_up = time.monotonic() + wait
+            while True:
+                try:
+                    fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    if time.monotonic() >= give_up:
+                        acquired = False
+                        break
+                    time.sleep(0.1)
     except (OSError, ImportError) as error:
         log(f"state lock unavailable: {error}")
     try:
-        yield
+        yield acquired
     finally:
         if handle is not None:
             handle.close()
@@ -907,13 +929,17 @@ def main(argv: list[str]) -> int:
         save_state(path, state)
         return 0
 
-    started = time.monotonic()
-    prs = fetch_pull_requests(host, branch_target, explicit)
-    if prs is None:
-        return 0
-    log(f"fetched {len(prs)} pull request(s) in {time.monotonic() - started:.1f}s")
-
-    with state_lock(path):
+    # A watcher mid-check holds the lock; it will report what it finds, so a
+    # hook that cannot get the lock quickly lets the agent stop.
+    with state_lock(path, wait=LOCK_WAIT_SECONDS) as acquired:
+        if not acquired:
+            log("another pr-watch check is running; leaving it to report")
+            return 0
+        started = time.monotonic()
+        prs = fetch_pull_requests(host, branch_target, explicit)
+        if prs is None:
+            return 0
+        log(f"fetched {len(prs)} pull request(s) in {time.monotonic() - started:.1f}s")
         return report(event, harness, path, prs, blocks)
 
 
@@ -970,16 +996,16 @@ def rewake(path: Path, host: str, branch_target, explicit) -> int:
                 return 0  # A newer watcher took over.
         except OSError:
             return 0
-        prs = fetch_pull_requests(host, branch_target, explicit)
-        if prs is None:
-            failures += 1
-            if failures >= 3:
-                return 0
-            continue
-        failures = 0
-        if not any(pr.get("state") == "OPEN" and not pr.get("merged") for pr in prs):
-            return 0  # Nothing left to watch.
         with state_lock(path):
+            prs = fetch_pull_requests(host, branch_target, explicit)
+            if prs is None:
+                failures += 1
+                if failures >= 3:
+                    return 0
+                continue
+            failures = 0
+            if not any(pr.get("state") == "OPEN" and not pr.get("merged") for pr in prs):
+                return 0  # Nothing left to watch.
             state = load_state(path)
             message, _ = summarize(prs, state)
             save_state(path, state)

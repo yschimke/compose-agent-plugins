@@ -210,7 +210,37 @@ def git(cwd: str | None, *args: str) -> str | None:
     return result.stdout.strip() if result.returncode == 0 else None
 
 
-REMOTE = re.compile(r"[:/](?P<owner>[A-Za-z0-9_.-]+)/(?P<name>[A-Za-z0-9_.-]+?)(?:\.git)?/?$")
+REPO_PATH = re.compile(r"^/*(?P<owner>[A-Za-z0-9_.-]+)/(?P<name>[A-Za-z0-9_.-]+?)(?:\.git)?/*$")
+SCP_REMOTE = re.compile(r"^(?:[^@/]+@)?(?P<host>[^:/]+):(?P<path>[^/].*)$")
+
+
+def github_hosts() -> set[str]:
+    """Remote hosts that are GitHub: github.com, GH_HOST, and PR_WATCH_GITHUB_HOSTS (comma-separated)."""
+    hosts = {"github.com"}
+    for value in (os.environ.get("GH_HOST", ""), os.environ.get("PR_WATCH_GITHUB_HOSTS", "")):
+        hosts.update(host.strip().lower() for host in value.split(",") if host.strip())
+    return hosts
+
+
+def parse_remote(remote: str) -> tuple[str, str] | None:
+    """(owner, name) of a GitHub remote, or None for any other host.
+
+    A checkout hosted elsewhere must not be matched to a GitHub repository that
+    happens to share its owner and name.
+    """
+    remote = remote.strip()
+    if "://" in remote:
+        parsed = urllib.parse.urlsplit(remote)
+        host, path = (parsed.hostname or "").lower(), parsed.path
+    else:
+        match = SCP_REMOTE.match(remote)
+        if not match:
+            return None
+        host, path = match["host"].lower(), match["path"]
+    if host not in github_hosts():
+        return None
+    match = REPO_PATH.match(path)
+    return (match["owner"], match["name"]) if match else None
 PR_URL = re.compile(r"^https://github\.com/(?P<owner>[A-Za-z0-9_.-]+)/(?P<name>[A-Za-z0-9_.-]+)/pull/(?P<number>[0-9]+)")
 
 
@@ -220,9 +250,9 @@ def watch_targets(cwd: str | None) -> tuple[tuple[str, str, str] | None, list[tu
     remote = git(cwd, "remote", "get-url", "origin")
     branch = git(cwd, "symbolic-ref", "--quiet", "--short", "HEAD")
     if remote and branch:
-        match = REMOTE.search(remote)
-        if match:
-            branch_target = (match["owner"], match["name"], branch)
+        repository = parse_remote(remote)
+        if repository:
+            branch_target = (*repository, branch)
     explicit = []
     for line in (git(cwd, "config", "--get-all", "pr-watch.url") or "").splitlines():
         match = PR_URL.match(line.strip())

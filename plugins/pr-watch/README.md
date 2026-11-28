@@ -24,7 +24,9 @@ doc.
 - The `pr-watch` skill: how to handle each kind of item.
 
 It needs `python3`, `git`, and either an authenticated `gh` or a `GH_TOKEN` /
-`GITHUB_TOKEN` in the environment hooks run with. `PR_WATCH=0` turns it off.
+`GITHUB_TOKEN` in the environment hooks run with. It discovers pull requests
+only for a GitHub `origin`; list a GitHub Enterprise or proxied host in
+`PR_WATCH_GITHUB_HOSTS`. `PR_WATCH=0` turns it off.
 
 ## Data it sends
 

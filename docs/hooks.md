@@ -95,7 +95,8 @@ GitHub events into a session, so the plugin checks GitHub at the points where
 the harness runs hooks: every Stop, and SessionStart (`startup|resume`).
 
 **Which pull requests.** Every open pull request whose head is the checkout's
-current branch on `origin`; a fork's pull request from a branch with the same
+current branch on `origin`, when `origin` is a GitHub remote (`github.com`,
+`GH_HOST`, or a host listed in `PR_WATCH_GITHUB_HOSTS`); a fork's pull request from a branch with the same
 name is not watched. When more than five open pull requests share the branch
 name, discovery goes through REST, which filters by the head owner. Plus any URL listed with
 `git config --add pr-watch.url <url>`. Merged and closed ones are dropped,

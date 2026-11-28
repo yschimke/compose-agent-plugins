@@ -426,6 +426,25 @@ class PrWatchTest(unittest.TestCase):
         self.assertIn("https://github.com/acme/app/pull/7", reason)  # Found through REST.
         self.assertNotIn("pull/9", reason)
 
+    def test_only_github_remotes_are_discovered(self) -> None:
+        git = ["git", "-C", str(self.workspace), "remote", "set-url", "origin"]
+        for remote in ("https://gitlab.com/acme/app.git", "git@gitlab.com:acme/app.git",
+                       "ssh://git@bitbucket.org/acme/app.git", "https://github.com.evil.example/acme/app"):
+            subprocess.run([*git, remote], check=True)
+            self.assertIsNone(self.run_hook(payload={"session_id": remote}), remote)
+        self.assertFalse(self.calls.exists())
+        for remote in ("git@github.com:acme/app.git", "ssh://git@github.com/acme/app",
+                       "https://user@GitHub.com/acme/app.git/"):
+            subprocess.run([*git, remote], check=True)
+            self.assertIsNotNone(self.run_hook(payload={"session_id": remote}), remote)
+        query = json.loads((self.root / "query.json").read_text())
+        self.assertEqual((query["variables"]["bOwner"], query["variables"]["bName"]), ("acme", "app"))
+        # A GitHub Enterprise or proxied host is opted in by name.
+        subprocess.run([*git, "https://git.corp.example/acme/app.git"], check=True)
+        self.assertIsNone(self.run_hook(payload={"session_id": "ghe1"}))
+        self.assertIsNotNone(self.run_hook(payload={"session_id": "ghe2"}, PR_WATCH_GITHUB_HOSTS="git.corp.example"))
+        self.assertIsNotNone(self.run_hook(payload={"session_id": "ghe3"}, GH_HOST="git.corp.example"))
+
     def test_rest_merged_and_partial_failure(self) -> None:
         self.rest_pull_request()
         (self.root / "rest" / re.sub(r"[^A-Za-z0-9]", "_", "repos/acme/app/pulls/7/reviews?per_page=100")).unlink()

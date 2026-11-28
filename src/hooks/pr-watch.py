@@ -324,7 +324,9 @@ def run_gh(arguments: list[str], deadline: Deadline, stdin: str | None = None) -
         return None
     try:
         result = subprocess.run(
-            [gh, "api", *(["--hostname", deadline.host] if deadline.host != "github.com" else []), *arguments],
+            # Always name the host: gh otherwise falls back to GH_HOST, which may
+            # point somewhere else than the checkout's remote.
+            [gh, "api", "--hostname", deadline.host, *arguments],
             input=stdin,
             capture_output=True,
             text=True,
@@ -747,7 +749,12 @@ def examine(pr: dict, seen: dict) -> tuple[list[str], bool]:
 
     failed, pending = failed_checks(pr)
     reported_failures = set(seen.get("failures", [])) if seen.get("head") == head else set()
-    new_failures = [item for item in failed if item[0] not in reported_failures]
+    # Checks from different workflows can share a display name; the job URL
+    # tells them apart, so each failure is remembered by both.
+    def failure_key(name: str, url: str) -> str:
+        return f"{name}\t{url}"
+
+    new_failures = [item for item in failed if failure_key(item[0], item[2]) not in reported_failures]
     if new_failures:
         shown = "; ".join(
             f"{clean(name, 80)} ({result.lower()}){' ' + url if url else ''}" for name, result, url in new_failures[:5]
@@ -786,7 +793,7 @@ def examine(pr: dict, seen: dict) -> tuple[list[str], bool]:
     # the pull request and never evicts a comment it will see again.
     seen["comments"] = sorted({i for i in all_ids if i} - deferred)
     seen["head"] = head
-    seen["failures"] = sorted(reported_failures | {name for name, _, _ in failed})
+    seen["failures"] = sorted(reported_failures | {failure_key(name, url) for name, _, url in failed})
     if conflict:
         seen["conflict_head"] = head
     seen["unresolved_threads"] = unresolved_threads

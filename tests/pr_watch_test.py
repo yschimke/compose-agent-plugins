@@ -448,6 +448,10 @@ class PrWatchTest(unittest.TestCase):
         self.assertIsNotNone(self.run_hook(payload={"session_id": "ghe3"}, GH_HOST="git.corp.example"))
         # Requests for an Enterprise remote go to that host, never to github.com.
         self.assertIn("api --hostname git.corp.example graphql", self.calls.read_text().splitlines()[-1])
+        # github.com is named too, so a GH_HOST pointing elsewhere cannot redirect it.
+        subprocess.run([*git, "https://github.com/acme/app.git"], check=True)
+        self.run_hook(payload={"session_id": "ghe4"}, GH_HOST="git.corp.example")
+        self.assertIn("api --hostname github.com graphql", self.calls.read_text().splitlines()[-1])
 
     def test_enterprise_http_fallback_uses_the_remote_host(self) -> None:
         import importlib.util
@@ -470,7 +474,8 @@ class PrWatchTest(unittest.TestCase):
         self.run_hook(PR_WATCH_GITHUB_HOSTS="git.corp.example")
         query = json.loads((self.root / "query.json").read_text())
         self.assertNotIn("p0", query["variables"])
-        self.assertNotIn("--hostname", self.calls.read_text())
+        self.assertNotIn("git.corp.example", self.calls.read_text())
+        self.assertIn("--hostname github.com", self.calls.read_text())
 
     def test_fork_checkout_finds_the_upstream_pull_request(self) -> None:
         git = ["git", "-C", str(self.workspace), "remote"]
@@ -501,6 +506,18 @@ class PrWatchTest(unittest.TestCase):
                         "git@github.com:ACME/app.git"], check=True)
         self.run_hook()
         self.assertNotIn("uOwner", json.loads((self.root / "query.json").read_text())["variables"])
+
+    def test_checks_sharing_a_name_are_reported_separately(self) -> None:
+        self.run_hook()  # Reports the first "build" failure.
+        pr = pull_request()
+        pr["commits"]["nodes"][0]["commit"]["statusCheckRollup"]["contexts"]["nodes"].append(
+            {"__typename": "CheckRun", "name": "build", "status": "COMPLETED", "conclusion": "FAILURE",
+             "detailsUrl": "https://ci/other-workflow"})
+        self.respond([pr])
+        reason = self.run_hook()["reason"]
+        self.assertIn("build (failure) https://ci/other-workflow", reason)
+        self.assertNotIn("https://ci/1", reason)
+        self.assertIsNone(self.run_hook())
 
     def test_rest_merged_and_partial_failure(self) -> None:
         self.rest_pull_request()

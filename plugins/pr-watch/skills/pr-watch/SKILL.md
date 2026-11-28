@@ -10,9 +10,11 @@ session starts or resumes. If a pull request for this checkout's branch has
 new review comments, failed checks or a merge conflict, the Stop hook keeps
 you working with a summary that starts "PR watch found new activity".
 
-It cannot wake an idle session: events that arrive after you stop reach you
-on the next stop or the next session start. Don't sleep or poll to wait for
-CI; finish the turn and let the hook report it.
+In Claude Code, a background watcher keeps checking for about 25 minutes
+after you stop and wakes you with the same summary when something new
+arrives. In other hosts, events that arrive after you stop reach you on the
+next stop or the next session start. Either way, don't sleep or poll to wait
+for CI; finish the turn and let the hooks report it.
 
 ## What it watches
 

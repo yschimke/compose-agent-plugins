@@ -172,13 +172,29 @@ Codex get a non-blocking notice), and it lets the agent stop:
 On SessionStart the same summary is added as context
 (`additionalContext`, Antigravity `injectSteps`) and never blocks.
 
-**Limits.** A hook only runs when the harness does something. An idle session
-does not hear about CI that fails ten minutes after its last turn until it
-next stops or resumes. Waking an idle session needs something outside the
-harness (a scheduled `codex exec resume`, a GitHub Action), which this plugin
-does not do. Where Claude Code already watches the pull request (a cloud
-subscription, desktop auto-fix or `/loop`), set `PR_WATCH=0` to avoid hearing
-about each event twice.
+**Background watcher (Claude Code).** Claude Code also runs
+`scripts/pr-watch-rewake.sh` on every Stop as an `asyncRewake` hook: in the
+background, without delaying the stop. It waits `PR_WATCH_REWAKE_INTERVAL`
+seconds (default 120) between checks, for up to `PR_WATCH_REWAKE_SECONDS`
+(default 1500; the hook's `timeout` is 1800). When a check finds something new
+it prints the same summary to stderr and exits 2, which wakes the session even
+when it is idle and shows the summary to the agent as a system reminder. It
+exits quietly when the time is up, when every watched pull request is merged or
+closed, after three failed checks in a row, or when a newer watcher for the
+same session starts (each Stop starts one; the newest wins). It shares the
+Stop hook's state, under a file lock, so an item is reported once by either.
+It is off in Claude Code cloud sessions (`CLAUDE_CODE_REMOTE=true`), which can
+subscribe to pull request events, unless `PR_WATCH_REWAKE=1`;
+`PR_WATCH_REWAKE=0` turns it off everywhere.
+
+**Limits.** In Codex and Antigravity a hook only runs when the harness does
+something, so an idle session there does not hear about CI that fails ten
+minutes after its last turn until it next stops or resumes. Waking one needs
+something outside the harness (a scheduled `codex exec resume`, a GitHub
+Action), which this plugin does not do. The Claude Code watcher stops after
+about 25 minutes; activity after that waits for the next stop or resume. Where
+Claude Code already watches the pull request (a cloud subscription, desktop
+auto-fix or `/loop`), set `PR_WATCH=0` to avoid hearing about each event twice.
 
 The Codex and Antigravity contracts used here are the ones the
 `compose-preview` Stop gate already uses; a live block by this hook has not yet

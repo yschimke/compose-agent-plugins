@@ -50,6 +50,27 @@ HOOK_MANIFESTS = {"claude": "hooks/hooks.json", "codex": "hooks/codex-hooks.json
 # installed copies and local agy plugin validate runs.
 ANTIGRAVITY_HOOK_MANIFEST = "hooks.json"
 ANTIGRAVITY_HOOK_EVENTS = ("SessionStart", "Stop")
+# A hook entry may name the harnesses it is for ("harnesses"); without one it is
+# for all of them. "asyncRewake" is a Claude Code field (a background hook that
+# wakes an idle session on exit 2), so an entry using it must be Claude-only.
+HOOK_HARNESSES = ("claude", "codex", "antigravity")
+
+
+def hook_harnesses(plugin_name: str, entry: dict[str, object]) -> tuple[str, ...]:
+    harnesses = entry.get("harnesses", HOOK_HARNESSES)
+    if (
+        not isinstance(harnesses, (list, tuple))
+        or not harnesses
+        or len(set(harnesses)) != len(harnesses)
+        or any(harness not in HOOK_HARNESSES for harness in harnesses)
+    ):
+        raise ValueError(f"{plugin_name}.hooks.harnesses must be a unique, non-empty subset of {HOOK_HARNESSES}")
+    async_rewake = entry.get("asyncRewake")
+    if async_rewake is not None and not isinstance(async_rewake, bool):
+        raise ValueError(f"{plugin_name}.hooks.asyncRewake must be a boolean")
+    if async_rewake and tuple(harnesses) != ("claude",):
+        raise ValueError(f"{plugin_name}.hooks.asyncRewake is Claude Code only; set harnesses to [\"claude\"]")
+    return tuple(harnesses)
 ANTIGRAVITY_SCHEMA = "https://antigravity.google/schemas/v1/plugin.json"
 MCP_REGISTRY_SCHEMA = "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json"
 MARKETPLACE_NAME = "compose-agent-plugins"
@@ -618,6 +639,8 @@ def render_hooks(plugin_name: str, entries: object, harness: str) -> dict[str, o
             raise ValueError(f"{plugin_name}.hooks entries must be objects")
         event = require_string(entry.get("event"), f"{plugin_name}.hooks.event")
         command = require_string(entry.get("command"), f"{plugin_name}.hooks.command")
+        if harness not in hook_harnesses(plugin_name, entry):
+            continue
         matcher = entry.get("matcher")
         timeout = entry.get("timeout")
         if matcher is not None and (not isinstance(matcher, str) or not matcher):
@@ -644,6 +667,8 @@ def render_hooks(plugin_name: str, entries: object, harness: str) -> dict[str, o
         }
         if timeout is not None:
             command_hook["timeout"] = timeout
+        if entry.get("asyncRewake"):
+            command_hook["asyncRewake"] = True
         event_hook: dict[str, object] = {"hooks": [command_hook]}
         if matcher is not None:
             event_hook["matcher"] = matcher
@@ -658,7 +683,7 @@ def render_antigravity_hooks(plugin_name: str, entries: object) -> dict[str, obj
     events: dict[str, list[dict[str, object]]] = {}
     for entry in entries:
         event = entry["event"].strip()
-        if event not in ANTIGRAVITY_HOOK_EVENTS:
+        if event not in ANTIGRAVITY_HOOK_EVENTS or "antigravity" not in hook_harnesses(plugin_name, entry):
             continue
         script = f"./{entry['command'].strip()}"
         handler: dict[str, object] = {

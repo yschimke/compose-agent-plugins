@@ -21,6 +21,12 @@ doc.
   blocked turns in a row or when anything about the hook fails.
 - A SessionStart hook (`scripts/pr-watch-session-start.sh`) that reports the
   same items as context when a session starts or resumes.
+- In Claude Code only, a background watcher (`scripts/pr-watch-rewake.sh`, an
+  `asyncRewake` Stop hook). After each stop it checks every two minutes for
+  about 25 minutes and wakes an idle session when something new arrives. It is
+  off in Claude Code cloud sessions, which can subscribe to pull request
+  events; `PR_WATCH_REWAKE=0` turns it off, `PR_WATCH_REWAKE=1` turns it on in
+  the cloud.
 - The `pr-watch` skill: how to handle each kind of item.
 
 It needs `python3`, `git`, and either an authenticated `gh` or a `GH_TOKEN` /
@@ -33,7 +39,8 @@ only for a GitHub `origin`; list a GitHub Enterprise or proxied host in
 Requests to GitHub (`api.github.com`, or `GITHUB_GRAPHQL_URL` /
 `GITHUB_API_URL`) naming the repository and branch of the checkout: one
 GraphQL request per hook run, or, where GraphQL is refused, a few REST
-requests per pull request. It stores the ids
+requests per pull request. The Claude Code watcher repeats that check every
+two minutes for up to about 25 minutes after each stop. It stores the ids
 of comments it has already reported under `~/.local/state/pr-watch/`.
 
 ## License

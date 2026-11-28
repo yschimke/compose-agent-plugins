@@ -261,6 +261,15 @@
           "event": "Stop",
           "command": "scripts/pr-watch.py",
           "timeout": 30
+        },
+        {
+          "event": "Stop",
+          "command": "scripts/pr-watch-rewake.sh",
+          "timeout": 1800,
+          "harnesses": [
+            "claude"
+          ],
+          "asyncRewake": true
         }
       ]
     }

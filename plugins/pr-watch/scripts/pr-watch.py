@@ -25,6 +25,15 @@ Usage, from the generated hook manifests:
 
     pr-watch.py --harness=<claude|codex|antigravity>                       # Stop
     pr-watch.py --event=SessionStart --harness=<claude|codex|antigravity>
+    pr-watch.py --event=Rewake --harness=claude   # async Stop hook with asyncRewake
+
+The Rewake mode is Claude Code's background watcher. Claude Code starts it on
+every Stop without waiting for it; it waits PR_WATCH_REWAKE_INTERVAL seconds
+(default 120) between checks for up to PR_WATCH_REWAKE_SECONDS (default 1500),
+and exits 2 with the summary on stderr when something new arrives, which wakes
+an idle session. A newer watcher for the same session replaces an older one.
+It is off in Claude Code cloud sessions, which can subscribe to pull request
+events, unless PR_WATCH_REWAKE=1; PR_WATCH_REWAKE=0 turns it off everywhere.
 
 Every failure of the hook itself (no git, no GitHub credentials, no network, a
 timeout, an unexpected response) lets the agent stop silently. PR_WATCH=0
@@ -37,6 +46,7 @@ GraphQL is refused. PR_WATCH_API=graphql or rest forces one.
 """
 from __future__ import annotations
 
+import contextlib
 import copy
 import json
 import os
@@ -111,8 +121,10 @@ def parse_arguments(argv: list[str]) -> tuple[str, str]:
             event = argument.split("=", 1)[1]
         else:
             raise SystemExit(0)
-    if harness not in ("claude", "codex", "antigravity") or event not in ("Stop", "SessionStart"):
+    if harness not in ("claude", "codex", "antigravity") or event not in ("Stop", "SessionStart", "Rewake"):
         raise SystemExit(0)
+    if event == "Rewake" and harness != "claude":
+        raise SystemExit(0)  # asyncRewake is a Claude Code hook.
     return harness, event
 
 
@@ -195,6 +207,25 @@ def save_state(path: Path, state: dict) -> None:
         os.replace(temporary, path)
     except OSError as error:
         log(f"cannot save state: {error}")
+
+
+@contextlib.contextmanager
+def state_lock(path: Path):
+    """Serialize state updates between the Stop hook and the background watcher."""
+    handle = None
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        handle = open(path.with_suffix(".lock"), "a")
+        import fcntl
+
+        fcntl.flock(handle, fcntl.LOCK_EX)
+    except (OSError, ImportError) as error:
+        log(f"state lock unavailable: {error}")
+    try:
+        yield
+    finally:
+        if handle is not None:
+            handle.close()
 
 
 # --- Which pull requests -----------------------------------------------------
@@ -867,6 +898,8 @@ def main(argv: list[str]) -> int:
         return 0
 
     path = state_path(session_key(hook_input))
+    if event == "Rewake":
+        return rewake(path, host, branch_target, explicit)
     state = load_state(path)
     blocks = state.get("consecutive_blocks", 0) if isinstance(state.get("consecutive_blocks"), int) else 0
     if event == "Stop" and blocks >= MAX_CONSECUTIVE_BLOCKS:
@@ -880,6 +913,12 @@ def main(argv: list[str]) -> int:
         return 0
     log(f"fetched {len(prs)} pull request(s) in {time.monotonic() - started:.1f}s")
 
+    with state_lock(path):
+        return report(event, harness, path, prs, blocks)
+
+
+def report(event: str, harness: str, path: Path, prs: list[dict], blocks: int) -> int:
+    state = load_state(path)  # Again, under the lock: the watcher may have updated it.
     message, notices = summarize(prs, state)
     if event == "SessionStart":
         if message:
@@ -894,6 +933,59 @@ def main(argv: list[str]) -> int:
             emit_notice(harness, " ".join(notices))
     save_state(path, state)
     return 0
+
+
+def env_seconds(name: str, default: float) -> float:
+    try:
+        value = float(os.environ.get(name, default))
+    except ValueError:
+        return default
+    return value if value > 0 else default
+
+
+def rewake(path: Path, host: str, branch_target, explicit) -> int:
+    """Claude Code's background watcher: exit 2 with the summary on stderr when something new arrives."""
+    if os.environ.get("PR_WATCH_REWAKE") == "0":
+        return 0
+    if os.environ.get("CLAUDE_CODE_REMOTE", "").lower() == "true" and os.environ.get("PR_WATCH_REWAKE") != "1":
+        return 0  # Cloud sessions can subscribe to pull request events instead.
+    interval = env_seconds("PR_WATCH_REWAKE_INTERVAL", 120)
+    end = time.monotonic() + env_seconds("PR_WATCH_REWAKE_SECONDS", 1500)
+    # Each Stop starts a watcher; the newest one for a session wins.
+    watcher = path.with_suffix(".watcher")
+    token = f"{os.getpid()}-{time.time_ns()}"
+    try:
+        watcher.parent.mkdir(parents=True, exist_ok=True)
+        watcher.write_text(token, encoding="utf-8")
+    except OSError:
+        return 0
+    failures = 0
+    while True:
+        remaining = end - time.monotonic()
+        if remaining <= 0:
+            return 0
+        time.sleep(min(interval, remaining))
+        try:
+            if watcher.read_text(encoding="utf-8") != token:
+                return 0  # A newer watcher took over.
+        except OSError:
+            return 0
+        prs = fetch_pull_requests(host, branch_target, explicit)
+        if prs is None:
+            failures += 1
+            if failures >= 3:
+                return 0
+            continue
+        failures = 0
+        if not any(pr.get("state") == "OPEN" and not pr.get("merged") for pr in prs):
+            return 0  # Nothing left to watch.
+        with state_lock(path):
+            state = load_state(path)
+            message, _ = summarize(prs, state)
+            save_state(path, state)
+        if message:
+            print(message, file=sys.stderr)
+            return 2
 
 
 if __name__ == "__main__":

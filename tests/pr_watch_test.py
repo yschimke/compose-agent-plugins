@@ -8,6 +8,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -15,6 +16,8 @@ ROOT = Path(__file__).resolve().parents[1]
 PLUGIN = ROOT / "plugins" / "pr-watch" / "scripts"
 STOP = PLUGIN / "pr-watch.py"
 SESSION_START = PLUGIN / "pr-watch-session-start.sh"
+REWAKE = PLUGIN / "pr-watch-rewake.sh"
+sys.dont_write_bytecode = True  # Importing the hook must not leave __pycache__ in the plugin.
 
 FAKE_GH = """#!/bin/sh
 echo "$*" >>"$FAKE_GH_LOG"
@@ -456,6 +459,7 @@ class PrWatchTest(unittest.TestCase):
     def test_enterprise_http_fallback_uses_the_remote_host(self) -> None:
         import importlib.util
         spec = importlib.util.spec_from_file_location("pr_watch_module", STOP)
+        assert spec is not None and spec.loader is not None
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         saved = {k: os.environ.pop(k, None) for k in ("GITHUB_GRAPHQL_URL", "GITHUB_API_URL")}
@@ -518,6 +522,109 @@ class PrWatchTest(unittest.TestCase):
         self.assertIn("build (failure) https://ci/other-workflow", reason)
         self.assertNotIn("https://ci/1", reason)
         self.assertIsNone(self.run_hook())
+
+    # --- Claude Code background watcher (asyncRewake) ------------------------
+
+    def run_rewake(self, payload=None, **env) -> tuple[int, str, float]:
+        payload = {"session_id": "s1", "cwd": str(self.workspace), **(payload or {})}
+        started = time.monotonic()
+        result = subprocess.run(
+            [str(REWAKE), "--harness=claude"], input=json.dumps(payload), capture_output=True, text=True,
+            env={**self.env, "CLAUDE_CODE_REMOTE": "", "PR_WATCH_REWAKE_INTERVAL": "0.2",
+                 "PR_WATCH_REWAKE_SECONDS": "3", **env},
+            timeout=30,
+        )
+        return result.returncode, result.stderr, time.monotonic() - started
+
+    def test_rewake_wakes_on_new_activity_after_the_stop(self) -> None:
+        self.run_hook()  # The Stop hook reports what is already there.
+        pr = pull_request()
+        pr["comments"]["nodes"].append({"id": "IC9", "author": {"login": "reviewer"}, "body": "Please rename this.",
+                                        "createdAt": "2026-01-02T00:00:00Z"})
+        self.respond([pr])
+        status, stderr, _ = self.run_rewake()
+        self.assertEqual(status, 2)
+        self.assertIn('Comment by @reviewer: "Please rename this."', stderr)
+        self.assertIsNone(self.run_hook())  # Reported once: the next Stop has nothing new.
+
+    def test_rewake_gives_up_quietly_when_nothing_happens(self) -> None:
+        self.run_hook()
+        status, stderr, elapsed = self.run_rewake()
+        self.assertEqual((status, stderr), (0, ""))
+        self.assertGreater(elapsed, 2.5)
+
+    def test_rewake_stops_for_merged_pull_requests_and_failures(self) -> None:
+        self.run_hook()
+        self.respond([pull_request(state="MERGED", merged=True)])
+        self.assertEqual(self.run_rewake()[0], 0)
+        status, _, elapsed = self.run_rewake(FAKE_GH_FAIL="1")
+        self.assertEqual(status, 0)
+        self.assertLess(elapsed, 2.5)  # Three failed checks in a row end it early.
+
+    def test_rewake_is_off_in_cloud_sessions_and_on_request(self) -> None:
+        for env in ({"CLAUDE_CODE_REMOTE": "true"}, {"PR_WATCH_REWAKE": "0"}, {"PR_WATCH": "0"}):
+            status, _, elapsed = self.run_rewake(**env)
+            self.assertEqual(status, 0, env)
+            self.assertLess(elapsed, 1, env)
+        self.assertFalse(self.calls.exists())
+        self.assertEqual(self.run_rewake(CLAUDE_CODE_REMOTE="true", PR_WATCH_REWAKE="1")[0], 2)
+
+    def test_newer_watcher_replaces_older(self) -> None:
+        self.run_hook()
+        env = {**self.env, "CLAUDE_CODE_REMOTE": "", "PR_WATCH_REWAKE_INTERVAL": "0.5", "PR_WATCH_REWAKE_SECONDS": "5"}
+        payload = json.dumps({"session_id": "s1", "cwd": str(self.workspace)})
+        older = subprocess.Popen([str(REWAKE), "--harness=claude"], stdin=subprocess.PIPE, stderr=subprocess.PIPE,
+                                 text=True, env=env)
+        older.stdin.write(payload)
+        older.stdin.close()
+        time.sleep(0.2)
+        status, _, _ = self.run_rewake(PR_WATCH_REWAKE_SECONDS="1")
+        self.assertEqual(status, 0)
+        self.assertEqual(older.wait(timeout=10), 0)  # Superseded: exits at its next check.
+        older.stderr.close()
+
+    def test_rewake_is_claude_only(self) -> None:
+        result = subprocess.run([str(REWAKE), "--harness=codex"], input="{}", capture_output=True, text=True,
+                                env=self.env, timeout=10)
+        self.assertEqual(result.returncode, 0)
+        manifests = ROOT / "plugins" / "pr-watch"
+        claude = json.loads((manifests / "hooks" / "hooks.json").read_text())
+        rewake = [hook for entry in claude["hooks"]["Stop"] for hook in entry["hooks"] if hook.get("asyncRewake")]
+        self.assertEqual(len(rewake), 1)
+        self.assertIn("pr-watch-rewake.sh", rewake[0]["command"])
+        self.assertGreater(rewake[0]["timeout"], 1500)  # Longer than the watcher's own budget.
+        for other in ("hooks/codex-hooks.json", "hooks.json"):
+            self.assertNotIn("rewake", (manifests / other).read_text(), other)
+
+    def test_generator_keeps_async_rewake_claude_only(self) -> None:
+        sys.path.insert(0, str(ROOT / "scripts"))
+        try:
+            import generate
+        finally:
+            sys.path.pop(0)
+        hook = {"event": "Stop", "command": "scripts/pr-watch-rewake.sh", "asyncRewake": True}
+        with self.assertRaises(ValueError):
+            generate.render_hooks("pr-watch", [hook], "claude")  # No harnesses: would reach Codex too.
+        with self.assertRaises(ValueError):
+            generate.render_hooks("pr-watch", [{**hook, "harnesses": ["claude", "codex"]}], "claude")
+        with self.assertRaises(ValueError):
+            generate.render_hooks("pr-watch", [{**hook, "harnesses": ["claude"], "asyncRewake": "yes"}], "claude")
+        claude_only = [{**hook, "harnesses": ["claude"]}]
+        self.assertTrue(generate.render_hooks("pr-watch", claude_only, "claude")["hooks"]["Stop"])
+        self.assertEqual(generate.render_hooks("pr-watch", claude_only, "codex"), {"hooks": {}})
+        self.assertIsNone(generate.render_antigravity_hooks("pr-watch", claude_only))
+
+    def test_a_running_check_holds_off_the_stop_hook(self) -> None:
+        import fcntl
+        lock = (self.root / "state").joinpath("s1.lock")
+        lock.parent.mkdir(parents=True, exist_ok=True)
+        with open(lock, "a") as handle:
+            fcntl.flock(handle, fcntl.LOCK_EX)  # As a watcher mid-check would.
+            started = time.monotonic()
+            self.assertIsNone(self.run_hook())
+            self.assertLess(time.monotonic() - started, 10)
+        self.assertFalse(self.calls.exists())  # It never fetched an overlapping snapshot.
+        self.assertIsNotNone(self.run_hook())  # Once the check is done, the next stop reports.
 
     def test_rest_merged_and_partial_failure(self) -> None:
         self.rest_pull_request()

@@ -21,6 +21,16 @@
             "type": "command"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "asyncRewake": true,
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/pr-watch-rewake.sh\" --harness=claude",
+            "timeout": 1800,
+            "type": "command"
+          }
+        ]
       }
     ]
   }

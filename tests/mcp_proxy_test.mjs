@@ -432,9 +432,16 @@ process.on('SIGTERM', () => {
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
-  t.after(() => {
-    proc.kill('SIGTERM');
-    rmSync(tmpDir, { recursive: true, force: true });
+  t.after(async () => {
+    // The sidecar and its fake CLI write into tmpDir while they shut down (the
+    // spawn log's stop line, the XDG cache), so wait for the sidecar to exit,
+    // and retry the delete for any write its child makes after that.
+    if (proc.exitCode === null && proc.signalCode === null) {
+      const exited = new Promise((resolve) => proc.once('exit', resolve));
+      proc.kill('SIGTERM');
+      await exited;
+    }
+    rmSync(tmpDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   const baseUrl = `http://127.0.0.1:${sidecarPort}`;

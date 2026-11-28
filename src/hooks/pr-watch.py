@@ -697,23 +697,24 @@ def fetch_pull_requests(host: str, branch_target, explicit) -> list[dict] | None
         prs = fetch_rest(branch_target, explicit, deadline)
     if prs is None:
         return None
+    # A watched pull request that branch discovery also found comes back twice;
+    # keep one copy before any further requests are made for it.
+    unique: dict[str, dict] = {}
+    for pr in prs:
+        if isinstance(pr, dict) and pr.get("url"):
+            unique[pr["url"]] = pr
     # A pull request with more than one GraphQL page of comments, reviews or
     # threads is read again through REST, which follows every page; reporting
     # from a partial window would leave the older items unseen forever.
     complete = []
-    for pr in prs:
-        if isinstance(pr, dict) and pr.get("state") == "OPEN" and truncated(pr):
+    for pr in unique.values():
+        if pr.get("state") == "OPEN" and truncated(pr):
             match = PR_URL.match(str(pr.get("url") or ""))
             pr = rest_pull_request(match["owner"], match["name"], int(match["number"]), deadline) if match else None
             if pr is None:
                 return None
         complete.append(pr)
-    prs = complete
-    unique: dict[str, dict] = {}
-    for pr in prs:
-        if isinstance(pr, dict) and pr.get("url"):
-            unique[pr["url"]] = pr
-    return list(unique.values())
+    return complete
 
 
 # --- What changed ------------------------------------------------------------

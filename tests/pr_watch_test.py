@@ -694,6 +694,19 @@ class PrWatchTest(unittest.TestCase):
         self.run_hook(PR_WATCH_API="rest")
         self.assertEqual(detail_fetches() - before, 1)
 
+    def test_truncated_pull_request_found_twice_is_reread_once(self) -> None:
+        self.run_hook()  # Now watched: the next GraphQL query also asks for it by number.
+        pr = pull_request()
+        pr["reviewThreads"]["pageInfo"] = {"hasPreviousPage": True}
+        self.response.write_text(json.dumps({"data": {
+            "branch": {"pullRequests": {"nodes": [pr]}},
+            "x0": {"pullRequest": pr},
+        }}))
+        self.rest_pull_request(mergeable_state="clean")
+        self.run_hook()
+        detail_fetches = sum(line.endswith("repos/acme/app/pulls/7") for line in self.calls.read_text().splitlines())
+        self.assertEqual(detail_fetches, 1)
+
     def test_rest_merged_and_partial_failure(self) -> None:
         self.rest_pull_request()
         (self.root / "rest" / re.sub(r"[^A-Za-z0-9]", "_", "repos/acme/app/pulls/7/reviews?per_page=100")).unlink()

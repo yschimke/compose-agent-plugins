@@ -668,6 +668,32 @@ class PrWatchTest(unittest.TestCase):
         self.assertIn("Merged into main", stderr)
         self.assertEqual(self.run_rewake()[0], 0)  # Reported; nothing left to watch.
 
+    def test_detached_head_keeps_the_enterprise_host_for_watched_pull_requests(self) -> None:
+        git = ["git", "-C", str(self.workspace)]
+        subprocess.run([*git, "remote", "set-url", "origin", "https://git.corp.example/acme/app.git"], check=True)
+        enterprise = {"PR_WATCH_GITHUB_HOSTS": "git.corp.example"}
+        corp = pull_request(url="https://git.corp.example/acme/app/pull/7")
+        self.respond([corp])
+        self.run_hook(**enterprise)
+        subprocess.run([*git, "commit", "--quiet", "--allow-empty", "-m", "x"], check=True,
+                       env={**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.invalid",
+                            "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.invalid"})
+        subprocess.run([*git, "checkout", "--quiet", "--detach"], check=True)
+        self.response.write_text(json.dumps({"data": {"x0": {"pullRequest": {**corp, "state": "MERGED", "merged": True}}}}))
+        output = self.run_hook(**enterprise)
+        self.assertIn("Merged into main", output["reason"])
+        self.assertIn("api --hostname git.corp.example graphql", self.calls.read_text().splitlines()[-1])
+
+    def test_rest_fetches_a_discovered_and_watched_pull_request_once(self) -> None:
+        self.rest_pull_request(mergeable_state="clean")
+        self.run_hook(PR_WATCH_API="rest")  # Now watched as well as discovered.
+        def detail_fetches() -> int:
+            return sum(line.endswith("repos/acme/app/pulls/7") for line in self.calls.read_text().splitlines())
+
+        before = detail_fetches()
+        self.run_hook(PR_WATCH_API="rest")
+        self.assertEqual(detail_fetches() - before, 1)
+
     def test_rest_merged_and_partial_failure(self) -> None:
         self.rest_pull_request()
         (self.root / "rest" / re.sub(r"[^A-Za-z0-9]", "_", "repos/acme/app/pulls/7/reviews?per_page=100")).unlink()

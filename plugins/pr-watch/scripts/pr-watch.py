@@ -333,15 +333,17 @@ def watch_targets(cwd: str | None):
     host, branch_target = None, None
     remote = git(cwd, "remote", "get-url", "origin")
     branch = git(cwd, "symbolic-ref", "--quiet", "--short", "HEAD")
-    if remote and branch:
-        repository = parse_remote(remote)
-        if repository:
-            host = repository[0]
-            upstream_remote = git(cwd, "remote", "get-url", "upstream")
-            upstream = parse_remote(upstream_remote) if upstream_remote else None
-            if upstream and (upstream[0] != host or "/".join(upstream).lower() == "/".join(repository).lower()):
-                upstream = None
-            branch_target = (*repository[1:], branch, upstream[1:] if upstream else None)
+    # origin's host holds even without a branch (a detached HEAD after a merge),
+    # so watched pull requests on an Enterprise host are still checked there.
+    repository = parse_remote(remote) if remote else None
+    if repository:
+        host = repository[0]
+    if repository and branch:
+        upstream_remote = git(cwd, "remote", "get-url", "upstream")
+        upstream = parse_remote(upstream_remote) if upstream_remote else None
+        if upstream and (upstream[0] != host or "/".join(upstream).lower() == "/".join(repository).lower()):
+            upstream = None
+        branch_target = (*repository[1:], branch, upstream[1:] if upstream else None)
     explicit = []
     for line in (git(cwd, "config", "--get-all", "pr-watch.url") or "").splitlines():
         match = PR_URL.match(line.strip())
@@ -648,7 +650,8 @@ def fetch_rest(branch_target, explicit, deadline: Deadline) -> list[dict] | None
             numbers += [
                 (repo_owner, repo_name, int(pr["number"])) for pr in listed[:5] if isinstance(pr.get("number"), int)
             ]
-    numbers += explicit
+    # A watched pull request that branch discovery also found is fetched once.
+    numbers = list(dict.fromkeys(numbers + explicit))
     found = []
     for owner, name, number in numbers:
         pr = rest_pull_request(owner, name, number, deadline)

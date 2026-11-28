@@ -18,6 +18,7 @@ SESSION_START = PLUGIN / "pr-watch-session-start.sh"
 
 FAKE_GH = """#!/bin/sh
 echo "$*" >>"$FAKE_GH_LOG"
+if [ "$2" = "--hostname" ]; then first=$1; shift 3; set -- "$first" "$@"; fi
 [ -n "${FAKE_GH_FAIL-}" ] && exit 1
 if [ "$2" = graphql ]; then
   cat >"$FAKE_GH_QUERY"
@@ -445,6 +446,31 @@ class PrWatchTest(unittest.TestCase):
         self.assertIsNone(self.run_hook(payload={"session_id": "ghe1"}))
         self.assertIsNotNone(self.run_hook(payload={"session_id": "ghe2"}, PR_WATCH_GITHUB_HOSTS="git.corp.example"))
         self.assertIsNotNone(self.run_hook(payload={"session_id": "ghe3"}, GH_HOST="git.corp.example"))
+        # Requests for an Enterprise remote go to that host, never to github.com.
+        self.assertIn("api --hostname git.corp.example graphql", self.calls.read_text().splitlines()[-1])
+
+    def test_enterprise_http_fallback_uses_the_remote_host(self) -> None:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("pr_watch_module", STOP)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        saved = {k: os.environ.pop(k, None) for k in ("GITHUB_GRAPHQL_URL", "GITHUB_API_URL")}
+        try:
+            self.assertEqual(module.api_url("graphql", "github.com"), "https://api.github.com/graphql")
+            self.assertEqual(module.api_url("rest", "github.com"), "https://api.github.com")
+            self.assertEqual(module.api_url("graphql", "git.corp.example"), "https://git.corp.example/api/graphql")
+            self.assertEqual(module.api_url("rest", "git.corp.example"), "https://git.corp.example/api/v3")
+        finally:
+            for key, value in saved.items():
+                if value is not None:
+                    os.environ[key] = value
+        # A listed URL on another host than origin's is not sent to origin's host.
+        subprocess.run(["git", "-C", str(self.workspace), "config", "--add", "pr-watch.url",
+                        "https://git.corp.example/acme/app/pull/3"], check=True)
+        self.run_hook(PR_WATCH_GITHUB_HOSTS="git.corp.example")
+        query = json.loads((self.root / "query.json").read_text())
+        self.assertNotIn("p0", query["variables"])
+        self.assertNotIn("--hostname", self.calls.read_text())
 
     def test_fork_checkout_finds_the_upstream_pull_request(self) -> None:
         git = ["git", "-C", str(self.workspace), "remote"]

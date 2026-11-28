@@ -222,8 +222,8 @@ def github_hosts() -> set[str]:
     return hosts
 
 
-def parse_remote(remote: str) -> tuple[str, str] | None:
-    """(owner, name) of a GitHub remote, or None for any other host.
+def parse_remote(remote: str) -> tuple[str, str, str] | None:
+    """(host, owner, name) of a GitHub remote, or None for any other host.
 
     A checkout hosted elsewhere must not be matched to a GitHub repository that
     happens to share its owner and name.
@@ -240,35 +240,46 @@ def parse_remote(remote: str) -> tuple[str, str] | None:
     if host not in github_hosts():
         return None
     match = REPO_PATH.match(path)
-    return (match["owner"], match["name"]) if match else None
-PR_URL = re.compile(r"^https://github\.com/(?P<owner>[A-Za-z0-9_.-]+)/(?P<name>[A-Za-z0-9_.-]+)/pull/(?P<number>[0-9]+)")
+    return (host, match["owner"], match["name"]) if match else None
+
+
+PR_URL = re.compile(
+    r"^https://(?P<host>[A-Za-z0-9.-]+)/(?P<owner>[A-Za-z0-9_.-]+)/(?P<name>[A-Za-z0-9_.-]+)/pull/(?P<number>[0-9]+)"
+)
 
 
 def watch_targets(cwd: str | None):
-    """The current branch and the explicit (owner, name, number) URLs.
+    """The GitHub host, the current branch, and the explicit (owner, name, number) URLs.
+
+    One run talks to one GitHub host: origin's, or else the first listed URL's.
+    An upstream remote or listed URL on another host is left out.
 
     The branch target is (owner, name, branch, upstream): owner/name is the
     GitHub `origin`, where the branch lives, and upstream is the (owner, name)
     of a GitHub remote named `upstream` that differs from it, or None. In a fork
     checkout the pull request lives in upstream while its head stays on origin.
     """
-    branch_target = None
+    host, branch_target = None, None
     remote = git(cwd, "remote", "get-url", "origin")
     branch = git(cwd, "symbolic-ref", "--quiet", "--short", "HEAD")
     if remote and branch:
         repository = parse_remote(remote)
         if repository:
+            host = repository[0]
             upstream_remote = git(cwd, "remote", "get-url", "upstream")
             upstream = parse_remote(upstream_remote) if upstream_remote else None
-            if upstream and "/".join(upstream).lower() == "/".join(repository).lower():
+            if upstream and (upstream[0] != host or "/".join(upstream).lower() == "/".join(repository).lower()):
                 upstream = None
-            branch_target = (*repository, branch, upstream)
+            branch_target = (*repository[1:], branch, upstream[1:] if upstream else None)
     explicit = []
     for line in (git(cwd, "config", "--get-all", "pr-watch.url") or "").splitlines():
         match = PR_URL.match(line.strip())
-        if match:
+        if not match or match["host"].lower() not in github_hosts():
+            continue
+        host = host or match["host"].lower()
+        if match["host"].lower() == host:
             explicit.append((match["owner"], match["name"], int(match["number"])))
-    return branch_target, explicit
+    return host or "github.com", branch_target, explicit
 
 
 # --- GitHub ------------------------------------------------------------------
@@ -277,15 +288,29 @@ def watch_targets(cwd: str | None):
 class Deadline:
     """One time budget for every request of a hook run, inside the harness's hook timeout."""
 
-    def __init__(self, seconds: float) -> None:
+    def __init__(self, seconds: float, host: str = "github.com") -> None:
         self.end = time.monotonic() + seconds
+        self.host = host  # Every request of the run goes to this GitHub host.
 
     def remaining(self) -> float:
         return max(0.0, self.end - time.monotonic())
 
 
-def token() -> str | None:
+def token(host: str = "github.com") -> str | None:
+    if host != "github.com":
+        enterprise = os.environ.get("GH_ENTERPRISE_TOKEN") or os.environ.get("GITHUB_ENTERPRISE_TOKEN")
+        if enterprise:
+            return enterprise
     return os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN") or None
+
+
+def api_url(kind: str, host: str) -> str:
+    """The GraphQL endpoint or REST base for a host; GITHUB_GRAPHQL_URL / GITHUB_API_URL win."""
+    if kind == "graphql":
+        default = "https://api.github.com/graphql" if host == "github.com" else f"https://{host}/api/graphql"
+        return os.environ.get("GITHUB_GRAPHQL_URL", default)
+    default = "https://api.github.com" if host == "github.com" else f"https://{host}/api/v3"
+    return os.environ.get("GITHUB_API_URL", default).rstrip("/")
 
 
 def use_gh() -> str | None:
@@ -299,7 +324,7 @@ def run_gh(arguments: list[str], deadline: Deadline, stdin: str | None = None) -
         return None
     try:
         result = subprocess.run(
-            [gh, "api", *arguments],
+            [gh, "api", *(["--hostname", deadline.host] if deadline.host != "github.com" else []), *arguments],
             input=stdin,
             capture_output=True,
             text=True,
@@ -315,7 +340,7 @@ def run_gh(arguments: list[str], deadline: Deadline, stdin: str | None = None) -
 
 
 def http_json(url: str, deadline: Deadline, body: bytes | None = None) -> object | None:
-    secret = token()
+    secret = token(deadline.host)
     timeout = min(REQUEST_TIMEOUT, deadline.remaining())
     if not secret or timeout < 1:
         return None
@@ -342,7 +367,7 @@ def graphql(query: str, variables: dict, deadline: Deadline) -> dict | None:
     response = run_gh(["graphql", "--input", "-"], deadline, stdin=body)
     if not isinstance(response, dict) or not isinstance(response.get("data"), dict):
         response = http_json(
-            os.environ.get("GITHUB_GRAPHQL_URL", "https://api.github.com/graphql"), deadline, body.encode("utf-8")
+            api_url("graphql", deadline.host), deadline, body.encode("utf-8")
         )
     return response if isinstance(response, dict) and isinstance(response.get("data"), dict) else None
 
@@ -351,7 +376,7 @@ def rest(path: str, deadline: Deadline) -> object | None:
     """GET one REST path (no leading slash), through gh or the token."""
     response = run_gh([path], deadline)
     if response is None:
-        base = os.environ.get("GITHUB_API_URL", "https://api.github.com").rstrip("/")
+        base = api_url("rest", deadline.host)
         response = http_json(f"{base}/{path}", deadline)
     return response
 
@@ -583,12 +608,12 @@ def truncated(pr: dict) -> bool:
     return False
 
 
-def fetch_pull_requests(branch_target, explicit) -> list[dict] | None:
+def fetch_pull_requests(host: str, branch_target, explicit) -> list[dict] | None:
     """Open and recently closed pull requests to examine, or None when GitHub could not be read."""
     explicit = explicit[:10]
     if not branch_target and not explicit:
         return []
-    deadline = Deadline(DEADLINE_SECONDS)
+    deadline = Deadline(DEADLINE_SECONDS, host)
     api = os.environ.get("PR_WATCH_API", "auto")
     prs = fetch_graphql(branch_target, explicit, deadline) if api in ("auto", "graphql") else None
     if prs is None and api in ("auto", "rest"):
@@ -830,7 +855,7 @@ def main(argv: list[str]) -> int:
             return 0
 
     cwd = workspace_dir(hook_input)
-    branch_target, explicit = watch_targets(cwd)
+    host, branch_target, explicit = watch_targets(cwd)
     if not branch_target and not explicit:
         return 0
 
@@ -843,7 +868,7 @@ def main(argv: list[str]) -> int:
         return 0
 
     started = time.monotonic()
-    prs = fetch_pull_requests(branch_target, explicit)
+    prs = fetch_pull_requests(host, branch_target, explicit)
     if prs is None:
         return 0
     log(f"fetched {len(prs)} pull request(s) in {time.monotonic() - started:.1f}s")

@@ -116,7 +116,10 @@ name, discovery goes through REST, which filters by the head owner. Plus any URL
 with a one-line notice in Claude Code and Codex.
 
 **How it asks.** Through an authenticated `gh` or, without one,
-`GH_TOKEN`/`GITHUB_TOKEN` against `api.github.com`. It tries one GraphQL
+`GH_TOKEN`/`GITHUB_TOKEN` against `api.github.com`. For a GitHub Enterprise
+remote opted in with `PR_WATCH_GITHUB_HOSTS` or `GH_HOST`, every request goes to
+that host: `gh api --hostname <host>`, or `https://<host>/api/graphql` and
+`/api/v3` with `GH_ENTERPRISE_TOKEN` when set. One run talks to one host. It tries one GraphQL
 request first (`GITHUB_GRAPHQL_URL`). Where GraphQL is refused, as in Claude
 Code cloud sessions, it falls back to the REST API (`GITHUB_API_URL`): one
 list request for the branch, then six per pull request (the pull request, its

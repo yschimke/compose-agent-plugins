@@ -327,7 +327,8 @@ def fetch_graphql(branch_target, explicit, deadline: Deadline) -> list[dict] | N
         variables.update(bOwner=owner, bName=name, branch=branch)
         parts.append(
             "branch: repository(owner: $bOwner, name: $bName) {"
-            " pullRequests(headRefName: $branch, states: OPEN, first: 5) { nodes {" + PR_FIELDS + "} } }"
+            " pullRequests(headRefName: $branch, states: OPEN, first: 5) {"
+            " pageInfo { hasNextPage } nodes {" + PR_FIELDS + "} } }"
         )
     for index, (owner, name, number) in enumerate(explicit):
         declarations += [f"$o{index}: String!", f"$n{index}: String!", f"$p{index}: Int!"]
@@ -346,6 +347,12 @@ def fetch_graphql(branch_target, explicit, deadline: Deadline) -> list[dict] | N
     # headRefName matches the branch name in any repository, forks included.
     # Watch only pull requests whose head is the checkout's own origin, so the
     # agent is never sent to work on another contributor's pull request.
+    if branch_target and more_after(branch_data.get("pullRequests")):
+        # More pull requests share the branch name than one page holds, and forks
+        # could fill it. REST filters by the head owner on GitHub's side, so the
+        # whole read goes there instead.
+        log("more than one page of pull requests share the branch name; using REST")
+        return None
     if branch_target:
         origin = f"{branch_target[0]}/{branch_target[1]}".lower()
         for node in nodes(branch_data.get("pullRequests")):

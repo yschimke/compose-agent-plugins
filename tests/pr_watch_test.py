@@ -416,6 +416,16 @@ class PrWatchTest(unittest.TestCase):
         self.assertIn('on app/Big.kt: "Split this file."', reason)
         self.assertNotIn("outdated line note", reason)
 
+    def test_forks_filling_the_discovery_page_fall_back_to_rest(self) -> None:
+        forks = [pull_request(number=90 + n, url=f"https://github.com/acme/app/pull/{90 + n}",
+                              headRepository={"nameWithOwner": f"fork{n}/app"}) for n in range(5)]
+        self.response.write_text(json.dumps({"data": {"branch": {"pullRequests": {
+            "pageInfo": {"hasNextPage": True}, "nodes": forks}}}}))
+        self.rest_pull_request(mergeable_state="clean")
+        reason = self.run_hook()["reason"]
+        self.assertIn("https://github.com/acme/app/pull/7", reason)  # Found through REST.
+        self.assertNotIn("pull/9", reason)
+
     def test_rest_merged_and_partial_failure(self) -> None:
         self.rest_pull_request()
         (self.root / "rest" / re.sub(r"[^A-Za-z0-9]", "_", "repos/acme/app/pulls/7/reviews?per_page=100")).unlink()

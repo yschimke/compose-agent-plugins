@@ -19,5 +19,5 @@
   "suggestedPrompts": [
     "Watch the pull request for this branch and handle review comments and CI failures."
   ],
-  "version": "0.17.0"
+  "version": "0.18.0"
 }

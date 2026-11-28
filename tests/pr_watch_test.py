@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -16,10 +17,17 @@ STOP = PLUGIN / "pr-watch.py"
 SESSION_START = PLUGIN / "pr-watch-session-start.sh"
 
 FAKE_GH = """#!/bin/sh
-cat >"$FAKE_GH_QUERY"
-echo call >>"$FAKE_GH_LOG"
+echo "$*" >>"$FAKE_GH_LOG"
 [ -n "${FAKE_GH_FAIL-}" ] && exit 1
-cat "$FAKE_GH_RESPONSE"
+if [ "$2" = graphql ]; then
+  cat >"$FAKE_GH_QUERY"
+  [ -n "${FAKE_GH_GRAPHQL_FAIL-}" ] && { echo 'GraphQL is not available' >&2; exit 1; }
+  cat "$FAKE_GH_RESPONSE"
+  exit 0
+fi
+file="$FAKE_REST_DIR/$(printf '%s' "$2" | tr -c 'A-Za-z0-9' '_')"
+[ -f "$file" ] || { echo "no fixture for $2" >&2; exit 1; }
+cat "$file"
 """
 
 
@@ -75,6 +83,7 @@ class PrWatchTest(unittest.TestCase):
             "FAKE_GH_RESPONSE": str(self.response),
             "FAKE_GH_QUERY": str(self.root / "query.json"),
             "FAKE_GH_LOG": str(self.calls),
+            "FAKE_REST_DIR": str(self.root / "rest"),
         }
         self.respond([pull_request()])
 
@@ -196,6 +205,76 @@ class PrWatchTest(unittest.TestCase):
         # No gh and no token: nothing to ask, so the stop is allowed without a request.
         self.assertIsNone(self.run_hook(PR_WATCH_NO_GH="1", GH_TOKEN="", GITHUB_TOKEN=""))
         self.assertFalse(self.calls.exists())
+
+    # --- REST fallback -------------------------------------------------------
+
+    def rest_fixture(self, path: str, value: object) -> None:
+        directory = self.root / "rest"
+        directory.mkdir(exist_ok=True)
+        (directory / re.sub(r"[^A-Za-z0-9]", "_", path)).write_text(json.dumps(value))
+
+    def rest_pull_request(self, sha="abc1234def", mergeable_state="dirty", state="open", merged=False) -> None:
+        repo = "repos/acme/app"
+        self.rest_fixture(f"{repo}/pulls?state=open&head=acme:agent%2Fsettings&per_page=100", [{"number": 7}])
+        self.rest_fixture(f"{repo}/pulls/7", {
+            "number": 7, "html_url": "https://github.com/acme/app/pull/7", "title": "Add settings screen",
+            "state": state, "merged": merged, "draft": False, "mergeable": mergeable_state != "dirty",
+            "mergeable_state": mergeable_state, "base": {"ref": "main"},
+            "head": {"ref": "agent/settings", "sha": sha},
+        })
+        self.rest_fixture(f"{repo}/issues/7/comments?per_page=100", [
+            {"node_id": "IC1", "user": {"login": "old"}, "body": "old chatter", "created_at": "2026-01-01T00:00:00Z"},
+        ])
+        self.rest_fixture(f"{repo}/pulls/7/reviews?per_page=100", [])
+        self.rest_fixture(f"{repo}/pulls/7/comments?per_page=100", [
+            {"id": 1, "node_id": "RC1", "user": {"login": "reviewer"}, "body": "Use a Switch here.",
+             "path": "app/Settings.kt", "line": 12, "created_at": "2026-01-01T00:00:01Z"},
+            {"id": 2, "node_id": "RC0", "user": {"login": "reviewer"}, "body": "outdated note",
+             "path": "app/Old.kt", "line": None, "created_at": "2026-01-01T00:00:00Z"},
+        ])
+        self.rest_fixture(f"{repo}/commits/{sha}/check-runs?per_page=100", {"total_count": 2, "check_runs": [
+            {"name": "build", "status": "completed", "conclusion": "failure", "details_url": "https://ci/1"},
+            {"name": "lint", "status": "completed", "conclusion": "success", "details_url": ""},
+        ]})
+        self.rest_fixture(f"{repo}/commits/{sha}/status", {"state": "failure", "statuses": [
+            {"context": "deploy/preview", "state": "error", "target_url": "https://preview/1"},
+        ]})
+
+    def test_rest_fallback_when_graphql_is_refused(self) -> None:
+        self.rest_pull_request()
+        reason = self.run_hook(FAKE_GH_GRAPHQL_FAIL="1")["reason"]
+        self.assertIn('Review comment by @reviewer on app/Settings.kt:12: "Use a Switch here."', reason)
+        self.assertIn("build (failure) https://ci/1", reason)
+        self.assertIn("deploy/preview (error) https://preview/1", reason)
+        self.assertIn("Merge conflict with main", reason)
+        self.assertNotIn("old chatter", reason)
+        self.assertNotIn("outdated note", reason)
+        self.assertNotIn("lint", reason)
+        self.assertIsNone(self.run_hook(FAKE_GH_GRAPHQL_FAIL="1"))
+
+    def test_rest_forced_and_reply_threads(self) -> None:
+        self.rest_pull_request(mergeable_state="clean")
+        self.run_hook(PR_WATCH_API="rest")
+        self.assertNotIn("graphql", self.calls.read_text())
+        self.rest_fixture("repos/acme/app/pulls/7/comments?per_page=100", [
+            {"id": 1, "node_id": "RC1", "user": {"login": "reviewer"}, "body": "Use a Switch here.",
+             "path": "app/Settings.kt", "line": 12, "created_at": "2026-01-01T00:00:01Z"},
+            {"id": 3, "node_id": "RC3", "in_reply_to_id": 1, "user": {"login": "reviewer"},
+             "body": "Still not a Switch.", "path": "app/Settings.kt", "line": 12, "created_at": "2026-01-03T00:00:00Z"},
+        ])
+        reason = self.run_hook(PR_WATCH_API="rest")["reason"]
+        self.assertIn('on app/Settings.kt:12: "Still not a Switch."', reason)
+        self.assertNotIn("Merge conflict", reason)
+
+    def test_rest_merged_and_partial_failure(self) -> None:
+        self.rest_pull_request()
+        (self.root / "rest" / re.sub(r"[^A-Za-z0-9]", "_", "repos/acme/app/pulls/7/reviews?per_page=100")).unlink()
+        self.assertIsNone(self.run_hook(PR_WATCH_API="rest"))  # One missing list fails the whole read...
+        self.assertFalse((self.root / "state" / "s1.json").exists())  # ...and records nothing as seen.
+        self.rest_pull_request(state="closed", merged=True)
+        self.assertIsNone(self.run_hook(PR_WATCH_API="rest", payload={"session_id": "s9"}))
+        self.rest_fixture("repos/acme/app/pulls/7", {"message": "Not Found"})
+        self.assertIsNone(self.run_hook(PR_WATCH_API="rest", payload={"session_id": "s10"}))
 
 
 if __name__ == "__main__":

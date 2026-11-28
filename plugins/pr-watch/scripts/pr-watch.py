@@ -31,7 +31,9 @@ timeout, an unexpected response) lets the agent stop silently. PR_WATCH=0
 turns it off.
 
 GitHub access: `gh` when it is on PATH and authenticated, else GH_TOKEN or
-GITHUB_TOKEN against GITHUB_GRAPHQL_URL (default https://api.github.com/graphql).
+GITHUB_TOKEN. It asks GraphQL first (one request, GITHUB_GRAPHQL_URL) and falls
+back to the REST API (GITHUB_API_URL, several requests per pull request) where
+GraphQL is refused. PR_WATCH_API=graphql or rest forces one.
 """
 from __future__ import annotations
 
@@ -43,11 +45,14 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
 MAX_CONSECUTIVE_BLOCKS = 3
 REQUEST_TIMEOUT = 15
+# Every request of one run shares this budget, below the 30 s hook timeout.
+DEADLINE_SECONDS = 24
 MAX_REASON = 3500
 MAX_ITEMS_PER_PR = 8
 # Comments that carry these markers were written by an agent session; the
@@ -222,40 +227,92 @@ def watch_targets(cwd: str | None) -> tuple[tuple[str, str, str] | None, list[tu
 # --- GitHub ------------------------------------------------------------------
 
 
-def graphql(query: str, variables: dict) -> dict | None:
-    token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
-    gh = shutil.which("gh")
-    body = json.dumps({"query": query, "variables": variables})
-    if gh and os.environ.get("PR_WATCH_NO_GH") != "1":
-        try:
-            result = subprocess.run(
-                [gh, "api", "graphql", "--input", "-"],
-                input=body,
-                capture_output=True,
-                text=True,
-                timeout=REQUEST_TIMEOUT,
-            )
-            if result.returncode == 0:
-                return json.loads(result.stdout)
-            log(f"gh api graphql failed: {result.stderr.strip()[:200]}")
-        except (OSError, subprocess.SubprocessError, ValueError) as error:
-            log(f"gh api graphql failed: {error}")
-    if not token:
+class Deadline:
+    """One time budget for every request of a hook run, inside the harness's hook timeout."""
+
+    def __init__(self, seconds: float) -> None:
+        self.end = time.monotonic() + seconds
+
+    def remaining(self) -> float:
+        return max(0.0, self.end - time.monotonic())
+
+
+def token() -> str | None:
+    return os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN") or None
+
+
+def use_gh() -> str | None:
+    return shutil.which("gh") if os.environ.get("PR_WATCH_NO_GH") != "1" else None
+
+
+def run_gh(arguments: list[str], deadline: Deadline, stdin: str | None = None) -> object | None:
+    gh = use_gh()
+    timeout = min(REQUEST_TIMEOUT, deadline.remaining())
+    if not gh or timeout < 1:
+        return None
+    try:
+        result = subprocess.run(
+            [gh, "api", *arguments],
+            input=stdin,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            stdin=None if stdin is not None else subprocess.DEVNULL,
+        )
+        if result.returncode == 0:
+            return json.loads(result.stdout)
+        log(f"gh api {arguments[0]} failed: {result.stderr.strip()[:200]}")
+    except (OSError, subprocess.SubprocessError, ValueError) as error:
+        log(f"gh api {arguments[0]} failed: {error}")
+    return None
+
+
+def http_json(url: str, deadline: Deadline, body: bytes | None = None) -> object | None:
+    secret = token()
+    timeout = min(REQUEST_TIMEOUT, deadline.remaining())
+    if not secret or timeout < 1:
         return None
     request = urllib.request.Request(
-        os.environ.get("GITHUB_GRAPHQL_URL", "https://api.github.com/graphql"),
-        data=body.encode("utf-8"),
-        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json", "User-Agent": "pr-watch"},
+        url,
+        data=body,
+        headers={
+            "Authorization": f"Bearer {secret}",
+            "Accept": "application/vnd.github+json",
+            "Content-Type": "application/json",
+            "User-Agent": "pr-watch",
+        },
     )
     try:
-        with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT) as response:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
             return json.loads(response.read().decode("utf-8"))
     except (OSError, ValueError) as error:
-        log(f"GraphQL request failed: {error}")
+        log(f"request to {url.split('?')[0]} failed: {error}")
         return None
 
 
-def fetch_pull_requests(branch_target, explicit) -> list[dict] | None:
+def graphql(query: str, variables: dict, deadline: Deadline) -> dict | None:
+    body = json.dumps({"query": query, "variables": variables})
+    response = run_gh(["graphql", "--input", "-"], deadline, stdin=body)
+    if not isinstance(response, dict) or not isinstance(response.get("data"), dict):
+        response = http_json(
+            os.environ.get("GITHUB_GRAPHQL_URL", "https://api.github.com/graphql"), deadline, body.encode("utf-8")
+        )
+    return response if isinstance(response, dict) and isinstance(response.get("data"), dict) else None
+
+
+def rest(path: str, deadline: Deadline) -> object | None:
+    """GET one REST path (no leading slash), through gh or the token."""
+    response = run_gh([path], deadline)
+    if response is None:
+        base = os.environ.get("GITHUB_API_URL", "https://api.github.com").rstrip("/")
+        response = http_json(f"{base}/{path}", deadline)
+    return response
+
+
+# --- GraphQL ---
+
+
+def fetch_graphql(branch_target, explicit, deadline: Deadline) -> list[dict] | None:
     parts, variables, declarations = [], {}, []
     if branch_target:
         owner, name, branch = branch_target
@@ -265,30 +322,168 @@ def fetch_pull_requests(branch_target, explicit) -> list[dict] | None:
             "branch: repository(owner: $bOwner, name: $bName) {"
             " pullRequests(headRefName: $branch, states: OPEN, first: 5) { nodes {" + PR_FIELDS + "} } }"
         )
-    for index, (owner, name, number) in enumerate(explicit[:10]):
+    for index, (owner, name, number) in enumerate(explicit):
         declarations += [f"$o{index}: String!", f"$n{index}: String!", f"$p{index}: Int!"]
         variables.update({f"o{index}": owner, f"n{index}": name, f"p{index}": number})
         parts.append(
             f"x{index}: repository(owner: $o{index}, name: $n{index}) {{"
             f" pullRequest(number: $p{index}) {{" + PR_FIELDS + "} }"
         )
-    if not parts:
-        return []
     query = f"query({', '.join(declarations)}) {{ {' '.join(parts)} }}"
-    response = graphql(query, variables)
-    data = response.get("data") if isinstance(response, dict) else None
-    if not isinstance(data, dict):
+    response = graphql(query, variables, deadline)
+    if response is None:
         return None
-    found: dict[str, dict] = {}
+    data = response["data"]
+    found = []
     branch_data = data.get("branch") or {}
-    for node in ((branch_data.get("pullRequests") or {}).get("nodes") or []):
-        if isinstance(node, dict) and node.get("url"):
-            found[node["url"]] = node
-    for index in range(len(explicit[:10])):
+    found += [node for node in nodes(branch_data.get("pullRequests"))]
+    for index in range(len(explicit)):
         node = (data.get(f"x{index}") or {}).get("pullRequest")
-        if isinstance(node, dict) and node.get("url"):
-            found[node["url"]] = node
-    return list(found.values())
+        if isinstance(node, dict):
+            found.append(node)
+    return found
+
+
+# --- REST ---
+# Some sandboxes allow GitHub's REST API but not GraphQL. REST takes several
+# requests per pull request and has no thread resolution, so it is the fallback.
+
+
+def rest_list(path: str, deadline: Deadline) -> list[dict] | None:
+    separator = "&" if "?" in path else "?"
+    value = rest(f"{path}{separator}per_page=100", deadline)
+    if isinstance(value, dict) and isinstance(value.get("check_runs"), list):
+        value = value["check_runs"]
+    if not isinstance(value, list):
+        return None
+    return [item for item in value if isinstance(item, dict)]
+
+
+def rest_author(item: dict) -> dict:
+    user = item.get("user")
+    return {"login": user.get("login", "ghost")} if isinstance(user, dict) else {"login": "ghost"}
+
+
+def rest_pull_request(owner: str, name: str, number: int, deadline: Deadline) -> dict | None:
+    """One pull request from REST, in the shape the GraphQL query returns."""
+    repo = f"repos/{owner}/{name}"
+    pr = rest(f"{repo}/pulls/{number}", deadline)
+    if not isinstance(pr, dict) or not pr.get("html_url"):
+        return None
+    head = pr.get("head") if isinstance(pr.get("head"), dict) else {}
+    base = pr.get("base") if isinstance(pr.get("base"), dict) else {}
+    sha = str(head.get("sha") or "")
+    merge_state = str(pr.get("mergeable_state") or "").upper()
+    shaped = {
+        "number": pr.get("number"),
+        "url": pr["html_url"],
+        "title": pr.get("title"),
+        "state": "MERGED" if pr.get("merged") else str(pr.get("state") or "").upper(),
+        "merged": bool(pr.get("merged")),
+        "isDraft": bool(pr.get("draft")),
+        "mergeable": "CONFLICTING" if merge_state == "DIRTY" else ("MERGEABLE" if pr.get("mergeable") else "UNKNOWN"),
+        "mergeStateStatus": merge_state,
+        "baseRefName": base.get("ref"),
+        "headRefName": head.get("ref"),
+        "headRefOid": sha,
+    }
+    if shaped["state"] != "OPEN":
+        return shaped
+
+    # Every list must arrive: one missing now and present later would make its
+    # old items look new.
+    comments = rest_list(f"{repo}/issues/{number}/comments", deadline)
+    reviews = rest_list(f"{repo}/pulls/{number}/reviews", deadline)
+    review_comments = rest_list(f"{repo}/pulls/{number}/comments", deadline)
+    check_runs = rest_list(f"{repo}/commits/{sha}/check-runs", deadline) if sha else []
+    status = rest(f"{repo}/commits/{sha}/status", deadline) if sha else {}
+    if None in (comments, reviews, review_comments, check_runs) or not isinstance(status, dict):
+        return None
+    shaped["comments"] = {"nodes": [
+        {"id": c.get("node_id"), "author": rest_author(c), "body": c.get("body"), "createdAt": c.get("created_at")}
+        for c in comments[-30:]
+    ]}
+    shaped["reviews"] = {"nodes": [
+        {"id": r.get("node_id"), "author": rest_author(r), "state": r.get("state"), "body": r.get("body"),
+         "submittedAt": r.get("submitted_at")}
+        for r in reviews[-30:]
+    ]}
+    threads: dict[object, dict] = {}
+    for c in review_comments:
+        root = c.get("in_reply_to_id") or c.get("id")
+        thread = threads.setdefault(root, {
+            # REST does not say whether a thread is resolved; outdated threads (no
+            # current line) are treated as resolved so a first look stays short.
+            "isResolved": c.get("line") is None,
+            "isOutdated": c.get("line") is None,
+            "path": c.get("path"),
+            "line": c.get("line"),
+            "comments": {"nodes": []},
+        })
+        thread["comments"]["nodes"].append(
+            {"id": c.get("node_id"), "author": rest_author(c), "body": c.get("body"), "createdAt": c.get("created_at")}
+        )
+    shaped["reviewThreads"] = {"nodes": list(threads.values())[-50:]}
+
+    contexts = []
+    for run in check_runs:
+        contexts.append({
+            "__typename": "CheckRun",
+            "name": run.get("name"),
+            "status": str(run.get("status") or "").upper(),
+            "conclusion": str(run.get("conclusion") or "").upper() or None,
+            "detailsUrl": run.get("details_url") or run.get("html_url"),
+        })
+    for item in status.get("statuses") or []:
+        if isinstance(item, dict):
+            contexts.append({
+                "__typename": "StatusContext",
+                "context": item.get("context"),
+                "state": str(item.get("state") or "").upper(),
+                "targetUrl": item.get("target_url"),
+            })
+    shaped["commits"] = {"nodes": [{"commit": {"oid": sha, "statusCheckRollup": {"contexts": {"nodes": contexts}}}}]}
+    return shaped
+
+
+def fetch_rest(branch_target, explicit, deadline: Deadline) -> list[dict] | None:
+    numbers: list[tuple[str, str, int]] = []
+    if branch_target:
+        owner, name, branch = branch_target
+        listed = rest_list(
+            f"repos/{owner}/{name}/pulls?state=open&head={urllib.parse.quote(owner + ':' + branch, safe=':')}", deadline
+        )
+        if listed is None:
+            return None
+        numbers += [(owner, name, int(pr["number"])) for pr in listed[:5] if isinstance(pr.get("number"), int)]
+    numbers += explicit
+    found = []
+    for owner, name, number in numbers:
+        pr = rest_pull_request(owner, name, number, deadline)
+        if pr is None:
+            return None  # A partial picture would mark items seen that were never shown.
+        found.append(pr)
+    return found
+
+
+def fetch_pull_requests(branch_target, explicit) -> list[dict] | None:
+    """Open and recently closed pull requests to examine, or None when GitHub could not be read."""
+    explicit = explicit[:10]
+    if not branch_target and not explicit:
+        return []
+    deadline = Deadline(DEADLINE_SECONDS)
+    api = os.environ.get("PR_WATCH_API", "auto")
+    prs = fetch_graphql(branch_target, explicit, deadline) if api in ("auto", "graphql") else None
+    if prs is None and api in ("auto", "rest"):
+        log("GraphQL unavailable; using the REST API")
+        prs = fetch_rest(branch_target, explicit, deadline)
+    if prs is None:
+        return None
+    unique: dict[str, dict] = {}
+    for pr in prs:
+        if isinstance(pr, dict) and pr.get("url"):
+            unique[pr["url"]] = pr
+    return list(unique.values())
 
 
 # --- What changed ------------------------------------------------------------

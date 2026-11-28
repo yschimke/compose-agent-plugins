@@ -28,8 +28,10 @@ It needs `python3`, `git`, and either an authenticated `gh` or a `GH_TOKEN` /
 
 ## Data it sends
 
-One GraphQL request to GitHub (`api.github.com`, or `GITHUB_GRAPHQL_URL`) per
-hook run, naming the repository and branch of the checkout. It stores the ids
+Requests to GitHub (`api.github.com`, or `GITHUB_GRAPHQL_URL` /
+`GITHUB_API_URL`) naming the repository and branch of the checkout: one
+GraphQL request per hook run, or, where GraphQL is refused, a few REST
+requests per pull request. It stores the ids
 of comments it has already reported under `~/.local/state/pr-watch/`.
 
 ## License

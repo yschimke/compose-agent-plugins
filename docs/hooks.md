@@ -99,9 +99,18 @@ current branch on `origin`, plus any URL listed with
 `git config --add pr-watch.url <url>`. Merged and closed ones are dropped,
 with a one-line notice in Claude Code and Codex.
 
-**What it reports.** One GraphQL request per run, through an authenticated
-`gh` or, without one, `GH_TOKEN`/`GITHUB_TOKEN` against `api.github.com`
-(`GITHUB_GRAPHQL_URL` overrides it). It reports:
+**How it asks.** Through an authenticated `gh` or, without one,
+`GH_TOKEN`/`GITHUB_TOKEN` against `api.github.com`. It tries one GraphQL
+request first (`GITHUB_GRAPHQL_URL`). Where GraphQL is refused, as in Claude
+Code cloud sessions, it falls back to the REST API (`GITHUB_API_URL`): one
+list request for the branch, then six per pull request (the pull request, its
+comments, reviews, review comments, check runs and commit statuses).
+`PR_WATCH_API=graphql` or `rest` forces one. All requests of a run share a
+24-second budget. REST does not say whether a review thread is resolved, so
+there a thread with no current line (outdated) counts as resolved. If any
+request fails, the run reports nothing and records nothing as seen.
+
+**What it reports.**
 
 - new conversation comments, reviews with a body or requested changes, and
   review-thread comments;

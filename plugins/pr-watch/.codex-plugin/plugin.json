@@ -1,0 +1,32 @@
+{
+  "author": {
+    "name": "Yuri Schimke"
+  },
+  "description": "Tell the agent about new review comments, CI failures and merge conflicts on its pull requests whenever it stops.",
+  "hooks": "./hooks/codex-hooks.json",
+  "interface": {
+    "capabilities": [
+      "Interactive"
+    ],
+    "category": "Developer Tools",
+    "defaultPrompt": [
+      "Watch the pull request for this branch and handle review comments and CI failures."
+    ],
+    "developerName": "Yuri Schimke",
+    "displayName": "PR Watch",
+    "longDescription": "Watches the open pull requests for the checkout's branch. When the agent stops, or a session starts or resumes, it reports new review comments, failed checks and merge conflicts so the agent keeps driving the pull request until it is done.",
+    "shortDescription": "Hear about pull request reviews, CI failures and conflicts at stop points."
+  },
+  "keywords": [
+    "github",
+    "pull-request",
+    "review",
+    "ci",
+    "hooks"
+  ],
+  "license": "Apache-2.0",
+  "name": "pr-watch",
+  "repository": "https://github.com/yschimke/compose-agent-plugins",
+  "skills": "./skills/",
+  "version": "0.17.0"
+}

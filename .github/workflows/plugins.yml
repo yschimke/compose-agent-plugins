@@ -64,6 +64,7 @@ jobs:
           CODEX_HOME="$plugin_home" codex plugin add compose-catalogs@compose-agent-plugins
           CODEX_HOME="$plugin_home" codex plugin add compose-preview@compose-agent-plugins
           CODEX_HOME="$plugin_home" codex plugin add compose-review@compose-agent-plugins
+          CODEX_HOME="$plugin_home" codex plugin add pr-watch@compose-agent-plugins
           CODEX_HOME="$plugin_home" codex plugin list
       - name: Validate with Antigravity when available
         run: |

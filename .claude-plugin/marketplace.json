@@ -21,6 +21,11 @@
       "description": "Review Compose UI pull requests by rendering base and head, and set up CI that posts before/after previews.",
       "name": "compose-review",
       "source": "./plugins/compose-review"
+    },
+    {
+      "description": "Tell the agent about new review comments, CI failures and merge conflicts on its pull requests whenever it stops.",
+      "name": "pr-watch",
+      "source": "./plugins/pr-watch"
     }
   ]
 }

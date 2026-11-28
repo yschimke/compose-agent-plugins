@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.18.0](https://github.com/yschimke/compose-agent-plugins/compare/v0.17.0...v0.18.0) (2026-11-28)
+
+
+### Features
+
+* add optional pr-watch plugin for PR activity at stop points ([#213](https://github.com/yschimke/compose-agent-plugins/issues/213)) ([1103199](https://github.com/yschimke/compose-agent-plugins/commit/11031993f8fda1c43a7d3eaef10810959df190e2))
+* **pr-watch:** tell the agent when a watched pull request is merged or closed ([#216](https://github.com/yschimke/compose-agent-plugins/issues/216)) ([8daadbd](https://github.com/yschimke/compose-agent-plugins/commit/8daadbd12c4f00d99afc072f5bb6692a83d6df40))
+* **pr-watch:** wake idle Claude Code sessions with an asyncRewake background watcher ([#215](https://github.com/yschimke/compose-agent-plugins/issues/215)) ([5e41623](https://github.com/yschimke/compose-agent-plugins/commit/5e416230ba4fab357dcfe08bb780dc5ccc7eac5f))
+
+
+### Bug Fixes
+
+* bundle the viewer from compose-preview-mcp v4.27.0 ([#211](https://github.com/yschimke/compose-agent-plugins/issues/211)) ([f8139de](https://github.com/yschimke/compose-agent-plugins/commit/f8139de4434aa33795e307b18ed41b6df3581f0b))
+* **pr-watch:** de-duplicate GraphQL results before re-reading truncated pull requests ([#218](https://github.com/yschimke/compose-agent-plugins/issues/218)) ([7644983](https://github.com/yschimke/compose-agent-plugins/commit/7644983995ae540cd868119a3a3542592517ffc1))
+* vendor yschimke/skills at f7f43f93e0c2 ([#212](https://github.com/yschimke/compose-agent-plugins/issues/212)) ([26ed6b9](https://github.com/yschimke/compose-agent-plugins/commit/26ed6b9ae36a5e556def8258a40ace668c1df3b7))
+
 ## [0.17.0](https://github.com/yschimke/compose-agent-plugins/compare/v0.16.0...v0.17.0) (2026-11-25)
 
 

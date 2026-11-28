@@ -222,6 +222,47 @@
         "compose-preview-review",
         "compose-preview-ci"
       ]
+    },
+    {
+      "name": "pr-watch",
+      "version": "0.17.0",
+      "description": "Tell the agent about new review comments, CI failures and merge conflicts on its pull requests whenever it stops.",
+      "keywords": [
+        "github",
+        "pull-request",
+        "review",
+        "ci",
+        "hooks"
+      ],
+      "interface": {
+        "displayName": "PR Watch",
+        "shortDescription": "Hear about pull request reviews, CI failures and conflicts at stop points.",
+        "longDescription": "Watches the open pull requests for the checkout's branch. When the agent stops, or a session starts or resumes, it reports new review comments, failed checks and merge conflicts so the agent keeps driving the pull request until it is done.",
+        "developerName": "Yuri Schimke",
+        "category": "Developer Tools",
+        "capabilities": [
+          "Interactive"
+        ],
+        "defaultPrompt": [
+          "Watch the pull request for this branch and handle review comments and CI failures."
+        ]
+      },
+      "skills": [
+        "pr-watch"
+      ],
+      "hooks": [
+        {
+          "event": "SessionStart",
+          "command": "scripts/pr-watch-session-start.sh",
+          "matcher": "startup|resume",
+          "timeout": 30
+        },
+        {
+          "event": "Stop",
+          "command": "scripts/pr-watch.py",
+          "timeout": 30
+        }
+      ]
     }
   ],
   "opencode": {

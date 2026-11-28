@@ -1,0 +1,19 @@
+{
+  "pr-watch": {
+    "SessionStart": [
+      {
+        "command": "./scripts/pr-watch-session-start.sh --harness=antigravity",
+        "timeout": 30,
+        "type": "command"
+      }
+    ],
+    "Stop": [
+      {
+        "command": "./scripts/pr-watch.py --harness=antigravity",
+        "timeout": 30,
+        "type": "command"
+      }
+    ],
+    "enabled": true
+  }
+}

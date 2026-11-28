@@ -72,6 +72,11 @@ MCP server `https://preview.coo.ee/mcp` directly. Don't install both:
 - **`compose-review`** (optional): the `compose-preview-review` and
   `compose-preview-ci` skills, to review Compose UI pull requests and set up CI
   that posts before/after previews. Your agent offers it when it is relevant.
+- **`pr-watch`** (optional, experimental): Stop and SessionStart hooks that
+  tell the agent about new review comments, CI failures and merge conflicts on
+  the pull requests for its branch, for hosts with no GitHub event channel
+  (Codex, Antigravity, local Claude Code). Not Compose-specific; see
+  [hooks](docs/hooks.md#pr-watch).
 
 What each plugin contains, its hooks and the data it sends are in its README
 under [`plugins/`](plugins/), the [hooks](docs/hooks.md) doc and

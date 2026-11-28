@@ -334,6 +334,34 @@ class PrWatchTest(unittest.TestCase):
             self.rest_fixture(f"{repo}/issues/7/comments?per_page=100&page={number}", page(number * 100, 100))
         self.assertIsNone(self.run_hook(PR_WATCH_API="rest", payload={"session_id": "s4"}))
 
+    def test_many_seen_comments_are_never_reported_again(self) -> None:
+        # Codex review example on #213: 26 resolved threads of 20 comments, over the old 500-id cap.
+        pr = pull_request()
+        pr["reviewThreads"]["nodes"] = [
+            {"isResolved": True, "isOutdated": False, "path": f"app/T{t}.kt", "line": 1,
+             "comments": {"nodes": [{"id": f"T{t:02d}C{c:02d}", "author": {"login": "reviewer"},
+                                     "body": f"thread{t} comment{c}", "createdAt": "2026-01-01T00:00:00Z"}
+                                    for c in range(20)]}}
+            for t in range(26)
+        ]
+        self.respond([pr])
+        self.assertNotIn("thread", self.run_hook()["reason"])  # First look: CI only; threads are history.
+        for _ in range(3):
+            self.assertIsNone(self.run_hook())
+
+    def test_truncated_graphql_page_is_reread_through_rest(self) -> None:
+        pr = pull_request()
+        pr["reviewThreads"]["pageInfo"] = {"hasPreviousPage": True}
+        self.respond([pr])
+        self.rest_pull_request(mergeable_state="clean")
+        reason = self.run_hook()["reason"]
+        self.assertIn("deploy/preview (error)", reason)  # Only the REST fixture has this status.
+        self.assertIn("issues/7/comments", self.calls.read_text())
+        # When the REST read fails, nothing is reported or recorded.
+        (self.root / "rest" / re.sub(r"[^A-Za-z0-9]", "_", "repos/acme/app/pulls/7/reviews?per_page=100")).unlink()
+        self.assertIsNone(self.run_hook(payload={"session_id": "s5"}))
+        self.assertFalse((self.root / "state" / "s5.json").exists())
+
     def test_rest_merged_and_partial_failure(self) -> None:
         self.rest_pull_request()
         (self.root / "rest" / re.sub(r"[^A-Za-z0-9]", "_", "repos/acme/app/pulls/7/reviews?per_page=100")).unlink()

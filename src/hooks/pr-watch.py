@@ -75,12 +75,13 @@ FAILED_STATES = {"FAILURE", "ERROR"}
 PR_FIELDS = """
   number url title state merged isDraft mergeable mergeStateStatus
   baseRefName headRefName headRefOid
-  comments(last: 30) { nodes { id author { login } body createdAt } }
-  reviews(last: 30) { nodes { id author { login } state body submittedAt } }
-  reviewThreads(last: 50) {
+  comments(last: 100) { pageInfo { hasPreviousPage } nodes { id author { login } body createdAt } }
+  reviews(last: 100) { pageInfo { hasPreviousPage } nodes { id author { login } state body submittedAt } }
+  reviewThreads(last: 100) {
+    pageInfo { hasPreviousPage }
     nodes {
       isResolved isOutdated path line
-      comments(last: 20) { nodes { id author { login } body createdAt } }
+      comments(last: 100) { pageInfo { hasPreviousPage } nodes { id author { login } body createdAt } }
     }
   }
   commits(last: 1) {
@@ -420,12 +421,12 @@ def rest_pull_request(owner: str, name: str, number: int, deadline: Deadline) ->
         return None
     shaped["comments"] = {"nodes": [
         {"id": c.get("node_id"), "author": rest_author(c), "body": c.get("body"), "createdAt": c.get("created_at")}
-        for c in comments[-30:]
+        for c in comments
     ]}
     shaped["reviews"] = {"nodes": [
         {"id": r.get("node_id"), "author": rest_author(r), "state": r.get("state"), "body": r.get("body"),
          "submittedAt": r.get("submitted_at")}
-        for r in reviews[-30:]
+        for r in reviews
     ]}
     threads: dict[object, dict] = {}
     for c in review_comments:
@@ -442,7 +443,7 @@ def rest_pull_request(owner: str, name: str, number: int, deadline: Deadline) ->
         thread["comments"]["nodes"].append(
             {"id": c.get("node_id"), "author": rest_author(c), "body": c.get("body"), "createdAt": c.get("created_at")}
         )
-    shaped["reviewThreads"] = {"nodes": list(threads.values())[-50:]}
+    shaped["reviewThreads"] = {"nodes": list(threads.values())}
 
     contexts = []
     for run in check_runs:
@@ -485,6 +486,18 @@ def fetch_rest(branch_target, explicit, deadline: Deadline) -> list[dict] | None
     return found
 
 
+def more_before(connection: object) -> bool:
+    info = connection.get("pageInfo") if isinstance(connection, dict) else None
+    return bool(info.get("hasPreviousPage")) if isinstance(info, dict) else False
+
+
+def truncated(pr: dict) -> bool:
+    """Whether one GraphQL page left out older comments, reviews or review threads."""
+    if any(more_before(pr.get(field)) for field in ("comments", "reviews", "reviewThreads")):
+        return True
+    return any(more_before(thread.get("comments")) for thread in nodes(pr.get("reviewThreads")))
+
+
 def fetch_pull_requests(branch_target, explicit) -> list[dict] | None:
     """Open and recently closed pull requests to examine, or None when GitHub could not be read."""
     explicit = explicit[:10]
@@ -498,6 +511,18 @@ def fetch_pull_requests(branch_target, explicit) -> list[dict] | None:
         prs = fetch_rest(branch_target, explicit, deadline)
     if prs is None:
         return None
+    # A pull request with more than one GraphQL page of comments, reviews or
+    # threads is read again through REST, which follows every page; reporting
+    # from a partial window would leave the older items unseen forever.
+    complete = []
+    for pr in prs:
+        if isinstance(pr, dict) and pr.get("state") == "OPEN" and truncated(pr):
+            match = PR_URL.match(str(pr.get("url") or ""))
+            pr = rest_pull_request(match["owner"], match["name"], int(match["number"]), deadline) if match else None
+            if pr is None:
+                return None
+        complete.append(pr)
+    prs = complete
     unique: dict[str, dict] = {}
     for pr in prs:
         if isinstance(pr, dict) and pr.get("url"):
@@ -640,7 +665,10 @@ def examine(pr: dict, seen: dict) -> tuple[list[str], bool]:
         shown_comments.append(f"{len(comments) - MAX_ITEMS_PER_PR} more comments will follow at the next stop.")
     lines.extend(shown_comments)
 
-    seen["comments"] = sorted({*seen_comments, *(i for i in all_ids if i)} - deferred)[-500:]
+    # Everything in this complete snapshot has been handled, except what was
+    # deferred. Ids no longer on GitHub drop out, so the set stays as large as
+    # the pull request and never evicts a comment it will see again.
+    seen["comments"] = sorted({i for i in all_ids if i} - deferred)
     seen["head"] = head
     seen["failures"] = sorted(reported_failures | {name for name, _, _ in failed})
     if conflict:

@@ -442,11 +442,13 @@ def rest_pull_request(owner: str, name: str, number: int, deadline: Deadline) ->
     threads: dict[object, dict] = {}
     for c in review_comments:
         root = c.get("in_reply_to_id") or c.get("id")
+        # REST does not say whether a thread is resolved; outdated threads are
+        # treated as resolved so a first look stays short. A line comment with
+        # no current line is outdated; a file-level comment never has a line.
+        outdated = c.get("subject_type") != "file" and c.get("line") is None
         thread = threads.setdefault(root, {
-            # REST does not say whether a thread is resolved; outdated threads (no
-            # current line) are treated as resolved so a first look stays short.
-            "isResolved": c.get("line") is None,
-            "isOutdated": c.get("line") is None,
+            "isResolved": outdated,
+            "isOutdated": outdated,
             "path": c.get("path"),
             "line": c.get("line"),
             "comments": {"nodes": []},

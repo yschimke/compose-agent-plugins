@@ -404,6 +404,18 @@ class PrWatchTest(unittest.TestCase):
         self.respond([fork], explicit=fork)
         self.assertIn("fork-only comment", self.run_hook(payload={"session_id": "s6"})["reason"])
 
+    def test_rest_file_level_comments_are_not_outdated(self) -> None:
+        self.rest_pull_request(mergeable_state="clean")
+        self.rest_fixture("repos/acme/app/pulls/7/comments?per_page=100", [
+            {"id": 5, "node_id": "RC5", "user": {"login": "reviewer"}, "body": "Split this file.",
+             "path": "app/Big.kt", "line": None, "subject_type": "file", "created_at": "2026-01-01T00:00:05Z"},
+            {"id": 6, "node_id": "RC6", "user": {"login": "reviewer"}, "body": "outdated line note",
+             "path": "app/Old.kt", "line": None, "subject_type": "line", "created_at": "2026-01-01T00:00:06Z"},
+        ])
+        reason = self.run_hook(PR_WATCH_API="rest")["reason"]
+        self.assertIn('on app/Big.kt: "Split this file."', reason)
+        self.assertNotIn("outdated line note", reason)
+
     def test_rest_merged_and_partial_failure(self) -> None:
         self.rest_pull_request()
         (self.root / "rest" / re.sub(r"[^A-Za-z0-9]", "_", "repos/acme/app/pulls/7/reviews?per_page=100")).unlink()

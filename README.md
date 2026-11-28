@@ -74,8 +74,9 @@ MCP server `https://preview.coo.ee/mcp` directly. Don't install both:
   that posts before/after previews. Your agent offers it when it is relevant.
 - **`pr-watch`** (optional, experimental): Stop and SessionStart hooks that
   tell the agent about new review comments, CI failures and merge conflicts on
-  the pull requests for its branch, for hosts with no GitHub event channel
-  (Codex, Antigravity, local Claude Code). Not Compose-specific; see
+  the pull requests for its branch, for hosts with no built-in pull request
+  watching (Codex, Antigravity). In Claude Code it is a portable fallback to
+  the built-in options. Not Compose-specific; see
   [hooks](docs/hooks.md#pr-watch).
 
 What each plugin contains, its hooks and the data it sends are in its README

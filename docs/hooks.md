@@ -90,9 +90,20 @@ its harness explicitly:
 ## PR watch
 
 The optional `pr-watch` plugin keeps an agent driving the pull requests it
-opened. Codex, Antigravity and local Claude Code have no channel that pushes
-GitHub events into a session, so the plugin checks GitHub at the points where
+opened. Codex and Antigravity have no built-in way to bring GitHub pull
+request events into a session, so the plugin checks GitHub at the points where
 the harness runs hooks: every Stop, and SessionStart (`startup|resume`).
+
+Claude Code has its own options, and in Claude Code this plugin is a portable
+fallback rather than the first choice:
+
+- cloud sessions can subscribe to a pull request and get its events pushed in;
+- the desktop app monitors a pull request's CI and can auto-fix new review
+  comments in local sessions;
+- a bare `/loop` checks review comments, failed CI and merge conflicts on a
+  schedule;
+- the Monitor tool, channels and `asyncRewake` hooks can bring events into a
+  running session, and an `asyncRewake` hook can wake an idle one.
 
 **Which pull requests.** Every open pull request whose head is the checkout's
 current branch on `origin`, when `origin` is a GitHub remote (`github.com`,
@@ -162,9 +173,9 @@ On SessionStart the same summary is added as context
 does not hear about CI that fails ten minutes after its last turn until it
 next stops or resumes. Waking an idle session needs something outside the
 harness (a scheduled `codex exec resume`, a GitHub Action), which this plugin
-does not do. Claude Code cloud sessions that subscribe to pull request
-activity get events pushed already; set `PR_WATCH=0` there to avoid hearing
-about each one twice.
+does not do. Where Claude Code already watches the pull request (a cloud
+subscription, desktop auto-fix or `/loop`), set `PR_WATCH=0` to avoid hearing
+about each event twice.
 
 The Codex and Antigravity contracts used here are the ones the
 `compose-preview` Stop gate already uses; a live block by this hook has not yet
